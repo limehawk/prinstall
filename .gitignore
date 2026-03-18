@@ -1,1 +1,53 @@
+# Build artifacts
 /target
+*.exe
+*.dll
+*.pdb
+
+# Rust
+**/*.rs.bk
+*.swp
+
+# Cargo
+# Keep Cargo.lock for binary projects (ensures reproducible builds)
+
+# IDE / Editor
+.vscode/
+.idea/
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# Environment / Secrets
+.env
+.env.*
+!.env.example
+!.env.tpl
+*.pem
+*.key
+*.cert
+
+# Local config
+.mcp.json
+CLAUDE.local.md
+
+# Superpowers working docs
+docs/superpowers/
+.superpowers/
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Windows installer staging
+staging/
