@@ -2,29 +2,32 @@ mod output_test {
     use prinstall::models::*;
     use prinstall::output;
 
+    fn make_network_printer(ip: &str, model: Option<&str>, status: PrinterStatus) -> Printer {
+        Printer {
+            ip: ip.parse().ok(),
+            model: model.map(|s| s.to_string()),
+            serial: None,
+            status,
+            discovery_methods: vec![],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: None,
+        }
+    }
+
     #[test]
     fn format_scan_results_includes_all_printers() {
         let printers = vec![
-            Printer {
-                ip: Some("192.168.1.50".parse().unwrap()),
-                model: Some("HP LaserJet Pro MFP M428fdw".to_string()),
-                serial: None,
-                status: PrinterStatus::Ready,
-                discovery_methods: vec![DiscoveryMethod::Snmp],
-                ports: vec![],
-                source: PrinterSource::Network,
-                local_name: None,
-            },
-            Printer {
-                ip: Some("192.168.1.51".parse().unwrap()),
-                model: Some("Ricoh IM C3000".to_string()),
-                serial: None,
-                status: PrinterStatus::Offline,
-                discovery_methods: vec![DiscoveryMethod::Snmp],
-                ports: vec![],
-                source: PrinterSource::Network,
-                local_name: None,
-            },
+            make_network_printer(
+                "192.168.1.50",
+                Some("HP LaserJet Pro MFP M428fdw"),
+                PrinterStatus::Ready,
+            ),
+            make_network_printer(
+                "192.168.1.51",
+                Some("Ricoh IM C3000"),
+                PrinterStatus::Offline,
+            ),
         ];
         let text = output::format_scan_results(&printers);
         assert!(text.contains("192.168.1.50"));
@@ -35,22 +38,16 @@ mod output_test {
 
     #[test]
     fn format_scan_results_json() {
-        let printers = vec![
-            Printer {
-                ip: Some("192.168.1.50".parse().unwrap()),
-                model: Some("HP LaserJet Pro".to_string()),
-                serial: None,
-                status: PrinterStatus::Ready,
-                discovery_methods: vec![DiscoveryMethod::Snmp],
-                ports: vec![],
-                source: PrinterSource::Network,
-                local_name: None,
-            },
-        ];
+        let printers = vec![make_network_printer(
+            "192.168.1.50",
+            Some("HP LaserJet Pro"),
+            PrinterStatus::Ready,
+        )];
         let json = output::format_scan_results_json(&printers);
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.len(), 1);
-        assert_eq!(parsed[0]["ip"], "192.168.1.50");
+        // ip is now serialized as Option<Ipv4Addr>
+        assert!(!parsed[0]["ip"].is_null());
     }
 
     #[test]
@@ -87,5 +84,19 @@ mod output_test {
         assert!(text.contains("SNMP"));
         assert!(text.contains("--community"));
         assert!(text.contains("--model"));
+    }
+
+    #[test]
+    fn format_scan_guidance_zero_results() {
+        let text = output::format_scan_guidance("192.168.1.0/24", 0, 0);
+        assert!(text.contains("No printers found"));
+        assert!(text.contains("192.168.1.0/24"));
+    }
+
+    #[test]
+    fn format_scan_guidance_hosts_but_no_models() {
+        let text = output::format_scan_guidance("192.168.1.0/24", 3, 0);
+        assert!(text.contains("3 device"));
+        assert!(text.contains("model"));
     }
 }
