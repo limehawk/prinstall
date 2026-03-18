@@ -6,16 +6,24 @@ mod output_test {
     fn format_scan_results_includes_all_printers() {
         let printers = vec![
             Printer {
-                ip: "192.168.1.50".to_string(),
+                ip: Some("192.168.1.50".parse().unwrap()),
                 model: Some("HP LaserJet Pro MFP M428fdw".to_string()),
                 serial: None,
                 status: PrinterStatus::Ready,
+                discovery_methods: vec![DiscoveryMethod::Snmp],
+                ports: vec![],
+                source: PrinterSource::Network,
+                local_name: None,
             },
             Printer {
-                ip: "192.168.1.51".to_string(),
+                ip: Some("192.168.1.51".parse().unwrap()),
                 model: Some("Ricoh IM C3000".to_string()),
                 serial: None,
                 status: PrinterStatus::Offline,
+                discovery_methods: vec![DiscoveryMethod::Snmp],
+                ports: vec![],
+                source: PrinterSource::Network,
+                local_name: None,
             },
         ];
         let text = output::format_scan_results(&printers);
@@ -29,10 +37,14 @@ mod output_test {
     fn format_scan_results_json() {
         let printers = vec![
             Printer {
-                ip: "192.168.1.50".to_string(),
+                ip: Some("192.168.1.50".parse().unwrap()),
                 model: Some("HP LaserJet Pro".to_string()),
                 serial: None,
                 status: PrinterStatus::Ready,
+                discovery_methods: vec![DiscoveryMethod::Snmp],
+                ports: vec![],
+                source: PrinterSource::Network,
+                local_name: None,
             },
         ];
         let json = output::format_scan_results_json(&printers);

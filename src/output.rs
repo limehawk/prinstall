@@ -6,7 +6,7 @@ pub fn format_scan_results(printers: &[Printer]) -> String {
         return "No printers found.".to_string();
     }
 
-    let ip_width = printers.iter().map(|p| p.ip.len()).max().unwrap_or(15).max(15);
+    let ip_width = printers.iter().map(|p| p.display_ip().len()).max().unwrap_or(15).max(15);
     let model_width = printers
         .iter()
         .map(|p| p.model.as_deref().unwrap_or("Unknown").len())
@@ -29,7 +29,7 @@ pub fn format_scan_results(printers: &[Printer]) -> String {
     for p in printers {
         out.push_str(&format!(
             "{:<ip_w$}  {:<model_w$}  {}\n",
-            p.ip,
+            p.display_ip(),
             p.model.as_deref().unwrap_or("Unknown"),
             p.status,
             ip_w = ip_width,
@@ -113,7 +113,7 @@ pub fn format_snmp_failure_guidance(ip: &str) -> String {
 /// Format a single printer identification.
 pub fn format_printer_id(printer: &Printer) -> String {
     let mut out = String::new();
-    out.push_str(&format!("\nPrinter at {}\n", printer.ip));
+    out.push_str(&format!("\nPrinter at {}\n", printer.display_ip()));
     out.push_str(&format!("  Model:  {}\n", printer.model.as_deref().unwrap_or("Unknown")));
     out.push_str(&format!("  Serial: {}\n", printer.serial.as_deref().unwrap_or("N/A")));
     out.push_str(&format!("  Status: {}\n", printer.status));

@@ -42,7 +42,7 @@ pub fn render_scan_view(
                 PrinterStatus::Unknown => theme::DIM,
             };
             let row = Row::new(vec![
-                Cell::from(p.ip.clone()),
+                Cell::from(p.display_ip()),
                 Cell::from(p.model.as_deref().unwrap_or("Unknown").to_string()),
                 Cell::from(p.status.to_string()).style(status_style),
             ]);

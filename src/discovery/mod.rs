@@ -31,10 +31,6 @@ pub async fn scan_subnet(hosts: Vec<Ipv4Addr>, community: &str) -> Vec<Printer> 
     }
 
     // Sort by IP numerically for consistent output
-    results.sort_by(|a, b| {
-        let a_ip: std::net::Ipv4Addr = a.ip.parse().unwrap_or(Ipv4Addr::UNSPECIFIED);
-        let b_ip: std::net::Ipv4Addr = b.ip.parse().unwrap_or(Ipv4Addr::UNSPECIFIED);
-        a_ip.cmp(&b_ip)
-    });
+    results.sort_by(|a, b| a.ip.cmp(&b.ip));
     results
 }

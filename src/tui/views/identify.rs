@@ -13,7 +13,7 @@ pub fn render_identify_view(f: &mut Frame, area: Rect, printer: &Printer) {
         ])
         .split(area);
 
-    let title = Paragraph::new(format!("Printer at {}", printer.ip)).style(theme::TITLE);
+    let title = Paragraph::new(format!("Printer at {}", printer.display_ip())).style(theme::TITLE);
     let title_block = Block::default().borders(Borders::BOTTOM);
     f.render_widget(title.block(title_block), chunks[0]);
 
