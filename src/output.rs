@@ -6,34 +6,47 @@ pub fn format_scan_results(printers: &[Printer]) -> String {
         return "No printers found.".to_string();
     }
 
-    let ip_width = printers.iter().map(|p| p.ip.len()).max().unwrap_or(15).max(15);
+    let ip_width = printers
+        .iter()
+        .map(|p| p.display_ip().len())
+        .max()
+        .unwrap_or(15)
+        .max(15);
     let model_width = printers
         .iter()
         .map(|p| p.model.as_deref().unwrap_or("Unknown").len())
         .max()
         .unwrap_or(20)
         .max(20);
+    let source_width = "Source".len().max(9);
 
     let mut out = String::new();
     out.push_str(&format!(
-        "\n{:<ip_w$}  {:<model_w$}  {}\n",
-        "IP", "Model", "Status",
-        ip_w = ip_width, model_w = model_width
+        "\n{:<ip_w$}  {:<model_w$}  {:<src_w$}  {}\n",
+        "IP", "Model", "Source", "Status",
+        ip_w = ip_width, model_w = model_width, src_w = source_width
     ));
     out.push_str(&format!(
-        "{:-<ip_w$}  {:-<model_w$}  {:-<10}\n",
-        "", "", "",
-        ip_w = ip_width, model_w = model_width
+        "{:-<ip_w$}  {:-<model_w$}  {:-<src_w$}  {:-<10}\n",
+        "", "", "", "",
+        ip_w = ip_width, model_w = model_width, src_w = source_width
     ));
 
     for p in printers {
+        let source_str = match p.source {
+            PrinterSource::Network => "Network",
+            PrinterSource::Usb => "USB",
+            PrinterSource::Installed => "Installed",
+        };
         out.push_str(&format!(
-            "{:<ip_w$}  {:<model_w$}  {}\n",
-            p.ip,
+            "{:<ip_w$}  {:<model_w$}  {:<src_w$}  {}\n",
+            p.display_ip(),
             p.model.as_deref().unwrap_or("Unknown"),
+            source_str,
             p.status,
             ip_w = ip_width,
             model_w = model_width,
+            src_w = source_width,
         ));
     }
 
@@ -110,13 +123,54 @@ pub fn format_snmp_failure_guidance(ip: &str) -> String {
     )
 }
 
+/// Context-aware guidance when scan finds no or few results.
+pub fn format_scan_guidance(subnet: &str, candidates: usize, _identified: usize) -> String {
+    if candidates == 0 {
+        format!(
+            "\nNo printers found on {subnet}.\n\n\
+             Possible causes:\n  \
+             • Wrong subnet — verify with: ipconfig /all\n  \
+             • Printers on a different VLAN\n  \
+             • Firewall blocking scan ports (9100, 631, 515)\n\n\
+             Try:\n  \
+             • Different subnet: prinstall scan <subnet>\n  \
+             • SNMP-only mode: prinstall scan {subnet} --method snmp\n"
+        )
+    } else {
+        format!(
+            "\nFound {candidates} device(s) with printer ports open, \
+             but could not identify model for any.\n\n\
+             Try:\n  \
+             • Specify model manually: prinstall drivers <IP> --model \"Model Name\"\n  \
+             • Enable SNMP on the printer via its web UI\n  \
+             • Use --verbose for diagnostic details\n"
+        )
+    }
+}
+
 /// Format a single printer identification.
 pub fn format_printer_id(printer: &Printer) -> String {
     let mut out = String::new();
-    out.push_str(&format!("\nPrinter at {}\n", printer.ip));
+    out.push_str(&format!("\nPrinter at {}\n", printer.display_ip()));
     out.push_str(&format!("  Model:  {}\n", printer.model.as_deref().unwrap_or("Unknown")));
     out.push_str(&format!("  Serial: {}\n", printer.serial.as_deref().unwrap_or("N/A")));
     out.push_str(&format!("  Status: {}\n", printer.status));
+    if !printer.ports.is_empty() {
+        let ports_str: Vec<String> = printer.ports.iter().map(|p| p.to_string()).collect();
+        out.push_str(&format!("  Ports:  {}\n", ports_str.join(", ")));
+    }
+    if !printer.discovery_methods.is_empty() {
+        let methods: Vec<&str> = printer.discovery_methods.iter().map(|m| match m {
+            crate::models::DiscoveryMethod::PortScan => "Port Scan",
+            crate::models::DiscoveryMethod::Ipp => "IPP",
+            crate::models::DiscoveryMethod::Snmp => "SNMP",
+            crate::models::DiscoveryMethod::Local => "Local",
+        }).collect();
+        out.push_str(&format!("  Found:  {}\n", methods.join(" + ")));
+    }
+    if let Some(ref name) = printer.local_name {
+        out.push_str(&format!("  Name:   {}\n", name));
+    }
     out
 }
 
