@@ -6,14 +6,14 @@ mod cli_parse_test {
     #[test]
     fn scan_no_args_parses() {
         let cli = prinstall::cli::Cli::parse_from(["prinstall", "scan"]);
-        assert!(matches!(cli.command, Some(prinstall::cli::Commands::Scan { subnet: None })));
+        assert!(matches!(cli.command, Some(prinstall::cli::Commands::Scan { subnet: None, .. })));
     }
 
     #[test]
     fn scan_with_subnet_parses() {
         let cli = prinstall::cli::Cli::parse_from(["prinstall", "scan", "192.168.1.0/24"]);
         match cli.command {
-            Some(prinstall::cli::Commands::Scan { subnet: Some(s) }) => {
+            Some(prinstall::cli::Commands::Scan { subnet: Some(s), .. }) => {
                 assert_eq!(s, "192.168.1.0/24");
             }
             _ => panic!("expected Scan with subnet"),
@@ -52,11 +52,12 @@ mod cli_parse_test {
             "--model", "HP LaserJet Pro MFP M428fdw",
         ]);
         match cli.command {
-            Some(prinstall::cli::Commands::Install { ip, driver, name, model }) => {
+            Some(prinstall::cli::Commands::Install { ip, driver, name, model, usb }) => {
                 assert_eq!(ip, "192.168.1.100");
                 assert_eq!(driver.unwrap(), "HP Universal Print Driver PCL6");
                 assert_eq!(name.unwrap(), "Front Desk Printer");
                 assert_eq!(model.unwrap(), "HP LaserJet Pro MFP M428fdw");
+                assert!(!usb);
             }
             _ => panic!("expected Install"),
         }
@@ -77,5 +78,44 @@ mod cli_parse_test {
     fn no_subcommand_gives_none() {
         let cli = prinstall::cli::Cli::parse_from(["prinstall"]);
         assert!(cli.command.is_none());
+    }
+
+    #[test]
+    fn scan_with_method_flag() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "scan", "--method", "snmp"]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Scan { method, .. }) => {
+                assert_eq!(method, Some("snmp".to_string()));
+            }
+            _ => panic!("expected Scan"),
+        }
+    }
+
+    #[test]
+    fn scan_with_timeout_flag() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "scan", "--timeout", "200"]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Scan { timeout, .. }) => {
+                assert_eq!(timeout, Some(200));
+            }
+            _ => panic!("expected Scan"),
+        }
+    }
+
+    #[test]
+    fn list_command_parses() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "list"]);
+        assert!(matches!(cli.command, Some(prinstall::cli::Commands::List)));
+    }
+
+    #[test]
+    fn install_with_usb_flag() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "install", "192.168.1.100", "--usb"]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Install { usb, .. }) => {
+                assert!(usb);
+            }
+            _ => panic!("expected Install"),
+        }
     }
 }
