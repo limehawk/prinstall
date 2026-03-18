@@ -90,7 +90,7 @@ async fn cmd_id(ip: &str, cli: &cli::Cli) {
         }
     };
 
-    match discovery::snmp::identify_printer(addr, &cli.community).await {
+    match discovery::snmp::identify_printer(addr, &cli.community, cli.verbose).await {
         Some(printer) => {
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&printer).unwrap());
@@ -151,7 +151,7 @@ async fn cmd_install(
     let model = if let Some(m) = model_override {
         m.to_string()
     } else {
-        match discovery::snmp::identify_printer(addr, &cli.community).await {
+        match discovery::snmp::identify_printer(addr, &cli.community, cli.verbose).await {
             Some(p) => p.model.unwrap_or_else(|| {
                 eprintln!("{}", output::format_snmp_failure_guidance(ip));
                 std::process::exit(1);
@@ -251,7 +251,7 @@ async fn resolve_model(ip: &str, cli: &cli::Cli) -> String {
         }
     };
 
-    match discovery::snmp::identify_printer(addr, &cli.community).await {
+    match discovery::snmp::identify_printer(addr, &cli.community, cli.verbose).await {
         Some(p) => p.model.unwrap_or_else(|| {
             eprintln!("{}", output::format_snmp_failure_guidance(ip));
             std::process::exit(1);

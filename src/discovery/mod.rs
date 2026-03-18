@@ -20,7 +20,7 @@ pub async fn scan_subnet(hosts: Vec<Ipv4Addr>, community: &str) -> Vec<Printer> 
         let comm = community.clone();
         let handle = tokio::spawn(async move {
             let _permit = sem.acquire().await.unwrap();
-            snmp::identify_printer(ip, &comm).await
+            snmp::identify_printer(ip, &comm, false).await
         });
         handles.push(handle);
     }

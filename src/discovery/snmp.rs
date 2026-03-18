@@ -16,20 +16,34 @@ const OID_PRINTER_STATUS: &str = "1.3.6.1.2.1.25.3.5.1.1.1";
 const SNMP_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Query a single printer via SNMP and return its details.
-pub async fn identify_printer(ip: Ipv4Addr, community: &str) -> Option<Printer> {
+pub async fn identify_printer(ip: Ipv4Addr, community: &str, verbose: bool) -> Option<Printer> {
     let addr = format!("{ip}:161").parse().ok()?;
-    let client = Snmp2cClient::new(addr, community.as_bytes().to_vec(), None, Some(SNMP_TIMEOUT))
-        .await
-        .ok()?;
+    let bind_addr: std::net::SocketAddr = "0.0.0.0:0".parse().unwrap();
+    let client = match Snmp2cClient::new(addr, community.as_bytes().to_vec(), Some(bind_addr), Some(SNMP_TIMEOUT)).await {
+        Ok(c) => c,
+        Err(e) => {
+            if verbose {
+                eprintln!("[scan] {ip}: SNMP client error: {e}");
+            }
+            return None;
+        }
+    };
 
     let model = match snmp_get_string(&client, OID_DEVICE_DESCR).await {
         Some(m) => Some(m),
         None => snmp_get_string(&client, OID_SYS_DESCR).await,
     };
 
-    // If we can't even get a model string, the device isn't a printer
-    // or SNMP is misconfigured
-    model.as_ref()?;
+    if model.is_none() {
+        if verbose {
+            eprintln!("[scan] {ip}: SNMP → no model string");
+        }
+        return None;
+    }
+
+    if verbose {
+        eprintln!("[scan] {ip}: SNMP → model {:?}", model.as_deref().unwrap_or("?"));
+    }
 
     let serial = snmp_get_string(&client, OID_SERIAL).await;
     let status = snmp_get_printer_status(&client).await;
