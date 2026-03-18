@@ -64,7 +64,13 @@ async fn cmd_scan(subnet: Option<String>, cli: &cli::Cli) {
         eprintln!("[scan] Scanning {} hosts on {cidr}...", hosts.len());
     }
 
-    let printers = discovery::scan_subnet(hosts, &cli.community).await;
+    let printers = discovery::scan_subnet(
+        hosts,
+        &cli.community,
+        &discovery::ScanMethod::All,
+        std::time::Duration::from_millis(100),
+        cli.verbose,
+    ).await;
 
     if cli.json {
         println!("{}", output::format_scan_results_json(&printers));

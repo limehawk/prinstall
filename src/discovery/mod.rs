@@ -5,10 +5,38 @@ pub mod snmp;
 pub mod subnet;
 
 use std::net::Ipv4Addr;
-use crate::models::Printer;
+use std::time::Duration;
+use crate::models::{DiscoveryMethod, Printer, PrinterSource};
 
-/// Scan a list of IPs for printers. Max 64 concurrent probes.
-pub async fn scan_subnet(hosts: Vec<Ipv4Addr>, community: &str) -> Vec<Printer> {
+const DEFAULT_CONCURRENCY: usize = 128;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScanMethod {
+    All,
+    Snmp,
+    Port,
+}
+
+/// Multi-method scan pipeline.
+pub async fn scan_subnet(
+    hosts: Vec<Ipv4Addr>,
+    community: &str,
+    method: &ScanMethod,
+    timeout: Duration,
+    verbose: bool,
+) -> Vec<Printer> {
+    let mut printers = match method {
+        ScanMethod::Snmp => scan_snmp_only(hosts, community, verbose).await,
+        ScanMethod::Port => scan_port_only(hosts, timeout, verbose).await,
+        ScanMethod::All => scan_all(hosts, community, timeout, verbose).await,
+    };
+
+    printers.sort_by(|a, b| a.ip.cmp(&b.ip));
+    printers
+}
+
+/// SNMP-only scan (legacy behavior).
+async fn scan_snmp_only(hosts: Vec<Ipv4Addr>, community: &str, verbose: bool) -> Vec<Printer> {
     use tokio::sync::Semaphore;
     use std::sync::Arc;
 
@@ -21,7 +49,7 @@ pub async fn scan_subnet(hosts: Vec<Ipv4Addr>, community: &str) -> Vec<Printer> 
         let comm = community.clone();
         let handle = tokio::spawn(async move {
             let _permit = sem.acquire().await.unwrap();
-            snmp::identify_printer(ip, &comm, false).await
+            snmp::identify_printer(ip, &comm, verbose).await
         });
         handles.push(handle);
     }
@@ -32,8 +60,118 @@ pub async fn scan_subnet(hosts: Vec<Ipv4Addr>, community: &str) -> Vec<Printer> 
             results.push(printer);
         }
     }
-
-    // Sort by IP numerically for consistent output
-    results.sort_by(|a, b| a.ip.cmp(&b.ip));
     results
+}
+
+/// Port-scan only (no identification).
+async fn scan_port_only(hosts: Vec<Ipv4Addr>, timeout: Duration, verbose: bool) -> Vec<Printer> {
+    let candidates = port_scan::scan_ports(hosts, timeout, DEFAULT_CONCURRENCY, verbose).await;
+    candidates
+        .into_iter()
+        .map(|c| Printer {
+            ip: Some(c.ip),
+            model: None,
+            serial: None,
+            status: crate::models::PrinterStatus::Unknown,
+            discovery_methods: vec![DiscoveryMethod::PortScan],
+            ports: c.open_ports,
+            source: PrinterSource::Network,
+            local_name: None,
+        })
+        .collect()
+}
+
+/// Full multi-method scan: port probe → IPP → SNMP.
+async fn scan_all(
+    hosts: Vec<Ipv4Addr>,
+    community: &str,
+    timeout: Duration,
+    verbose: bool,
+) -> Vec<Printer> {
+    // Phase 1: Port scan
+    let candidates = port_scan::scan_ports(hosts, timeout, DEFAULT_CONCURRENCY, verbose).await;
+
+    if verbose {
+        eprintln!("[scan] Port scan found {} candidates", candidates.len());
+    }
+
+    // Phase 2: Identify each candidate via IPP + SNMP
+    use tokio::sync::Semaphore;
+    use std::sync::Arc;
+
+    let semaphore = Arc::new(Semaphore::new(32));
+    let mut handles = Vec::new();
+    let community = community.to_string();
+
+    for candidate in candidates {
+        let sem = semaphore.clone();
+        let comm = community.clone();
+        let handle = tokio::spawn(async move {
+            let _permit = sem.acquire().await.unwrap();
+            let ip = candidate.ip;
+            let mut methods = vec![DiscoveryMethod::PortScan];
+            let mut model: Option<String> = None;
+            let mut serial: Option<String> = None;
+            let mut status = crate::models::PrinterStatus::Unknown;
+
+            // Try IPP first
+            if candidate.open_ports.contains(&631)
+                && let Some(ipp_model) = ipp::identify_printer_ipp(ip, verbose).await
+            {
+                model = Some(ipp_model);
+                methods.push(DiscoveryMethod::Ipp);
+            }
+
+            // Try SNMP for enrichment
+            if let Some(snmp_printer) = snmp::identify_printer(ip, &comm, verbose).await {
+                methods.push(DiscoveryMethod::Snmp);
+                if model.is_none() {
+                    model = snmp_printer.model;
+                }
+                serial = snmp_printer.serial;
+                status = snmp_printer.status;
+            }
+
+            Printer {
+                ip: Some(ip),
+                model,
+                serial,
+                status,
+                discovery_methods: methods,
+                ports: candidate.open_ports,
+                source: PrinterSource::Network,
+                local_name: None,
+            }
+        });
+        handles.push(handle);
+    }
+
+    let mut results = Vec::new();
+    for handle in handles {
+        if let Ok(printer) = handle.await {
+            results.push(printer);
+        }
+    }
+    results
+}
+
+/// Scan network + enumerate local printers, deduplicate.
+pub async fn full_discovery(
+    hosts: Vec<Ipv4Addr>,
+    community: &str,
+    method: &ScanMethod,
+    timeout: Duration,
+    verbose: bool,
+) -> Vec<Printer> {
+    let mut network = scan_subnet(hosts, community, method, timeout, verbose).await;
+
+    let local = local::list_local_printers(verbose);
+    let unique_local = local::deduplicate(local, &network);
+
+    if verbose && !unique_local.is_empty() {
+        eprintln!("[scan] Found {} local/USB printers", unique_local.len());
+    }
+
+    network.extend(unique_local);
+    network
 }
