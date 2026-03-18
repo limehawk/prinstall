@@ -122,6 +122,16 @@ pub fn add_printer(name: &str, driver_name: &str, port_name: &str, verbose: bool
     run_ps(&cmd, verbose)
 }
 
+/// Update an existing printer's driver via Set-Printer.
+pub fn set_printer_driver(printer_name: &str, driver_name: &str, verbose: bool) -> PsResult {
+    let cmd = format!(
+        "Set-Printer -Name '{}' -DriverName '{}'",
+        escape_ps_string(printer_name),
+        escape_ps_string(driver_name),
+    );
+    run_ps(&cmd, verbose)
+}
+
 /// List drivers from the local driver store via pnputil.
 /// Returns a list of driver names for print-class drivers.
 pub fn list_local_drivers(verbose: bool) -> Vec<String> {
