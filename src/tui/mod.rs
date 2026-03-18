@@ -451,23 +451,73 @@ impl App {
         let (list_rect, detail_rect_opt) = layout::panel_layout(panels_rect, mode);
 
         self.render_header(f, header_rect);
-        self.render_printer_list(f, list_rect);
+
+        views::scan::render_printer_list(
+            f,
+            list_rect,
+            &self.printers,
+            self.scanning,
+            &mut self.printer_list_state,
+            self.focused_panel == Panel::PrinterList,
+        );
+
         if let Some(detail_rect) = detail_rect_opt {
-            self.render_detail(f, detail_rect);
+            let focused_detail = self.focused_panel == Panel::Detail;
+            match self.detail_view.clone() {
+                DetailView::Installing { step, error } => {
+                    let (ip, driver) = self.selected_printer_ip_and_driver();
+                    views::install::render_install_progress(
+                        f,
+                        detail_rect,
+                        step,
+                        error.as_deref(),
+                        &ip,
+                        &driver,
+                        false,
+                        None,
+                    );
+                }
+                DetailView::InstallComplete(ref result) => {
+                    let (ip, driver) = self.selected_printer_ip_and_driver();
+                    views::install::render_install_progress(
+                        f,
+                        detail_rect,
+                        3,
+                        None,
+                        &ip,
+                        &driver,
+                        true,
+                        Some(result),
+                    );
+                }
+                DetailView::PrinterInfo => {
+                    let selected_printer = self
+                        .printer_list_state
+                        .selected()
+                        .and_then(|i| self.printers.get(i));
+                    views::drivers::render_detail_pane(
+                        f,
+                        detail_rect,
+                        selected_printer,
+                        self.driver_results.as_ref(),
+                        &mut self.driver_list_state,
+                        focused_detail,
+                        false,
+                    );
+                }
+            }
         }
+
         self.render_status_bar(f, status_rect);
 
         if self.show_help {
-            self.render_help_overlay(f, area);
+            views::help::render_help_overlay(f, area);
         }
     }
 
     fn render_header(&self, f: &mut Frame, area: Rect) {
         let subnet = self.subnet.clone();
-        let left = Span::styled(
-            format!(" Subnet: {subnet}"),
-            theme::HEADER,
-        );
+        let left = Span::styled(format!(" Subnet: {subnet}"), theme::HEADER);
         let right = Span::styled(" ?:help ", theme::HELP_TEXT);
         let spacer_width = area
             .width
@@ -478,274 +528,6 @@ impl App {
             right,
         ]);
         f.render_widget(Paragraph::new(line), area);
-    }
-
-    fn render_printer_list(&mut self, f: &mut Frame, area: Rect) {
-        let focused = self.focused_panel == Panel::PrinterList;
-        let border_style = if focused {
-            theme::FOCUSED_BORDER
-        } else {
-            theme::UNFOCUSED_BORDER
-        };
-
-        let title = if self.scanning {
-            " Printers (scanning...) "
-        } else {
-            " Printers "
-        };
-
-        let items: Vec<ListItem> = self
-            .printers
-            .iter()
-            .map(|p| {
-                let status_indicator = match p.status {
-                    PrinterStatus::Ready => Span::styled("● ", theme::STATUS_READY),
-                    PrinterStatus::Error => Span::styled("✗ ", theme::STATUS_ERROR),
-                    PrinterStatus::Offline => Span::styled("○ ", theme::STATUS_OFFLINE),
-                    PrinterStatus::Unknown => Span::styled("◆ ", theme::DIM),
-                };
-                let ip = Span::raw(p.display_ip());
-                let model = Span::styled(
-                    format!(
-                        "  {}",
-                        p.model.as_deref().unwrap_or("Unknown")
-                    ),
-                    theme::DIM,
-                );
-                ListItem::new(Line::from(vec![status_indicator, ip, model]))
-            })
-            .collect();
-
-        let list = List::new(items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(title)
-                    .border_style(border_style),
-            )
-            .highlight_style(theme::SELECTED)
-            .highlight_symbol("▶ ");
-
-        f.render_stateful_widget(list, area, &mut self.printer_list_state);
-    }
-
-    fn render_detail(&mut self, f: &mut Frame, area: Rect) {
-        let focused = self.focused_panel == Panel::Detail;
-        let border_style = if focused {
-            theme::FOCUSED_BORDER
-        } else {
-            theme::UNFOCUSED_BORDER
-        };
-
-        match &self.detail_view.clone() {
-            DetailView::PrinterInfo => {
-                self.render_detail_printer_info(f, area, border_style);
-            }
-            DetailView::Installing { step, error } => {
-                self.render_detail_installing(f, area, border_style, *step, error.clone());
-            }
-            DetailView::InstallComplete(result) => {
-                self.render_detail_install_complete(f, area, border_style, result.clone());
-            }
-        }
-    }
-
-    fn render_detail_printer_info(&mut self, f: &mut Frame, area: Rect, border_style: Style) {
-        // Split detail area: top = printer info, bottom = driver list
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(6), Constraint::Min(3)])
-            .split(area);
-
-        // Printer info panel
-        let printer = self
-            .printer_list_state
-            .selected()
-            .and_then(|i| self.printers.get(i));
-
-        let info_lines: Vec<Line> = if let Some(p) = printer {
-            vec![
-                Line::from(vec![
-                    Span::styled(" IP:     ", theme::HEADER),
-                    Span::raw(p.display_ip()),
-                ]),
-                Line::from(vec![
-                    Span::styled(" Model:  ", theme::HEADER),
-                    Span::raw(p.model.as_deref().unwrap_or("Unknown")),
-                ]),
-                Line::from(vec![
-                    Span::styled(" Serial: ", theme::HEADER),
-                    Span::raw(p.serial.as_deref().unwrap_or("N/A")),
-                ]),
-                Line::from(vec![
-                    Span::styled(" Status: ", theme::HEADER),
-                    Span::raw(p.status.to_string()),
-                ]),
-            ]
-        } else {
-            vec![Line::from(Span::styled(
-                " No printer selected",
-                theme::DIM,
-            ))]
-        };
-
-        f.render_widget(
-            Paragraph::new(info_lines).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Printer Info ")
-                    .border_style(border_style),
-            ),
-            chunks[0],
-        );
-
-        // Driver list panel
-        self.render_driver_list(f, chunks[1], border_style);
-    }
-
-    fn render_driver_list(&mut self, f: &mut Frame, area: Rect, border_style: Style) {
-        let mut items: Vec<ListItem> = Vec::new();
-
-        if let Some(ref results) = self.driver_results.clone() {
-            if !results.matched.is_empty() {
-                items.push(ListItem::new(Line::from(Span::styled(
-                    "── Matched ──",
-                    theme::SECTION_HEADER,
-                ))));
-                for dm in &results.matched {
-                    let badge = match dm.confidence {
-                        MatchConfidence::Exact => Span::styled("★ ", theme::EXACT_BADGE),
-                        MatchConfidence::Fuzzy => Span::styled("● ", theme::FUZZY_BADGE),
-                        MatchConfidence::Universal => Span::styled("○ ", theme::DIM),
-                    };
-                    items.push(ListItem::new(Line::from(vec![
-                        Span::raw("  "),
-                        badge,
-                        Span::raw(dm.name.clone()),
-                    ])));
-                }
-            }
-
-            if !results.universal.is_empty() {
-                items.push(ListItem::new(Line::from(Span::styled(
-                    "── Universal ──",
-                    theme::SECTION_HEADER,
-                ))));
-                for dm in &results.universal {
-                    items.push(ListItem::new(Line::from(vec![
-                        Span::raw("  ○ "),
-                        Span::raw(dm.name.clone()),
-                    ])));
-                }
-            }
-
-            if items.is_empty() {
-                items.push(ListItem::new(Span::styled(
-                    " No drivers found",
-                    theme::DIM,
-                )));
-            }
-        } else {
-            items.push(ListItem::new(Span::styled(
-                " Loading drivers...",
-                theme::DIM,
-            )));
-        }
-
-        let list = List::new(items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Drivers ")
-                    .border_style(border_style),
-            )
-            .highlight_style(theme::SELECTED)
-            .highlight_symbol("▶ ");
-
-        f.render_stateful_widget(list, area, &mut self.driver_list_state);
-    }
-
-    fn render_detail_installing(
-        &self,
-        f: &mut Frame,
-        area: Rect,
-        border_style: Style,
-        step: usize,
-        error: Option<String>,
-    ) {
-        let check = |s: usize| {
-            if s < step {
-                "✓"
-            } else if s == step {
-                "→"
-            } else {
-                " "
-            }
-        };
-
-        let mut lines = vec![
-            Line::from(format!("  {} Creating TCP/IP port...", check(0))),
-            Line::from(format!("  {} Installing driver...", check(1))),
-            Line::from(format!("  {} Adding printer queue...", check(2))),
-        ];
-
-        if let Some(ref err) = error {
-            lines.push(Line::from(Span::styled(
-                format!("\n  ✗ Error: {err}"),
-                theme::STATUS_ERROR_MSG,
-            )));
-        }
-
-        f.render_widget(
-            Paragraph::new(lines).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Installing... ")
-                    .border_style(border_style),
-            ),
-            area,
-        );
-    }
-
-    fn render_detail_install_complete(
-        &self,
-        f: &mut Frame,
-        area: Rect,
-        border_style: Style,
-        result: InstallResult,
-    ) {
-        let lines = if result.success {
-            vec![
-                Line::from("  ✓ Creating TCP/IP port"),
-                Line::from("  ✓ Installing driver"),
-                Line::from("  ✓ Adding printer queue"),
-                Line::from(""),
-                Line::from(Span::styled(
-                    format!("  Printer '{}' is ready!", result.printer_name),
-                    theme::STATUS_SUCCESS,
-                )),
-            ]
-        } else {
-            let err = result.error.as_deref().unwrap_or("unknown error");
-            vec![
-                Line::from("  ✓ Creating TCP/IP port"),
-                Line::from("  ✓ Installing driver"),
-                Line::from(Span::styled(
-                    format!("  ✗ Failed: {err}"),
-                    theme::STATUS_ERROR_MSG,
-                )),
-            ]
-        };
-
-        f.render_widget(
-            Paragraph::new(lines).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Install Complete ")
-                    .border_style(border_style),
-            ),
-            area,
-        );
     }
 
     fn render_status_bar(&self, f: &mut Frame, area: Rect) {
@@ -791,72 +573,29 @@ impl App {
         f.render_widget(Paragraph::new(hints), area);
     }
 
-    fn render_help_overlay(&self, f: &mut Frame, area: Rect) {
-        // Center a fixed-size popup
-        let popup_width = 50u16.min(area.width);
-        let popup_height = 18u16.min(area.height);
-        let x = (area.width.saturating_sub(popup_width)) / 2;
-        let y = (area.height.saturating_sub(popup_height)) / 2;
-        let popup_rect = Rect::new(x, y, popup_width, popup_height);
+    /// Returns the IP string and driver name for the currently selected printer/driver.
+    /// Used to populate install progress views.
+    fn selected_printer_ip_and_driver(&self) -> (String, String) {
+        let ip = self
+            .printer_list_state
+            .selected()
+            .and_then(|i| self.printers.get(i))
+            .map(|p| p.display_ip())
+            .unwrap_or_default();
 
-        // Clear background
-        f.render_widget(Clear, popup_rect);
+        let driver = self
+            .driver_results
+            .as_ref()
+            .and_then(|r| {
+                let idx = self.driver_list_state.selected().unwrap_or(0);
+                r.matched
+                    .iter()
+                    .chain(r.universal.iter())
+                    .nth(idx)
+                    .map(|dm| dm.name.clone())
+            })
+            .unwrap_or_default();
 
-        let help_text = vec![
-            Line::from(Span::styled(" Navigation", theme::SECTION_HEADER)),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("  j/k ↑↓  ", theme::HELP_KEY),
-                Span::styled("Move up/down in list", theme::HELP_TEXT),
-            ]),
-            Line::from(vec![
-                Span::styled("  g/G     ", theme::HELP_KEY),
-                Span::styled("Jump to top/bottom", theme::HELP_TEXT),
-            ]),
-            Line::from(vec![
-                Span::styled("  h/l Tab ", theme::HELP_KEY),
-                Span::styled("Switch panel focus", theme::HELP_TEXT),
-            ]),
-            Line::from(vec![
-                Span::styled("  Enter   ", theme::HELP_KEY),
-                Span::styled("Select / confirm", theme::HELP_TEXT),
-            ]),
-            Line::from(vec![
-                Span::styled("  Esc     ", theme::HELP_KEY),
-                Span::styled("Back / focus printer list", theme::HELP_TEXT),
-            ]),
-            Line::from(""),
-            Line::from(Span::styled(" Actions", theme::SECTION_HEADER)),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("  s       ", theme::HELP_KEY),
-                Span::styled("Rescan network", theme::HELP_TEXT),
-            ]),
-            Line::from(vec![
-                Span::styled("  Enter   ", theme::HELP_KEY),
-                Span::styled("(detail panel) Install driver", theme::HELP_TEXT),
-            ]),
-            Line::from(""),
-            Line::from(Span::styled(" Other", theme::SECTION_HEADER)),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("  ?       ", theme::HELP_KEY),
-                Span::styled("Toggle this help", theme::HELP_TEXT),
-            ]),
-            Line::from(vec![
-                Span::styled("  q       ", theme::HELP_KEY),
-                Span::styled("Quit", theme::HELP_TEXT),
-            ]),
-        ];
-
-        f.render_widget(
-            Paragraph::new(help_text).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Help ")
-                    .border_style(theme::FOCUSED_BORDER),
-            ),
-            popup_rect,
-        );
+        (ip, driver)
     }
 }

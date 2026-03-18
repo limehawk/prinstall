@@ -1,4 +1,4 @@
 pub mod drivers;
-pub mod identify;
+pub mod help;
 pub mod install;
 pub mod scan;

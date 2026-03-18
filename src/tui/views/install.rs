@@ -1,75 +1,90 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
+
 use crate::models::InstallResult;
 use crate::tui::theme;
 
-pub enum InstallState {
-    CreatingPort,
-    InstallingDriver,
-    AddingPrinter,
-    Complete(InstallResult),
-}
-
-pub fn render_install_view(
+/// Render install progress in the detail pane.
+///
+/// `step` — 0=port, 1=driver, 2=printer, 3=all done (used only when `complete` is true).
+/// `error` — present when current step failed.
+/// `complete` — true when install has finished (success or failure).
+/// `result` — the final InstallResult, present only when `complete` is true.
+#[allow(clippy::too_many_arguments)]
+pub fn render_install_progress(
     f: &mut Frame,
     area: Rect,
-    state: &InstallState,
+    step: usize,
+    error: Option<&str>,
     ip: &str,
     driver: &str,
+    complete: bool,
+    result: Option<&InstallResult>,
 ) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),  // title
-            Constraint::Min(8),    // progress
-            Constraint::Length(2),  // help bar
-        ])
-        .split(area);
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .title(" Install ")
+        .border_style(theme::FOCUSED_BORDER);
 
-    let title = Paragraph::new(format!("Installing printer at {ip}")).style(theme::TITLE);
-    let title_block = Block::default().borders(Borders::BOTTOM);
-    f.render_widget(title.block(title_block), chunks[0]);
-
-    let failure_msg;
-    let (step1, step2, step3, result_text) = match state {
-        InstallState::CreatingPort => ("→ Creating TCP/IP port...", "  Installing driver...", "  Adding printer...", None),
-        InstallState::InstallingDriver => ("✓ Port created", "→ Installing driver...", "  Adding printer...", None),
-        InstallState::AddingPrinter => ("✓ Port created", "✓ Driver installed", "→ Adding printer...", None),
-        InstallState::Complete(result) => {
-            if result.success {
-                ("✓ Port created", "✓ Driver installed", "✓ Printer added", Some(format!("\n  Printer '{}' is ready!", result.printer_name)))
+    // Step symbol helpers
+    let done = |s: usize| -> Span<'static> {
+        if complete || s < step {
+            Span::styled("✓ ", theme::STATUS_SUCCESS)
+        } else if s == step {
+            if error.is_some() {
+                Span::styled("✗ ", theme::STATUS_ERROR_MSG)
             } else {
-                let err = result.error.as_deref().unwrap_or("Unknown error");
-                failure_msg = format!("✗ Failed: {err}");
-                ("✓ Port created", "✓ Driver installed", failure_msg.as_str(), None)
+                Span::styled("→ ", theme::STATUS_INFO)
             }
+        } else {
+            Span::styled("· ", theme::DIM)
         }
     };
 
-    let mut lines = vec![
-        Line::from(format!("  {step1}")),
-        Line::from(format!("  {step2}")),
-        Line::from(format!("  {step3}")),
-        Line::from(format!("  Driver: {driver}")),
+    let step_label = |s: usize, label: &'static str| -> Line<'static> {
+        Line::from(vec![Span::raw("  "), done(s), Span::raw(label)])
+    };
+
+    let mut lines: Vec<Line> = vec![
+        Line::from(vec![
+            Span::styled("  Installing: ", theme::HEADER),
+            Span::raw(ip.to_string()),
+        ]),
+        Line::from(vec![
+            Span::styled("  Driver:     ", theme::HEADER),
+            Span::raw(driver.to_string()),
+        ]),
+        Line::from(""),
+        step_label(0, "Creating TCP/IP port"),
+        step_label(1, "Installing driver"),
+        step_label(2, "Adding printer"),
     ];
-    if let Some(rt) = result_text {
-        lines.push(Line::from(rt));
+
+    if let Some(err) = error {
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            format!("  Error: {err}"),
+            theme::STATUS_ERROR_MSG,
+        )));
     }
 
-    let progress = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(" Progress "));
-    f.render_widget(progress, chunks[1]);
+    if complete {
+        lines.push(Line::from(""));
+        if let Some(r) = result {
+            if r.success {
+                lines.push(Line::from(Span::styled(
+                    format!("  '{}' is ready!", r.printer_name),
+                    theme::STATUS_SUCCESS,
+                )));
+            } else {
+                let err = r.error.as_deref().unwrap_or("unknown error");
+                lines.push(Line::from(Span::styled(
+                    format!("  Failed: {err}"),
+                    theme::STATUS_ERROR_MSG,
+                )));
+            }
+        }
+    }
 
-    let help = match state {
-        InstallState::Complete(_) => Line::from(vec![
-            Span::styled("Esc", theme::HELP_KEY),
-            Span::styled(" back  ", theme::HELP_TEXT),
-            Span::styled("q", theme::HELP_KEY),
-            Span::styled(" quit", theme::HELP_TEXT),
-        ]),
-        _ => Line::from(vec![
-            Span::styled("Installing...", theme::DIM),
-        ]),
-    };
-    f.render_widget(Paragraph::new(help), chunks[2]);
+    f.render_widget(Paragraph::new(lines).block(block), area);
 }
