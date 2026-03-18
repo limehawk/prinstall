@@ -191,7 +191,13 @@ impl App {
         tokio::spawn(async move {
             match discovery::subnet::parse_cidr("192.168.1.0/24") {
                 Ok(hosts) => {
-                    let printers = discovery::scan_subnet(hosts, &community).await;
+                    let printers = discovery::scan_subnet(
+                        hosts,
+                        &community,
+                        &discovery::ScanMethod::All,
+                        std::time::Duration::from_millis(100),
+                        false,
+                    ).await;
                     let _ = tx.send(Message::ScanComplete(printers));
                 }
                 Err(e) => { let _ = tx.send(Message::Error(e)); }

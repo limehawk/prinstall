@@ -42,23 +42,26 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Scan the local network for printers via SNMP
+    /// Scan the local network for printers via multiple discovery methods
     ///
-    /// Sends SNMP queries to every IP on the subnet to discover printers.
+    /// Probes every IP on the subnet using SNMP, TCP port checks, or both.
     /// Each discovered printer shows its IP, model, and status.
     ///
     /// Without a subnet argument, scans the local machine's subnet.
     /// Subnets larger than /24 require --force.
     #[command(
         after_help = "EXAMPLES:\n  \
-            prinstall scan                     Scan local subnet\n  \
-            prinstall scan 192.168.1.0/24      Scan specific subnet\n  \
+            prinstall scan                          Scan local subnet (all methods)\n  \
+            prinstall scan 192.168.1.0/24           Scan specific subnet\n  \
+            prinstall scan --method snmp            SNMP-only scan\n  \
+            prinstall scan --method port            TCP port-check scan\n  \
+            prinstall scan --timeout 200            200ms per-host timeout\n  \
             prinstall scan 10.0.0.0/24 --community private\n\n\
             HOW IT WORKS:\n  \
-            Sends SNMP v2c GET requests to each IP on UDP port 161.\n  \
-            Queries OID 1.3.6.1.2.1.25.3.2.1.3 (device description) to\n  \
-            identify printer make and model. Max 64 concurrent probes,\n  \
-            2-second timeout per host.\n\n\
+            snmp: Sends SNMP v2c GET requests to each IP on UDP port 161.\n  \
+            port: Checks TCP port 9100 (raw print) for responsive hosts.\n  \
+            all:  Runs both methods and merges results.\n  \
+            Max 64 concurrent probes per method.\n\n\
             TROUBLESHOOTING:\n  \
             No results? Common causes:\n  \
             • SNMP disabled on printer — enable via printer web UI\n  \
@@ -68,6 +71,14 @@ pub enum Commands {
     Scan {
         /// Subnet in CIDR notation (e.g., 192.168.1.0/24)
         subnet: Option<String>,
+
+        /// Discovery method: all (default), snmp, port
+        #[arg(long)]
+        method: Option<String>,
+
+        /// Per-host timeout in milliseconds [default: 100]
+        #[arg(long)]
+        timeout: Option<u64>,
     },
 
     /// Identify a specific printer by IP address
@@ -154,5 +165,20 @@ pub enum Commands {
         /// Manually specify printer model (bypass SNMP discovery)
         #[arg(long)]
         model: Option<String>,
+
+        /// USB printer driver-only mode (no port/queue creation)
+        #[arg(long)]
+        usb: bool,
     },
+
+    /// List locally installed printers (USB, network, virtual)
+    ///
+    /// Shows printers Windows already knows about via Get-Printer.
+    /// Useful in RMM scripts to check what's installed.
+    #[command(
+        after_help = "EXAMPLES:\n  \
+            prinstall list                  Show all installed printers\n  \
+            prinstall list --json           Output as JSON"
+    )]
+    List,
 }

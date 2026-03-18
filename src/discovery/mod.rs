@@ -1,11 +1,29 @@
+pub mod local;
 pub mod snmp;
 pub mod subnet;
 
 use std::net::Ipv4Addr;
 use crate::models::Printer;
 
+/// Discovery method for subnet scanning.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScanMethod {
+    /// Run all discovery methods and merge results.
+    All,
+    /// SNMP-only discovery via UDP port 161.
+    Snmp,
+    /// TCP port-check discovery (port 9100).
+    Port,
+}
+
 /// Scan a list of IPs for printers. Max 64 concurrent probes.
-pub async fn scan_subnet(hosts: Vec<Ipv4Addr>, community: &str) -> Vec<Printer> {
+pub async fn scan_subnet(
+    hosts: Vec<Ipv4Addr>,
+    community: &str,
+    _method: &ScanMethod,
+    _timeout: std::time::Duration,
+    _verbose: bool,
+) -> Vec<Printer> {
     use tokio::sync::Semaphore;
     use std::sync::Arc;
 

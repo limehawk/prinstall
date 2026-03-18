@@ -2,6 +2,42 @@ pub mod powershell;
 
 use crate::models::InstallResult;
 
+/// Install driver only for a USB printer (no port or queue creation).
+pub fn update_printer_driver(
+    printer_name: &str,
+    driver_name: &str,
+    model: &str,
+    verbose: bool,
+) -> InstallResult {
+    if verbose {
+        eprintln!(
+            "[install] USB mode: installing driver '{}' for printer '{}'",
+            driver_name, printer_name
+        );
+    }
+
+    let driver_result = powershell::install_driver(driver_name, verbose);
+    if !driver_result.success {
+        return InstallResult {
+            success: false,
+            printer_name: printer_name.to_string(),
+            driver_name: driver_name.to_string(),
+            port_name: String::new(),
+            error: Some(format!("Failed to install driver: {}", driver_result.stderr)),
+        };
+    }
+
+    crate::history::record_install(model, driver_name, "update_driver");
+
+    InstallResult {
+        success: true,
+        printer_name: printer_name.to_string(),
+        driver_name: driver_name.to_string(),
+        port_name: String::new(),
+        error: None,
+    }
+}
+
 /// Install a printer: create port, install driver, add printer queue.
 pub fn install_printer(
     ip: &str,

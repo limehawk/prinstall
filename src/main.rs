@@ -28,16 +28,24 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
     }
 
     match cmd {
-        cli::Commands::Scan { subnet } => cmd_scan(subnet.clone(), cli).await,
+        cli::Commands::Scan { subnet, method, timeout } => {
+            cmd_scan(subnet.clone(), method.as_deref(), *timeout, cli).await
+        }
         cli::Commands::Id { ip } => cmd_id(ip, cli).await,
         cli::Commands::Drivers { ip, model } => cmd_drivers(ip, model.as_deref(), cli).await,
-        cli::Commands::Install { ip, driver, name, model } => {
-            cmd_install(ip, driver.as_deref(), name.as_deref(), model.as_deref(), cli).await;
+        cli::Commands::Install { ip, driver, name, model, usb } => {
+            cmd_install(ip, driver.as_deref(), name.as_deref(), model.as_deref(), *usb, cli).await;
         }
+        cli::Commands::List => cmd_list(cli).await,
     }
 }
 
-async fn cmd_scan(subnet: Option<String>, cli: &cli::Cli) {
+async fn cmd_scan(
+    subnet: Option<String>,
+    method: Option<&str>,
+    timeout_ms: Option<u64>,
+    cli: &cli::Cli,
+) {
     let cidr = match subnet {
         Some(s) => s,
         None => {
@@ -64,7 +72,15 @@ async fn cmd_scan(subnet: Option<String>, cli: &cli::Cli) {
         eprintln!("[scan] Scanning {} hosts on {cidr}...", hosts.len());
     }
 
-    let printers = discovery::scan_subnet(hosts, &cli.community).await;
+    let scan_method = match method {
+        Some("snmp") => discovery::ScanMethod::Snmp,
+        Some("port") => discovery::ScanMethod::Port,
+        _ => discovery::ScanMethod::All,
+    };
+
+    let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(100));
+
+    let printers = discovery::scan_subnet(hosts, &cli.community, &scan_method, timeout, cli.verbose).await;
 
     if cli.json {
         println!("{}", output::format_scan_results_json(&printers));
@@ -74,6 +90,17 @@ async fn cmd_scan(subnet: Option<String>, cli: &cli::Cli) {
         } else {
             println!("{}", output::format_scan_results(&printers));
         }
+    }
+}
+
+async fn cmd_list(cli: &cli::Cli) {
+    let printers = discovery::local::list_local_printers(cli.verbose);
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&printers).unwrap_or_else(|_| "[]".to_string()));
+    } else if printers.is_empty() {
+        println!("No locally installed printers found.");
+    } else {
+        println!("{}", output::format_scan_results(&printers));
     }
 }
 
@@ -132,6 +159,7 @@ async fn cmd_install(
     driver_override: Option<&str>,
     name_override: Option<&str>,
     model_override: Option<&str>,
+    usb: bool,
     cli: &cli::Cli,
 ) {
     // Pre-install reachability check
@@ -226,7 +254,11 @@ async fn cmd_install(
         }
     }
 
-    let result = installer::install_printer(ip, &driver_name, &printer_name, &model, cli.verbose);
+    let result = if usb {
+        installer::update_printer_driver(&printer_name, &driver_name, &model, cli.verbose)
+    } else {
+        installer::install_printer(ip, &driver_name, &printer_name, &model, cli.verbose)
+    };
 
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&result).unwrap());
