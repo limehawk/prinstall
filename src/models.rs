@@ -1,11 +1,52 @@
+use std::net::Ipv4Addr;
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum DiscoveryMethod {
+    PortScan,
+    Ipp,
+    Snmp,
+    Local,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum PrinterSource {
+    Network,
+    Usb,
+    Installed,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Printer {
-    pub ip: String,
+    pub ip: Option<Ipv4Addr>,
     pub model: Option<String>,
     pub serial: Option<String>,
     pub status: PrinterStatus,
+    pub discovery_methods: Vec<DiscoveryMethod>,
+    pub ports: Vec<u16>,
+    pub source: PrinterSource,
+    pub local_name: Option<String>,
+}
+
+impl Printer {
+    pub fn display_ip(&self) -> String {
+        if let Some(ip) = self.ip {
+            ip.to_string()
+        } else {
+            match self.source {
+                PrinterSource::Usb => "USB".to_string(),
+                _ => {
+                    if let Some(ref name) = self.local_name {
+                        name.clone()
+                    } else {
+                        "Unknown".to_string()
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

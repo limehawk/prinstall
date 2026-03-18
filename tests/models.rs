@@ -2,14 +2,19 @@
 // for the --json output flag
 
 mod models_test {
+    use prinstall::models::*;
+
     #[test]
     fn printer_serializes_to_json() {
-        // Will fail until models.rs exists
-        let _printer = prinstall::models::Printer {
-            ip: "192.168.1.50".to_string(),
+        let _printer = Printer {
+            ip: Some("192.168.1.50".parse().unwrap()),
             model: Some("HP LaserJet Pro MFP M428fdw".to_string()),
             serial: None,
-            status: prinstall::models::PrinterStatus::Ready,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![DiscoveryMethod::Snmp],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: None,
         };
         let json = serde_json::to_string(&_printer).unwrap();
         assert!(json.contains("192.168.1.50"));
@@ -18,11 +23,11 @@ mod models_test {
 
     #[test]
     fn driver_match_preserves_category_and_confidence() {
-        let dm = prinstall::models::DriverMatch {
+        let dm = DriverMatch {
             name: "HP LaserJet Pro MFP M428f PCL-6 (V4)".to_string(),
-            category: prinstall::models::DriverCategory::Matched,
-            confidence: prinstall::models::MatchConfidence::Exact,
-            source: prinstall::models::DriverSource::LocalStore,
+            category: DriverCategory::Matched,
+            confidence: MatchConfidence::Exact,
+            source: DriverSource::LocalStore,
         };
         let json = serde_json::to_string(&dm).unwrap();
         assert!(json.contains("matched"));
@@ -32,7 +37,7 @@ mod models_test {
 
     #[test]
     fn driver_results_has_both_sections() {
-        let results = prinstall::models::DriverResults {
+        let results = DriverResults {
             printer_model: "HP LaserJet Pro MFP M428fdw".to_string(),
             matched: vec![],
             universal: vec![],
@@ -43,7 +48,7 @@ mod models_test {
 
     #[test]
     fn install_result_serializes() {
-        let result = prinstall::models::InstallResult {
+        let result = InstallResult {
             success: true,
             printer_name: "HP M428fdw".to_string(),
             driver_name: "HP LaserJet Pro MFP M428f PCL-6 (V4)".to_string(),
@@ -52,5 +57,54 @@ mod models_test {
         };
         let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("\"success\":true"));
+    }
+
+    #[test]
+    fn printer_with_ip_serializes() {
+        let printer = Printer {
+            ip: Some(std::net::Ipv4Addr::new(192, 168, 1, 50)),
+            model: Some("HP LaserJet Pro".to_string()),
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![DiscoveryMethod::PortScan, DiscoveryMethod::Ipp],
+            ports: vec![9100, 631],
+            source: PrinterSource::Network,
+            local_name: None,
+        };
+        let json = serde_json::to_string(&printer).unwrap();
+        assert!(json.contains("192.168.1.50"));
+        assert!(json.contains("port_scan"));
+    }
+
+    #[test]
+    fn usb_printer_has_no_ip() {
+        let printer = Printer {
+            ip: None,
+            model: Some("HP OfficeJet".to_string()),
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![DiscoveryMethod::Local],
+            ports: vec![],
+            source: PrinterSource::Usb,
+            local_name: Some("HP OfficeJet Pro 9010".to_string()),
+        };
+        assert_eq!(printer.display_ip(), "USB");
+        let json = serde_json::to_string(&printer).unwrap();
+        assert!(json.contains("\"ip\":null"));
+    }
+
+    #[test]
+    fn display_ip_returns_ip_string() {
+        let printer = Printer {
+            ip: Some(std::net::Ipv4Addr::new(10, 0, 0, 5)),
+            model: None,
+            serial: None,
+            status: PrinterStatus::Unknown,
+            discovery_methods: vec![DiscoveryMethod::PortScan],
+            ports: vec![9100],
+            source: PrinterSource::Network,
+            local_name: None,
+        };
+        assert_eq!(printer.display_ip(), "10.0.0.5");
     }
 }

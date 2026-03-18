@@ -240,7 +240,7 @@ impl App {
         let driver = all_drivers[self.selected_driver].clone();
         let ip = self.current_printer.as_ref()
             .or(self.printers.get(self.selected_printer))
-            .map(|p| p.ip.clone())
+            .map(|p| p.display_ip())
             .unwrap_or_default();
 
         self.install_ip = ip.clone();

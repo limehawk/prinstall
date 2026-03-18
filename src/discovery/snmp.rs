@@ -2,7 +2,7 @@ use std::net::Ipv4Addr;
 use std::time::Duration;
 use csnmp::{ObjectIdentifier, Snmp2cClient};
 
-use crate::models::{Printer, PrinterStatus};
+use crate::models::{DiscoveryMethod, Printer, PrinterSource, PrinterStatus};
 
 /// OID for hrDeviceDescr (device description / model)
 const OID_DEVICE_DESCR: &str = "1.3.6.1.2.1.25.3.2.1.3.1";
@@ -35,10 +35,14 @@ pub async fn identify_printer(ip: Ipv4Addr, community: &str) -> Option<Printer> 
     let status = snmp_get_printer_status(&client).await;
 
     Some(Printer {
-        ip: ip.to_string(),
+        ip: Some(ip),
         model,
         serial,
         status,
+        discovery_methods: vec![DiscoveryMethod::Snmp],
+        ports: vec![],
+        source: PrinterSource::Network,
+        local_name: None,
     })
 }
 
