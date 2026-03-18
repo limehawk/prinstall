@@ -10,17 +10,7 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            name: windows-amd64
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            name: linux-amd64
-
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v6
@@ -28,31 +18,24 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: x86_64-pc-windows-msvc
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target x86_64-pc-windows-msvc
 
       - name: Run tests
-        run: cargo test --release --target ${{ matrix.target }}
+        run: cargo test --release --target x86_64-pc-windows-msvc
 
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
+      - name: Package
         run: |
-          cd target/${{ matrix.target }}/release
-          7z a ../../../prinstall-${{ matrix.name }}.zip prinstall.exe
-
-      - name: Package (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          cd target/${{ matrix.target }}/release
-          tar czf ../../../prinstall-${{ matrix.name }}.tar.gz prinstall
+          cd target/x86_64-pc-windows-msvc/release
+          7z a ../../../prinstall-windows-amd64.zip prinstall.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
-          name: prinstall-${{ matrix.name }}
-          path: prinstall-*.*
+          name: prinstall-windows-amd64
+          path: prinstall-windows-amd64.zip
 
   release:
     needs: build
@@ -65,5 +48,5 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: prinstall-*.*
+          files: prinstall-windows-amd64.zip
           generate_release_notes: true
