@@ -1,0 +1,20 @@
+# Curated model → driver name mappings
+# These are exact matches — when SNMP returns a model string that matches
+# a key here, the corresponding driver name is the confirmed correct driver.
+#
+# Add entries as installs are confirmed to work.
+
+[[matches]]
+model = "HP LaserJet Pro MFP M428fdw"
+driver = "HP LaserJet Pro MFP M428f PCL-6 (V4)"
+source = "manufacturer"
+
+[[matches]]
+model = "HP LaserJet Pro MFP M428fdn"
+driver = "HP LaserJet Pro MFP M428f PCL-6 (V4)"
+source = "manufacturer"
+
+[[matches]]
+model = "HP Color LaserJet Pro MFP M479fdw"
+driver = "HP Color LaserJet Pro MFP M479 PCL-6 (V4)"
+source = "manufacturer"

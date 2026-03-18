@@ -1,0 +1,80 @@
+# Manufacturer driver registry
+# Maps manufacturers to their universal driver packages and download URLs.
+# V1 supports ZIP and CAB formats only.
+
+[[manufacturers]]
+name = "HP"
+prefixes = ["HP", "Hewlett-Packard", "Hewlett Packard"]
+
+[[manufacturers.universal_drivers]]
+name = "HP Universal Print Driver PCL6"
+url = "https://ftp.hp.com/pub/softlib/software13/printers/UPD/upd-pcl6-x64.zip"
+format = "zip"
+
+[[manufacturers.universal_drivers]]
+name = "HP Universal Print Driver PS"
+url = "https://ftp.hp.com/pub/softlib/software13/printers/UPD/upd-ps-x64.zip"
+format = "zip"
+
+[[manufacturers]]
+name = "Ricoh"
+prefixes = ["Ricoh", "RICOH"]
+
+[[manufacturers.universal_drivers]]
+name = "RICOH Universal PCL6"
+url = ""
+format = "zip"
+
+[[manufacturers]]
+name = "Brother"
+prefixes = ["Brother"]
+
+[[manufacturers.universal_drivers]]
+name = "Brother Universal Printer"
+url = ""
+format = "zip"
+
+[[manufacturers]]
+name = "Canon"
+prefixes = ["Canon"]
+
+[[manufacturers.universal_drivers]]
+name = "Canon Generic Plus UFR II"
+url = ""
+format = "zip"
+
+[[manufacturers]]
+name = "Lexmark"
+prefixes = ["Lexmark"]
+
+[[manufacturers.universal_drivers]]
+name = "Lexmark Universal v2"
+url = ""
+format = "zip"
+
+[[manufacturers]]
+name = "Xerox"
+prefixes = ["Xerox"]
+
+[[manufacturers.universal_drivers]]
+name = "Xerox Global Print Driver"
+url = ""
+format = "zip"
+
+[[manufacturers]]
+name = "Epson"
+prefixes = ["Epson", "EPSON"]
+
+[[manufacturers.universal_drivers]]
+name = "Epson Universal Print Driver"
+url = ""
+format = "zip"
+
+[[manufacturers]]
+name = "Kyocera"
+prefixes = ["Kyocera", "KYOCERA"]
+
+[[manufacturers.universal_drivers]]
+name = "Kyocera Classic Universal Driver"
+url = ""
+format = "zip"
