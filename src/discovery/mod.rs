@@ -1,3 +1,4 @@
+pub mod port_scan;
 pub mod snmp;
 pub mod subnet;
 
