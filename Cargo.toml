@@ -20,6 +20,8 @@ fuzzy-matcher = "0.3"
 color-eyre = "0.6"
 chrono = { version = "0.4", features = ["serde"] }
 zip = "2"
+tui-input = "0.11"
+throbber-widgets-tui = "0.8"
 
 [build-dependencies]
 embed-manifest = "1"
