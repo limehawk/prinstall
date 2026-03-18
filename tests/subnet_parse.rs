@@ -48,4 +48,26 @@ mod subnet_parse_test {
         );
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn parse_netip_output_extracts_cidr() {
+        use prinstall::discovery::subnet::parse_auto_detect_output;
+        let output = "192.168.1.100/24";
+        let result = parse_auto_detect_output(output);
+        assert_eq!(result, Some("192.168.1.0/24".to_string()));
+    }
+
+    #[test]
+    fn parse_netip_output_handles_multiple_lines() {
+        use prinstall::discovery::subnet::parse_auto_detect_output;
+        let output = "169.254.1.1/16\n192.168.1.100/24";
+        let result = parse_auto_detect_output(output);
+        assert_eq!(result, Some("192.168.1.0/24".to_string()));
+    }
+
+    #[test]
+    fn parse_netip_output_empty() {
+        use prinstall::discovery::subnet::parse_auto_detect_output;
+        assert_eq!(parse_auto_detect_output(""), None);
+    }
 }
