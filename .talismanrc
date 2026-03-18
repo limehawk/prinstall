@@ -1,0 +1,18 @@
+fileignoreconfig:
+  - filename: Cargo.lock
+    checksum: ""
+    ignore_detectors:
+      - filecontent
+    allowed_patterns:
+      - checksum
+  - filename: data/known_matches.toml
+    checksum: 6dc3ef609b183011fbd56d96c9398ce0aba9a05bc4b468fe5f2c3ed781343110
+  - filename: src/output.rs
+    checksum: 4580af4dd4817313673d5ca53971232de1d4c06c81ffd3342870d45791f043aa
+  - filename: src/tui/theme.rs
+    checksum: b04341dc4dc112e5412a89143f39ddbff59e2eade491d67acdd8556dcb716bb1
+  - filename: src/drivers/matcher.rs
+    checksum: 8fffa6a12052581ce91df55697537092af802201bc5148dc30b7646d55c4864b
+  - filename: src/tui/mod.rs
+    checksum: 99985040c63d652021c8d692511e5899694528e7362763b36261263ed0be1ae8
+version: "1.0"
