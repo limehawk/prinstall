@@ -32,7 +32,7 @@ jobs:
           7z a ../../../prinstall-windows-amd64.zip prinstall.exe
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: prinstall-windows-amd64
           path: prinstall-windows-amd64.zip
@@ -41,7 +41,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
 
