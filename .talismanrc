@@ -8,11 +8,15 @@ fileignoreconfig:
   - filename: data/known_matches.toml
     checksum: 6dc3ef609b183011fbd56d96c9398ce0aba9a05bc4b468fe5f2c3ed781343110
   - filename: src/output.rs
-    checksum: 4580af4dd4817313673d5ca53971232de1d4c06c81ffd3342870d45791f043aa
+    checksum: bac7f1f386bdff85e200cfe7147cb41af2eb778f6930593c8e1b6e8379baf63a
   - filename: src/tui/theme.rs
-    checksum: b04341dc4dc112e5412a89143f39ddbff59e2eade491d67acdd8556dcb716bb1
+    checksum: 249bd268a3d031b8fd43367ca849f660eaeb01d2b2448a0bae7583b6c0e59ab7
   - filename: src/drivers/matcher.rs
     checksum: 8fffa6a12052581ce91df55697537092af802201bc5148dc30b7646d55c4864b
   - filename: src/tui/mod.rs
-    checksum: 99985040c63d652021c8d692511e5899694528e7362763b36261263ed0be1ae8
+    checksum: 26bbac20b8bf657113cd650da2fda5f1d50608cd0182b8833c33536f02ab068e
+  - filename: src/tui/keys.rs
+    checksum: fcf8cbabbf55b6c02955efb53a0a225484ce41b6f059c7bfa4ec5eac9d3bf2a4
+  - filename: docs/lazy-tui-guide.md
+    checksum: da850249b3ff05c80c9d4b6f55274c6bcee970e1084a4115ea42c1d1aa326a59
 version: "1.0"
