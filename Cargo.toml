@@ -19,7 +19,7 @@ clap = { version = "4", features = ["derive"] }
 fuzzy-matcher = "0.3"
 color-eyre = "0.6"
 chrono = { version = "0.4", features = ["serde"] }
-zip = "2"
+zip = "8"
 tui-input = "0.15"
 throbber-widgets-tui = "0.11"
 
