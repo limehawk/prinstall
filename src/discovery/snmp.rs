@@ -19,7 +19,7 @@ const SNMP_TIMEOUT: Duration = Duration::from_secs(2);
 pub async fn identify_printer(ip: Ipv4Addr, community: &str, verbose: bool) -> Option<Printer> {
     let addr = format!("{ip}:161").parse().ok()?;
     let bind_addr: std::net::SocketAddr = "0.0.0.0:0".parse().unwrap();
-    let client = match Snmp2cClient::new(addr, community.as_bytes().to_vec(), Some(bind_addr), Some(SNMP_TIMEOUT)).await {
+    let client = match Snmp2cClient::new(addr, community.as_bytes().to_vec(), Some(bind_addr), Some(SNMP_TIMEOUT), 1).await {
         Ok(c) => c,
         Err(e) => {
             if verbose {
