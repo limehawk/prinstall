@@ -196,14 +196,18 @@ pub fn render_detail_pane(
         items.push(ListItem::new(Span::styled(" No drivers found", theme::DIM)));
     }
 
-    // Map driver_list_state selection (which tracks selectable items) to visual index
-    // We use a custom highlight by mutating: ratatui's ListState.selected is a visual index,
-    // but our selectable_indices let us guard navigation. Here we use ListState directly
-    // against visual indices, so the caller must use selectable_indices-aware navigation.
-    // For now, pass ListState through and let ratatui highlight the visual index.
+    // driver_list_state tracks a logical index (0..N where N = matched + universal count).
+    // selectable_indices maps logical → visual, skipping section header rows.
+    let mut visual_state = ListState::default();
+    if let Some(logical_idx) = driver_list_state.selected() {
+        if let Some(&visual_idx) = selectable_indices.get(logical_idx) {
+            visual_state.select(Some(visual_idx));
+        }
+    }
+
     let driver_list = List::new(items)
         .highlight_style(theme::SELECTED)
         .highlight_symbol("▶ ");
 
-    f.render_stateful_widget(driver_list, chunks[1], driver_list_state);
+    f.render_stateful_widget(driver_list, chunks[1], &mut visual_state);
 }
