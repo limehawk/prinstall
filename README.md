@@ -1,4 +1,4 @@
-<div align="center">
+<pre>
 
 ```
 ┌─┐┬─┐┬┌┐┌┌─┐┌┬┐┌─┐┬  ┬
@@ -16,7 +16,7 @@
 [![Built with Rust](https://img.shields.io/badge/built_with-rust-CE422B?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![Build](https://img.shields.io/github/actions/workflow/status/limehawk/prinstall/release.yml?style=flat-square&label=build)](https://github.com/limehawk/prinstall/actions)
 
-</div>
+</pre>
 
 ---
 
