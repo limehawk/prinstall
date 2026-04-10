@@ -5,7 +5,8 @@
 ├─┘├┬┘││││└─┐ │ ├─┤│  │
 ┴  ┴└─┴┘└┘└─┘ ┴ ┴ ┴┴─┘┴─┘
 ```
-
+</pre>
+ 
 ### Discover. Match. Install.
 
 **A Rust TUI and CLI for nuking printer setup pain on Windows.**
