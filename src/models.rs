@@ -75,6 +75,10 @@ pub struct DriverMatch {
     pub category: DriverCategory,
     pub confidence: MatchConfidence,
     pub source: DriverSource,
+    /// Match score 0-1000. Higher is better. Used for ranking within a confidence tier.
+    /// Exact matches get 1000. Universal drivers and unscored items are 0.
+    #[serde(default)]
+    pub score: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -106,13 +110,74 @@ pub struct DriverResults {
     pub universal: Vec<DriverMatch>,
 }
 
+/// Generic result type for any printer-manager operation (install, remove,
+/// configure, etc). The typed per-operation payload lives in `detail` as a
+/// serialized JSON value — decode it with `detail_as::<T>()`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InstallResult {
+pub struct PrinterOpResult {
     pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
+    pub detail: serde_json::Value,
+}
+
+impl PrinterOpResult {
+    /// Build a successful result with a typed detail payload.
+    pub fn ok(detail: impl Serialize) -> Self {
+        Self {
+            success: true,
+            error: None,
+            detail: serde_json::to_value(detail).unwrap_or(serde_json::Value::Null),
+        }
+    }
+
+    /// Build a successful result with no payload.
+    pub fn ok_empty() -> Self {
+        Self {
+            success: true,
+            error: None,
+            detail: serde_json::Value::Null,
+        }
+    }
+
+    /// Build a failure result with a human-readable error message.
+    pub fn err(msg: impl Into<String>) -> Self {
+        Self {
+            success: false,
+            error: Some(msg.into()),
+            detail: serde_json::Value::Null,
+        }
+    }
+
+    /// Attempt to deserialize the detail into a specific type.
+    pub fn detail_as<T: serde::de::DeserializeOwned>(&self) -> Option<T> {
+        serde_json::from_value(self.detail.clone()).ok()
+    }
+}
+
+/// Payload for the `add`/install operation — the details of what was installed.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct InstallDetail {
     pub printer_name: String,
     pub driver_name: String,
     pub port_name: String,
-    pub error: Option<String>,
+    /// Optional non-fatal warning (e.g., "installed via IPP Class Driver fallback").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warning: Option<String>,
+}
+
+/// Payload for the `remove` operation.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RemoveDetail {
+    pub printer_name: String,
+    pub port_removed: bool,
+    pub driver_removed: bool,
+    /// True when the removal was a no-op because no matching printer existed.
+    /// Callers can use this to distinguish "removed successfully" from
+    /// "already gone" — both are reported as `success: true`.
+    #[serde(default)]
+    pub already_absent: bool,
 }
 
 /// Entry in the local install history (C:\ProgramData\prinstall\history.toml)

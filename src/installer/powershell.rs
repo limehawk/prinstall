@@ -1,6 +1,7 @@
 use std::process::Command;
 
 /// Result of a PowerShell command execution.
+#[derive(Debug, Clone)]
 pub struct PsResult {
     pub success: bool,
     pub stdout: String,
@@ -107,12 +108,36 @@ pub fn install_driver(driver_name: &str, verbose: bool) -> PsResult {
 
 /// Stage a driver INF file via pnputil.
 pub fn stage_driver_inf(inf_path: &str, verbose: bool) -> PsResult {
-    let cmd = format!("pnputil /add-driver '{inf_path}' /install");
+    let cmd = format!(
+        "pnputil /add-driver '{}' /install",
+        escape_ps_string(inf_path)
+    );
     run_ps(&cmd, verbose)
 }
 
-/// Add a printer queue.
+/// Check if a printer queue with the given name already exists.
+pub fn printer_exists(name: &str, verbose: bool) -> bool {
+    let cmd = format!(
+        "Get-Printer -Name '{}' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name",
+        escape_ps_string(name)
+    );
+    let result = run_ps(&cmd, verbose);
+    result.success && !result.stdout.is_empty()
+}
+
+/// Add a printer queue. Idempotent — returns success if a queue with the
+/// same name already exists.
 pub fn add_printer(name: &str, driver_name: &str, port_name: &str, verbose: bool) -> PsResult {
+    if printer_exists(name, verbose) {
+        if verbose {
+            eprintln!("[skip] Printer '{name}' already exists");
+        }
+        return PsResult {
+            success: true,
+            stdout: name.to_string(),
+            stderr: String::new(),
+        };
+    }
     let cmd = format!(
         "Add-Printer -Name '{}' -DriverName '{}' -PortName '{}'",
         escape_ps_string(name),

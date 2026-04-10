@@ -44,11 +44,7 @@ pub fn render_help_overlay(f: &mut Frame, area: Rect) {
         Line::from(""),
         Line::from(vec![
             Span::styled("  s           ", theme::HELP_KEY),
-            Span::styled("Edit subnet / rescan", theme::HELP_TEXT),
-        ]),
-        Line::from(vec![
-            Span::styled("  /           ", theme::HELP_KEY),
-            Span::styled("Filter printers", theme::HELP_TEXT),
+            Span::styled("Rescan", theme::HELP_TEXT),
         ]),
         Line::from(vec![
             Span::styled("  ?           ", theme::HELP_KEY),

@@ -40,7 +40,7 @@ pub enum DetailView {
         step: usize, // 0=port, 1=driver, 2=printer
         error: Option<String>,
     },
-    InstallComplete(InstallResult),
+    InstallComplete(PrinterOpResult),
 }
 
 // ── Async message types ───────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ pub enum Message {
     ScanComplete(Vec<Printer>),
     DriversComplete(DriverResults),
     InstallStepComplete(InstallStep),
-    InstallComplete(InstallResult),
+    InstallComplete(PrinterOpResult),
 }
 
 // ── App state ─────────────────────────────────────────────────────────────────
@@ -78,10 +78,11 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(community: String) -> Self {
+    pub fn new(community: String, subnet_override: Option<String>) -> Self {
         let (msg_tx, msg_rx) = mpsc::unbounded_channel();
 
-        let subnet = discovery::subnet::auto_detect_subnet(false)
+        let subnet = subnet_override
+            .or_else(|| discovery::subnet::auto_detect_subnet(false))
             .unwrap_or_else(|| "192.168.1.0/24".to_string());
 
         let mut printer_list_state = ListState::default();
@@ -226,7 +227,10 @@ impl App {
             },
             Message::InstallComplete(result) => {
                 let success = result.success;
-                let name = result.printer_name.clone();
+                let name = result
+                    .detail_as::<InstallDetail>()
+                    .map(|d| d.printer_name)
+                    .unwrap_or_else(|| "printer".to_string());
                 self.detail_view = DetailView::InstallComplete(result);
                 if success {
                     self.set_status(

@@ -28,6 +28,7 @@ mod models_test {
             category: DriverCategory::Matched,
             confidence: MatchConfidence::Exact,
             source: DriverSource::LocalStore,
+            score: 1000,
         };
         let json = serde_json::to_string(&dm).unwrap();
         assert!(json.contains("matched"));
@@ -48,15 +49,39 @@ mod models_test {
 
     #[test]
     fn install_result_serializes() {
-        let result = InstallResult {
-            success: true,
+        let result = PrinterOpResult::ok(InstallDetail {
             printer_name: "HP M428fdw".to_string(),
             driver_name: "HP LaserJet Pro MFP M428f PCL-6 (V4)".to_string(),
             port_name: "IP_192.168.1.50".to_string(),
-            error: None,
-        };
+            warning: None,
+        });
         let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("\"success\":true"));
+        assert!(json.contains("HP M428fdw"));
+    }
+
+    #[test]
+    fn printer_op_result_err_has_message() {
+        let result = PrinterOpResult::err("boom");
+        assert!(!result.success);
+        assert_eq!(result.error.as_deref(), Some("boom"));
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"success\":false"));
+        assert!(json.contains("boom"));
+    }
+
+    #[test]
+    fn printer_op_result_detail_roundtrips() {
+        let detail = InstallDetail {
+            printer_name: "Name".to_string(),
+            driver_name: "Drv".to_string(),
+            port_name: "Port".to_string(),
+            warning: Some("ipp fallback".to_string()),
+        };
+        let result = PrinterOpResult::ok(detail);
+        let back = result.detail_as::<InstallDetail>().unwrap();
+        assert_eq!(back.printer_name, "Name");
+        assert_eq!(back.warning.as_deref(), Some("ipp fallback"));
     }
 
     #[test]

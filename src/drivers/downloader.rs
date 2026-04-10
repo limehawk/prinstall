@@ -6,7 +6,6 @@ use crate::drivers::manifest::UniversalDriver;
 
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_FILE_SIZE: u64 = 500 * 1024 * 1024; // 500 MB
-const STAGING_DIR: &str = r"C:\ProgramData\prinstall\staging";
 
 /// Download and extract a driver package. Returns path to the directory
 /// containing the INF file(s), or an error message.
@@ -18,7 +17,7 @@ pub async fn download_and_stage(driver: &UniversalDriver, verbose: bool) -> Resu
         ));
     }
 
-    let staging = PathBuf::from(STAGING_DIR);
+    let staging = crate::paths::staging_dir();
     std::fs::create_dir_all(&staging)
         .map_err(|e| format!("Failed to create staging directory: {e}"))?;
 

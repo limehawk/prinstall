@@ -15,8 +15,9 @@ use clap::{Parser, Subcommand};
         prinstall scan 192.168.1.0/24          Scan a specific subnet\n  \
         prinstall id 192.168.1.100             Identify a printer by IP\n  \
         prinstall drivers 192.168.1.100        Show matched drivers for a printer\n  \
-        prinstall install 192.168.1.100        Install printer with best-match driver\n  \
-        prinstall install 192.168.1.100 --driver \"HP Universal Print Driver PCL6\"\n\n\
+        prinstall add 192.168.1.100            Install printer with best-match driver\n  \
+        prinstall add 192.168.1.100 --driver \"HP Universal Print Driver PCL6\"\n  \
+        prinstall remove 192.168.1.100         Remove printer and clean up orphaned driver/port\n\n\
         Each subcommand has detailed --help. Try: prinstall scan --help"
 )]
 pub struct Cli {
@@ -38,6 +39,10 @@ pub struct Cli {
     /// Force operations that would normally warn (e.g., large subnet scans)
     #[arg(long, global = true)]
     pub force: bool,
+
+    /// Override auto-detected subnet for TUI launch (e.g., 192.168.1.0/24)
+    #[arg(long, global = true)]
+    pub subnet: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -130,27 +135,31 @@ pub enum Commands {
         model: Option<String>,
     },
 
-    /// Install a printer (port + driver + queue)
+    /// Add a printer (port + driver + queue)
     ///
-    /// Full printer installation: creates a TCP/IP port, installs the
-    /// driver, and adds the printer queue. If no --driver is specified,
-    /// auto-selects the best matched driver.
+    /// Full printer installation: identifies the printer via SNMP, auto-picks
+    /// the best-matched driver, downloads and stages it if needed, then runs
+    /// Add-PrinterPort → Add-PrinterDriver → Add-Printer. If the primary install
+    /// fails and the target speaks IPP (port 631), falls back to Microsoft's
+    /// built-in IPP Class Driver with a clearly-marked warning.
     #[command(
         after_help = "EXAMPLES:\n  \
-            prinstall install 192.168.1.100\n  \
-            prinstall install 192.168.1.100 --driver \"HP Universal Print Driver PCL6\"\n  \
-            prinstall install 192.168.1.100 --name \"Front Desk Printer\"\n  \
-            prinstall install 192.168.1.100 --model \"HP LaserJet\" --driver \"HP UPD\"\n\n\
+            prinstall add 192.168.1.100\n  \
+            prinstall add 192.168.1.100 --driver \"HP Universal Print Driver PCL6\"\n  \
+            prinstall add 192.168.1.100 --name \"Front Desk Printer\"\n  \
+            prinstall add 192.168.1.100 --model \"HP LaserJet\" --driver \"HP UPD\"\n\n\
             HOW IT WORKS:\n  \
             1. Identifies printer (SNMP or --model)\n  \
             2. Finds best driver (or uses --driver)\n  \
             3. Downloads driver if not locally staged\n  \
-            4. Runs: Add-PrinterPort → Add-PrinterDriver → Add-Printer\n\n\
+            4. Runs: Add-PrinterPort → Add-PrinterDriver → Add-Printer\n  \
+            5. Falls back to Microsoft IPP Class Driver if primary install fails\n     \
+               and port 631 is open (always with a visible warning)\n\n\
             REQUIRES:\n  \
             Administrator privileges (UAC prompt if not elevated).\n  \
             Existing ports/drivers are reused, not duplicated."
     )]
-    Install {
+    Add {
         /// Printer IP address
         ip: String,
 
@@ -169,6 +178,45 @@ pub enum Commands {
         /// USB printer driver-only mode (no port/queue creation)
         #[arg(long)]
         usb: bool,
+    },
+
+    /// Remove a printer queue, with optional cleanup of driver and port
+    ///
+    /// Removes the target printer queue via Remove-Printer. If the driver
+    /// is no longer used by any other printer, it's also removed from the
+    /// driver store. Same for the TCP/IP port. Pass `--keep-driver` or
+    /// `--keep-port` to skip those cleanup steps.
+    ///
+    /// The target can be either a printer IP (looked up via the `IP_<ip>`
+    /// port name convention) or the printer queue name directly.
+    #[command(
+        after_help = "EXAMPLES:\n  \
+            prinstall remove 192.168.1.100          Remove by IP (full cleanup)\n  \
+            prinstall remove \"HP LaserJet Pro\"      Remove by queue name\n  \
+            prinstall remove 192.168.1.100 --keep-driver\n  \
+            prinstall remove 192.168.1.100 --keep-port --keep-driver\n\n\
+            HOW IT WORKS:\n  \
+            1. Resolves target → printer queue name\n  \
+            2. Captures driver + port before removal\n  \
+            3. Runs: Remove-Printer\n  \
+            4. If no other printer uses the driver → Remove-PrinterDriver\n  \
+            5. If no other printer uses the port → Remove-PrinterPort\n\n\
+            Driver/port cleanup failures are non-fatal warnings. If the\n  \
+            printer doesn't exist, the command succeeds (idempotent).\n\n\
+            REQUIRES:\n  \
+            Administrator privileges (UAC prompt if not elevated)."
+    )]
+    Remove {
+        /// Printer IP address or queue name
+        target: String,
+
+        /// Don't remove the driver even if it's no longer used
+        #[arg(long)]
+        keep_driver: bool,
+
+        /// Don't remove the TCP/IP port even if it's no longer used
+        #[arg(long)]
+        keep_port: bool,
     },
 
     /// List locally installed printers (USB, network, virtual)

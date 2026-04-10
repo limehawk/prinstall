@@ -1,16 +1,21 @@
-use std::path::PathBuf;
+//! Install history log.
+//!
+//! Records every successful install/update so techs can audit what's been
+//! done on a machine. Stored as TOML at `paths::history_path()`
+//! (`%APPDATA%\prinstall\history.toml` on Windows).
+
 use crate::models::{History, HistoryEntry};
-
-const HISTORY_DIR: &str = r"C:\ProgramData\prinstall";
-const HISTORY_FILE: &str = "history.toml";
-
-fn history_path() -> PathBuf {
-    PathBuf::from(HISTORY_DIR).join(HISTORY_FILE)
-}
+use crate::paths;
 
 /// Load install history from disk.
+///
+/// On first run under the 0.2.2+ layout, migrates from the legacy
+/// `C:\ProgramData\prinstall\history.toml` location if present.
 pub fn load() -> History {
-    let path = history_path();
+    let path = paths::history_path();
+    if !path.exists() {
+        migrate_legacy_if_present();
+    }
     if !path.exists() {
         return History::default();
     }
@@ -22,12 +27,9 @@ pub fn load() -> History {
 
 /// Save install history to disk.
 pub fn save(history: &History) {
-    let path = history_path();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).ok();
-    }
+    let _ = paths::ensure_data_dir();
     if let Ok(contents) = toml::to_string_pretty(history) {
-        std::fs::write(path, contents).ok();
+        let _ = std::fs::write(paths::history_path(), contents);
     }
 }
 
@@ -43,13 +45,19 @@ pub fn record_install(model: &str, driver_name: &str, source: &str) {
     save(&history);
 }
 
-/// Look up a model in install history.
-pub fn find_by_model(model: &str) -> Option<HistoryEntry> {
-    let history = load();
-    let model_lower = model.to_lowercase();
-    history
-        .installs
-        .into_iter()
-        .rev() // most recent first
-        .find(|e| e.model.to_lowercase() == model_lower)
+/// One-time copy-forward of pre-0.2.2 history from
+/// `C:\ProgramData\prinstall\history.toml` into the new APPDATA layout.
+/// No-op if the new location already exists or the legacy file isn't present.
+#[cfg(target_os = "windows")]
+fn migrate_legacy_if_present() {
+    let legacy = paths::legacy_history_path();
+    let new = paths::history_path();
+    if new.exists() || !legacy.exists() {
+        return;
+    }
+    let _ = paths::ensure_data_dir();
+    let _ = std::fs::copy(&legacy, &new);
 }
+
+#[cfg(not(target_os = "windows"))]
+fn migrate_legacy_if_present() {}

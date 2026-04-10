@@ -60,6 +60,7 @@ mod output_test {
                     category: DriverCategory::Matched,
                     confidence: MatchConfidence::Exact,
                     source: DriverSource::LocalStore,
+                    score: 1000,
                 },
             ],
             universal: vec![
@@ -68,6 +69,7 @@ mod output_test {
                     category: DriverCategory::Universal,
                     confidence: MatchConfidence::Universal,
                     source: DriverSource::Manufacturer,
+                    score: 0,
                 },
             ],
         };

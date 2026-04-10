@@ -1,7 +1,7 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-use crate::models::InstallResult;
+use crate::models::{InstallDetail, PrinterOpResult};
 use crate::tui::theme;
 
 /// Render install progress in the detail pane.
@@ -9,7 +9,7 @@ use crate::tui::theme;
 /// `step` — 0=port, 1=driver, 2=printer, 3=all done (used only when `complete` is true).
 /// `error` — present when current step failed.
 /// `complete` — true when install has finished (success or failure).
-/// `result` — the final InstallResult, present only when `complete` is true.
+/// `result` — the final PrinterOpResult, present only when `complete` is true.
 #[allow(clippy::too_many_arguments)]
 pub fn render_install_progress(
     f: &mut Frame,
@@ -19,7 +19,7 @@ pub fn render_install_progress(
     ip: &str,
     driver: &str,
     complete: bool,
-    result: Option<&InstallResult>,
+    result: Option<&PrinterOpResult>,
 ) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
@@ -72,8 +72,12 @@ pub fn render_install_progress(
         lines.push(Line::from(""));
         if let Some(r) = result {
             if r.success {
+                let name = r
+                    .detail_as::<InstallDetail>()
+                    .map(|d| d.printer_name)
+                    .unwrap_or_else(|| "printer".to_string());
                 lines.push(Line::from(Span::styled(
-                    format!("  '{}' is ready!", r.printer_name),
+                    format!("  '{name}' is ready!"),
                     theme::STATUS_SUCCESS,
                 )));
             } else {
