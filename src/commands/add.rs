@@ -293,6 +293,29 @@ pub(crate) fn try_ipp_fallback(
 ) -> PrinterOpResult {
     let port_name = format!("IP_{ip}");
     let printer_name = format!("{model} (IPP)");
+
+    // Idempotency: if this IPP-fallback printer was already installed
+    // (e.g. from a previous `add` run on the same IP), return success
+    // without calling Add-Printer a second time. Matches the same pattern
+    // powershell::add_printer uses for the primary install path.
+    if installer::powershell::printer_exists(&printer_name, verbose) {
+        if verbose {
+            eprintln!(
+                "[add] IPP fallback target '{printer_name}' already exists — treating as success"
+            );
+        }
+        return PrinterOpResult::ok(InstallDetail {
+            printer_name,
+            driver_name: "Microsoft IPP Class Driver".to_string(),
+            port_name,
+            warning: Some(format!(
+                "Printer already installed via Microsoft IPP Class Driver fallback. \
+                 The matched driver '{attempted_driver}' is still not in the local \
+                 store. No changes made."
+            )),
+        });
+    }
+
     let ps = format!(
         "Add-Printer -Name '{}' -DriverName 'Microsoft IPP Class Driver' -PortName '{}'",
         escape_ps_string(&printer_name),

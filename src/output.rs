@@ -32,8 +32,24 @@ pub fn detect_color_mode(json: bool) -> bool {
 
 /// Install the color mode for the remainder of the process. Idempotent —
 /// subsequent calls are ignored. Call from `main()` once after parsing CLI.
+///
+/// On Windows, additionally kicks the console into VT processing mode so
+/// the ANSI escape codes crossterm's `Stylize` trait emits actually render
+/// as colors instead of printing as literal `\x1b[32m` garbage. Older
+/// Windows PowerShell 5.1 sessions in the classic conhost window don't
+/// always inherit VT mode automatically.
 pub fn set_color_enabled(enabled: bool) {
     let _ = COLOR_ENABLED.set(enabled);
+    if enabled {
+        // `execute!(stdout, ResetColor)` triggers crossterm's internal
+        // Windows VT enablement as a side effect. On Linux/macOS it's a
+        // harmless ANSI reset. We ignore errors — worst case colors don't
+        // render, which the caller can't do anything useful about anyway.
+        let _ = crossterm::execute!(
+            std::io::stdout(),
+            crossterm::style::ResetColor
+        );
+    }
 }
 
 /// Whether ANSI colors should be emitted. Defaults to `false` if
