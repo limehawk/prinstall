@@ -58,6 +58,15 @@ fn is_system_driver(name: &str) -> bool {
     SYSTEM_DRIVERS.iter().any(|sys| name == *sys)
 }
 
+/// Prinstall only ever creates `IP_<ip>` TCP/IP ports. Any other port name
+/// (USB001, LPT1, COM1, PORTPROMPT:, FILE:, WSD-*, custom Brother/HP PnP
+/// ports, virtual Print-To-OneNote ports, etc.) is something Windows or
+/// another app manages. We whitelist rather than blacklist so the cleanup
+/// path never touches a port we didn't create.
+fn is_manageable_port(port_name: &str) -> bool {
+    port_name.starts_with("IP_")
+}
+
 pub async fn run(executor: &dyn PsExecutor, args: RemoveArgs<'_>) -> PrinterOpResult {
     let verbose = args.verbose;
 
@@ -294,12 +303,24 @@ fn try_remove_driver_if_orphaned(
 }
 
 /// If the port is no longer used by any printer, remove it. Returns `true`
-/// on successful removal, `false` if skipped (still in use, or removal failed).
+/// on successful removal, `false` if skipped (not manageable, still in use,
+/// or removal failed).
 fn try_remove_port_if_orphaned(
     executor: &dyn PsExecutor,
     port_name: &str,
     verbose: bool,
 ) -> bool {
+    // USB, LPT, COM, PORTPROMPT:, WSD-*, and other non-IP ports are managed
+    // by Windows or their respective subsystems — never attempt to remove them.
+    if !is_manageable_port(port_name) {
+        if verbose {
+            eprintln!(
+                "[remove] Skipping port cleanup: '{port_name}' is not a prinstall-managed port"
+            );
+        }
+        return false;
+    }
+
     let count_cmd = format!(
         "(Get-Printer | Where-Object {{ $_.PortName -eq '{}' }} | Measure-Object).Count",
         escape_ps_string(port_name)
@@ -682,5 +703,57 @@ mod tests {
         assert!(!is_system_driver("HP Universal Print Driver PCL6"));
         assert!(!is_system_driver("Brother MFC-L2750DW PCL-6"));
         assert!(!is_system_driver("Canon Generic Plus PCL6"));
+    }
+
+    #[test]
+    fn is_manageable_port_accepts_ip_ports() {
+        assert!(is_manageable_port("IP_10.10.20.16"));
+        assert!(is_manageable_port("IP_192.168.1.1"));
+    }
+
+    #[test]
+    fn is_manageable_port_rejects_usb_lpt_com() {
+        assert!(!is_manageable_port("USB001"));
+        assert!(!is_manageable_port("USB002"));
+        assert!(!is_manageable_port("LPT1"));
+        assert!(!is_manageable_port("COM1"));
+        assert!(!is_manageable_port("PORTPROMPT:"));
+        assert!(!is_manageable_port("FILE:"));
+        assert!(!is_manageable_port("WSD-abc123"));
+        assert!(!is_manageable_port("Send To Microsoft OneNote"));
+        assert!(!is_manageable_port("nul:"));
+    }
+
+    #[tokio::test]
+    async fn remove_skips_port_cleanup_for_usb_printer() {
+        // USB printer scenario: queue exists, uses USB001 port.
+        // Remove should kill the queue but not touch the USB port.
+        let mock = stub_printer_info(
+            MockExecutor::new(),
+            "Brother MFC-L2750DW PCL6",
+            "USB001",
+        )
+        .stub_contains("Remove-Printer -Name", ok_stdout(""))
+        .stub_contains(
+            "Get-Printer -Name 'Brother MFC-L2750DW'",
+            ok_stdout("Brother MFC-L2750DW"),
+        );
+        // Deliberately NO stubs for PortName -eq or Remove-PrinterPort —
+        // the code must never call them for a USB port.
+
+        let result = run(
+            &mock,
+            RemoveArgs {
+                target: "Brother MFC-L2750DW",
+                keep_driver: true, // keep driver to isolate the port behavior
+                keep_port: false,
+                verbose: false,
+            },
+        )
+        .await;
+
+        assert!(result.success);
+        let detail = result.detail_as::<RemoveDetail>().unwrap();
+        assert!(!detail.port_removed, "USB port must not be removed");
     }
 }

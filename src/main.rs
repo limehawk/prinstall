@@ -40,8 +40,8 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
         }
         cli::Commands::Id { ip } => cmd_id(ip, cli).await,
         cli::Commands::Drivers { ip, model } => cmd_drivers(ip, model.as_deref(), cli).await,
-        cli::Commands::Add { ip, driver, name, model, usb } => {
-            cmd_add(ip, driver.as_deref(), name.as_deref(), model.as_deref(), *usb, cli).await;
+        cli::Commands::Add { target, driver, name, model, usb } => {
+            cmd_add(target, driver.as_deref(), name.as_deref(), model.as_deref(), *usb, cli).await;
         }
         cli::Commands::Remove { target, keep_driver, keep_port } => {
             cmd_remove(target, *keep_driver, *keep_port, cli).await;
@@ -80,7 +80,7 @@ async fn cmd_remove(
 }
 
 async fn cmd_add(
-    ip: &str,
+    target: &str,
     driver_override: Option<&str>,
     name_override: Option<&str>,
     model_override: Option<&str>,
@@ -88,7 +88,7 @@ async fn cmd_add(
     cli: &cli::Cli,
 ) {
     let result = commands::add::run(commands::add::AddArgs {
-        ip,
+        target,
         driver_override,
         name_override,
         model_override,

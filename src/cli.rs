@@ -135,47 +135,62 @@ pub enum Commands {
         model: Option<String>,
     },
 
-    /// Add a printer (port + driver + queue)
+    /// Add a printer (network or USB)
     ///
-    /// Full printer installation: identifies the printer via SNMP, auto-picks
-    /// the best-matched driver, downloads and stages it if needed, then runs
-    /// Add-PrinterPort → Add-PrinterDriver → Add-Printer. If the primary install
-    /// fails and the target speaks IPP (port 631), falls back to Microsoft's
-    /// built-in IPP Class Driver with a clearly-marked warning.
+    /// For network printers: identifies via SNMP, auto-picks the best-matched
+    /// driver, downloads and stages it if needed, then runs Add-PrinterPort →
+    /// Add-PrinterDriver → Add-Printer. If the primary install fails and the
+    /// printer speaks IPP (port 631), falls back to Microsoft's built-in IPP
+    /// Class Driver with a clearly-marked warning.
+    ///
+    /// For USB printers: pass `--usb` and specify the existing printer queue
+    /// name as the target. The command verifies the queue exists, finds the
+    /// best driver for the model, stages it, and swaps it in via Set-Printer.
+    /// No port creation — USB printers use the auto-detected USB port.
     #[command(
         after_help = "EXAMPLES:\n  \
+            # Network printers (target = IP)\n  \
             prinstall add 192.168.1.100\n  \
             prinstall add 192.168.1.100 --driver \"HP Universal Print Driver PCL6\"\n  \
-            prinstall add 192.168.1.100 --name \"Front Desk Printer\"\n  \
-            prinstall add 192.168.1.100 --model \"HP LaserJet\" --driver \"HP UPD\"\n\n\
-            HOW IT WORKS:\n  \
+            prinstall add 192.168.1.100 --name \"Front Desk Printer\"\n\n  \
+            # USB printers (target = printer queue name)\n  \
+            prinstall add \"Brother MFC-L2750DW\" --usb\n  \
+            prinstall add \"HP OfficeJet Pro\" --usb --driver \"HP Universal PCL6\"\n\n\
+            HOW IT WORKS (network):\n  \
             1. Identifies printer (SNMP or --model)\n  \
             2. Finds best driver (or uses --driver)\n  \
             3. Downloads driver if not locally staged\n  \
             4. Runs: Add-PrinterPort → Add-PrinterDriver → Add-Printer\n  \
-            5. Falls back to Microsoft IPP Class Driver if primary install fails\n     \
-               and port 631 is open (always with a visible warning)\n\n\
+            5. Falls back to Microsoft IPP Class Driver if primary install\n     \
+               fails and port 631 is open (with visible warning)\n\n\
+            HOW IT WORKS (USB):\n  \
+            1. Verifies the USB printer queue exists (prinstall list)\n  \
+            2. Finds best driver for the model (from queue name or --model)\n  \
+            3. Stages the driver if not already in the driver store\n  \
+            4. Runs: Set-Printer -DriverName to swap the driver\n\n\
             REQUIRES:\n  \
             Administrator privileges (UAC prompt if not elevated).\n  \
             Existing ports/drivers are reused, not duplicated."
     )]
     Add {
-        /// Printer IP address
-        ip: String,
+        /// Printer IP address (network mode) or queue name (--usb mode)
+        target: String,
 
         /// Specific driver name to install (skip auto-matching)
         #[arg(long)]
         driver: Option<String>,
 
-        /// Display name for the printer (default: model string)
+        /// Display name for the printer (network mode only; ignored for --usb)
         #[arg(long)]
         name: Option<String>,
 
-        /// Manually specify printer model (bypass SNMP discovery)
+        /// Manually specify printer model (bypass SNMP discovery for network;
+        /// override the queue name for USB driver matching)
         #[arg(long)]
         model: Option<String>,
 
-        /// USB printer driver-only mode (no port/queue creation)
+        /// USB printer mode: target is a queue name, skip port creation,
+        /// swap driver via Set-Printer instead of Add-Printer
         #[arg(long)]
         usb: bool,
     },

@@ -17,9 +17,12 @@ use crate::installer::powershell::escape_ps_string;
 use crate::models::{InstallDetail, PrinterOpResult};
 use crate::{discovery, drivers, installer};
 
-/// Arguments for `prinstall add <ip>`.
+/// Arguments for `prinstall add <target>`.
+///
+/// `target` is an IPv4 address for network printers, or an existing Windows
+/// printer queue name when `usb` is true.
 pub struct AddArgs<'a> {
-    pub ip: &'a str,
+    pub target: &'a str,
     pub driver_override: Option<&'a str>,
     pub name_override: Option<&'a str>,
     pub model_override: Option<&'a str>,
@@ -38,21 +41,34 @@ pub struct AddArgs<'a> {
 /// executor parameter on this function would be a lying API: callers would
 /// think they're mocking the whole flow when they're only mocking the fallback.
 pub async fn run(args: AddArgs<'_>) -> PrinterOpResult {
+    if args.usb {
+        run_usb(args).await
+    } else {
+        run_network(args).await
+    }
+}
+
+/// Network-printer install path: SNMP identify → driver match → three-step
+/// Add-PrinterPort/Driver/Printer pipeline → IPP Class Driver fallback if
+/// the primary install fails and port 631 is open.
+async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     let verbose = args.verbose;
+    let target = args.target;
 
     if verbose {
-        eprintln!("[add] Checking reachability of {}...", args.ip);
+        eprintln!("[add] Network mode — checking reachability of {target}...");
     }
 
-    // ── Parse IP ──────────────────────────────────────────────────────────────
-    let addr: std::net::Ipv4Addr = match args.ip.parse() {
+    let addr: std::net::Ipv4Addr = match target.parse() {
         Ok(a) => a,
         Err(e) => {
-            return PrinterOpResult::err(format!("invalid IP address '{}': {e}", args.ip));
+            return PrinterOpResult::err(format!(
+                "invalid IP address '{target}': {e}. For USB printers, pass --usb and use the printer queue name as the target."
+            ));
         }
     };
 
-    // ── Step 1: resolve the printer model ────────────────────────────────────
+    // ── Step 1: resolve the printer model via SNMP ────────────────────────
     let model = if let Some(m) = args.model_override {
         m.to_string()
     } else {
@@ -61,84 +77,131 @@ pub async fn run(args: AddArgs<'_>) -> PrinterOpResult {
                 Some(m) => m,
                 None => {
                     return PrinterOpResult::err(format!(
-                        "SNMP responded at {} but no model string. Use --model '...' to specify manually.",
-                        args.ip
+                        "SNMP responded at {target} but no model string. Use --model '...' to specify manually."
                     ));
                 }
             },
             None => {
                 return PrinterOpResult::err(format!(
-                    "Could not identify printer at {} via SNMP. Check that SNMP is enabled, or use --model to bypass.",
-                    args.ip
+                    "Could not identify printer at {target} via SNMP. Check that SNMP is enabled, or use --model to bypass."
                 ));
             }
         }
     };
 
-    // ── Step 2: resolve the driver ────────────────────────────────────────────
-    // Fetch the local driver store once and reuse it for both matching and the
-    // "already staged?" check inside stage_driver_if_needed.
+    // ── Step 2: resolve the driver ────────────────────────────────────────
     let local_drivers = drivers::local_store::list_drivers(verbose);
-
-    let driver_name = if let Some(d) = args.driver_override {
-        d.to_string()
-    } else {
-        let results = drivers::matcher::match_drivers(&model, &local_drivers);
-        match results.matched.first().or(results.universal.first()) {
-            Some(best) => {
-                if verbose {
-                    eprintln!("[add] Auto-selected driver: {}", best.name);
-                }
-                best.name.clone()
-            }
-            None => {
-                return PrinterOpResult::err(format!(
-                    "No drivers found for '{model}'. Try --driver to specify one manually."
-                ));
-            }
-        }
+    let driver_name = match resolve_driver(&args, &model, &local_drivers, verbose) {
+        Ok(name) => name,
+        Err(result) => return result,
     };
-
     let printer_name = args.name_override.unwrap_or(&model).to_string();
 
     if verbose {
         eprintln!(
-            "[add] Installing: printer='{printer_name}', driver='{driver_name}', ip={}",
-            args.ip
+            "[add] Installing: printer='{printer_name}', driver='{driver_name}', ip={target}"
         );
     }
 
-    // ── Step 3: stage driver if not in local store ────────────────────────────
-    if !args.usb {
-        stage_driver_if_needed(&driver_name, &model, &local_drivers, verbose).await;
-    }
+    // ── Step 3: stage the driver if not in local store ───────────────────
+    stage_driver_if_needed(&driver_name, &model, &local_drivers, verbose).await;
 
-    // ── Step 4: run the standard three-step install ───────────────────────────
-    let primary_result = if args.usb {
-        installer::update_printer_driver(&printer_name, &driver_name, &model, verbose)
-    } else {
-        installer::install_printer(args.ip, &driver_name, &printer_name, &model, verbose)
-    };
+    // ── Step 4: three-step install ───────────────────────────────────────
+    let primary_result =
+        installer::install_printer(target, &driver_name, &printer_name, &model, verbose);
 
     if primary_result.success {
         return primary_result;
     }
 
-    // ── Step 5: IPP Class Driver fallback for network printers ────────────────
-    if args.usb {
-        return primary_result;
-    }
-    if !ipp_reachable(args.ip).await {
+    // ── Step 5: IPP Class Driver fallback ────────────────────────────────
+    if !ipp_reachable(target).await {
         if verbose {
-            eprintln!("[add] Primary install failed and port 631 not reachable — no fallback available.");
+            eprintln!(
+                "[add] Primary install failed and port 631 not reachable — no fallback available."
+            );
         }
         return primary_result;
     }
     if verbose {
-        eprintln!("[add] Primary install failed. Port 631 is open — attempting IPP Class Driver fallback.");
+        eprintln!(
+            "[add] Primary install failed. Port 631 is open — attempting IPP Class Driver fallback."
+        );
     }
     let executor = RealExecutor::new(verbose);
-    try_ipp_fallback(&executor, args.ip, &driver_name, &model, verbose)
+    try_ipp_fallback(&executor, target, &driver_name, &model, verbose)
+}
+
+/// USB-printer install path: verify queue exists → driver match → stage
+/// driver → swap via Set-Printer. No port creation, no SNMP, no IPP fallback.
+async fn run_usb(args: AddArgs<'_>) -> PrinterOpResult {
+    let verbose = args.verbose;
+    let target = args.target;
+
+    if verbose {
+        eprintln!("[add] USB mode — target queue: '{target}'");
+    }
+
+    // Verify the USB printer queue exists. Windows auto-creates a queue
+    // via PnP when a USB printer is plugged in; we're swapping its driver,
+    // not creating it from scratch.
+    if !installer::powershell::printer_exists(target, verbose) {
+        return PrinterOpResult::err(format!(
+            "USB printer queue '{target}' not found. Run `prinstall list` to see installed printers."
+        ));
+    }
+
+    // ── Model resolution: --model wins, otherwise use the queue name ─────
+    // The queue name is typically the model string Windows assigned during
+    // PnP install (e.g. "Brother MFC-L2750DW"), which is a reasonable input
+    // for the matcher.
+    let model = args
+        .model_override
+        .map(|m| m.to_string())
+        .unwrap_or_else(|| target.to_string());
+
+    // ── Driver resolution ────────────────────────────────────────────────
+    let local_drivers = drivers::local_store::list_drivers(verbose);
+    let driver_name = match resolve_driver(&args, &model, &local_drivers, verbose) {
+        Ok(name) => name,
+        Err(result) => return result,
+    };
+
+    if verbose {
+        eprintln!("[add] Swapping driver on '{target}' → '{driver_name}'");
+    }
+
+    // ── Stage the driver if not in local store ───────────────────────────
+    stage_driver_if_needed(&driver_name, &model, &local_drivers, verbose).await;
+
+    // ── Call Set-Printer -DriverName ─────────────────────────────────────
+    installer::update_printer_driver(target, &driver_name, &model, verbose)
+}
+
+/// Shared driver-resolution logic for both USB and network paths.
+/// Uses `--driver` if provided, otherwise runs the matcher and picks
+/// the top candidate.
+fn resolve_driver(
+    args: &AddArgs<'_>,
+    model: &str,
+    local_drivers: &[String],
+    verbose: bool,
+) -> Result<String, PrinterOpResult> {
+    if let Some(d) = args.driver_override {
+        return Ok(d.to_string());
+    }
+    let results = drivers::matcher::match_drivers(model, local_drivers);
+    match results.matched.first().or(results.universal.first()) {
+        Some(best) => {
+            if verbose {
+                eprintln!("[add] Auto-selected driver: {}", best.name);
+            }
+            Ok(best.name.clone())
+        }
+        None => Err(PrinterOpResult::err(format!(
+            "No drivers found for '{model}'. Try --driver to specify one manually."
+        ))),
+    }
 }
 
 /// Look up the driver in the manifest and attempt to download + stage it.
