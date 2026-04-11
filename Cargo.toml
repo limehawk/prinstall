@@ -10,7 +10,7 @@ readme = "README.md"
 ratatui = "0.30"
 crossterm = "0.29"
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.13", features = ["json"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "charset"] }
 csnmp = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -26,3 +26,12 @@ mdns-sd = "0.19"
 [build-dependencies]
 embed-manifest = "1"
 embed-resource = "3"
+
+# Release profile tuned for a small binary. LTO + single codegen unit
+# let rustc eliminate dead code across crate boundaries; strip drops
+# debug symbols; panic=abort removes unwind tables (OK for a CLI).
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
