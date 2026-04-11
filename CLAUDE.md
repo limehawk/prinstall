@@ -139,8 +139,8 @@ data/
 ├── drivers.toml             Manufacturer registry — HP has real URLs, others empty
 └── known_matches.toml       Curated exact matches (3 HP entries currently)
 assets/
-├── prinstall-icon.png       Rasterized source for the app icon (2048×2048)
-├── prinstall-icon.pdf       Vector source (kept for future re-exports)
+├── prinstall-icon.svg       Vector source for the app icon (source of truth)
+├── prinstall-icon.png       Rasterized 2048×2048 PNG (rendered from the SVG)
 ├── prinstall.ico            Compiled 7-resolution ICO (16/32/48/64/96/128/256)
 └── prinstall.rc             Windows resource file — embedded via build.rs
 tests/
@@ -189,26 +189,38 @@ resource compiler is needed for `cargo check` / `cargo test`.
 
 To replace the icon:
 
-1. Drop a new square transparent PNG in at `assets/prinstall-icon.png`
-   (2048×2048 recommended — the auto-resize directive below downsamples
-   to every standard icon size).
-2. Regenerate the multi-resolution ICO:
+1. Edit `assets/prinstall-icon.svg` (the vector source of truth) or
+   drop a new square transparent SVG in at the same path.
+2. Re-render the rasterized PNG (kept alongside so the README and the
+   homepage `<img>` stay up to date):
    ```bash
-   magick assets/prinstall-icon.png \
+   magick -background none -density 300 assets/prinstall-icon.svg \
+     -resize 2048x2048 assets/prinstall-icon.png
+   ```
+3. Regenerate the multi-resolution ICO from the SVG. `magick`'s
+   `icon:auto-resize` directive reads SVG directly, so no intermediate
+   raster step is needed:
+   ```bash
+   magick -background none -density 300 assets/prinstall-icon.svg \
      -define icon:auto-resize=256,128,96,64,48,32,16 \
      assets/prinstall.ico
    ```
-3. Rebuild — `build.rs` picks up the new `.ico` on the next Windows build.
+4. Rebuild — `build.rs` picks up the new `.ico` on the next Windows
+   build, and the PNG is referenced by `README.md` and the homepage
+   favicon in `docs/index.html` (which inlines the SVG as a data URI;
+   re-URL-encode it there if the SVG source changes shape).
 
 All icon-related files:
 
-- `assets/prinstall-icon.png` — rasterized source (2048×2048 transparent PNG)
-- `assets/prinstall-icon.pdf` — vector source, kept for future re-exports
+- `assets/prinstall-icon.svg` — vector source of truth (edit this)
+- `assets/prinstall-icon.png` — rasterized 2048×2048 PNG (rendered from the SVG)
 - `assets/prinstall.ico` — compiled 7-resolution ICO (16/32/48/64/96/128/256)
 - `assets/prinstall.rc` — Windows resource file (`1 ICON "prinstall.ico"`)
 - `build.rs` — `embed_resource::compile("assets/prinstall.rc", ...)` inside
   the `target_os == "windows"` branch, alongside the UAC manifest embed
 - `Cargo.toml` — `embed-resource = "3"` in `[build-dependencies]`
+- `README.md` — `<img src="assets/prinstall-icon.png">` at the top
+- `docs/index.html` — inline SVG data URI in the `<link rel="icon">` tag
 
 ## Testing infrastructure
 

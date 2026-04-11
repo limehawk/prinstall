@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Variant 6: v5 without the wrench, on the limehawk orange brand.
+       Dark slate printer body pops against the orange; the white output
+       tray gives the eye a clean focal point. -->
+  <rect width="512" height="512" rx="96" ry="96" fill="#ff6b35"/>
+
+  <!-- Printer body -->
+  <rect x="96" y="144" width="320" height="176" rx="20" ry="20" fill="#1e293b"/>
+  <!-- Top paper slit -->
+  <rect x="128" y="168" width="256" height="16" rx="4" ry="4" fill="#475569"/>
+  <!-- Output tray sticking out underneath -->
+  <rect x="128" y="320" width="256" height="56" rx="8" ry="8" fill="#f8fafc"/>
+  <rect x="128" y="320" width="256" height="12" fill="#cbd5e1"/>
+  <!-- Status LED -->
+  <circle cx="368" cy="216" r="10" fill="#22c55e"/>
+</svg>

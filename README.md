@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/prinstall-icon.png" width="128" alt="prinstall" />
+</p>
+
 ```
                                                                                    
 ▄▄▄▄▄▄▄   ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄    ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄   ▄▄▄▄   ▄▄▄      ▄▄▄      
@@ -27,7 +31,7 @@ One command. The right vendor driver, pulled from the Microsoft Update Catalog. 
 
 MSP technicians burn hours on printer installs. Find the IP, hunt the driver, wrestle `Add-Printer`, paste the wrong universal PCL6 again, curse, repeat on the next site visit. Then the printer breaks a week later and you get to do it all over again.
 
-`prinstall` collapses the whole workflow into a single 9 MB binary. Scan a subnet, add a printer, remove it cleanly, audit what's installed. Works over SSH or RMM remote shells with a clean CLI (`--json` on every command), or drops into a dense lazy-style TUI when launched from a real terminal.
+`prinstall` collapses the whole workflow into a single 8 MB binary. Scan a subnet, add a printer, remove it cleanly, audit what's installed. Works over SSH, RMM remote shells, or any local terminal with a clean CLI (`--json` on every command).
 
 ## Features
 
