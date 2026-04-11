@@ -2,91 +2,203 @@
 
 ## What This Is
 
-Prinstall — a Rust TUI/CLI tool for Windows that discovers network printers via SNMP, matches them to drivers, and installs them. Built for MSP technicians running it locally or through RMM remote shells (SuperOps).
+Prinstall — a Rust CLI and TUI for Windows that discovers network printers,
+matches them to drivers, and installs or removes them. Built for MSP technicians
+running it locally or through RMM remote shells (SuperOps). Active development
+happens on `feat/scaffold-printer-manager`; `main` still points at the v0.2.1
+release.
 
 ## Architecture
 
 **Dual interface, auto-detected:**
-- **TUI mode** (real terminal): ratatui + crossterm, 4-page navigation (Scan → Identify → Drivers → Install)
-- **CLI mode** (pipe/RMM): clap subcommands with verbose plain text output, `--json` for scripting
+- **TUI mode** (real terminal): ratatui + crossterm, two-panel single-view
+  layout (printer list + detail pane), lazy-style with vim keybindings
+- **CLI mode** (pipe/RMM): clap subcommands with verbose plain text output,
+  `--json` on every command for scripting
 
-**Four layers:**
-1. **Interface** — `cli.rs` (clap), `tui/` (ratatui), `output.rs` (formatters)
-2. **Discovery** — `discovery/snmp.rs` (csnmp async), `discovery/subnet.rs` (CIDR parsing, parallel scan)
-3. **Drivers** — `drivers/matcher.rs` (fuzzy matching), `drivers/manifest.rs` + `drivers/known_matches.rs` (embedded TOML data), `drivers/downloader.rs` (HTTP + ZIP/CAB), `drivers/local_store.rs` (pnputil query)
-4. **Installer** — `installer/powershell.rs` (Add-PrinterPort → Add-PrinterDriver → Add-Printer)
+**Layers:**
+1. **Interface** — `cli.rs` (clap), `tui/` (ratatui), `output.rs` (formatters
+   + semantic coloring via crossterm)
+2. **Commands** — `commands/add.rs`, `commands/remove.rs`, `commands/drivers.rs`
+   — each an async fn that takes `&dyn PsExecutor` so the logic is unit-testable
+   on Linux without a Windows host
+3. **Core abstractions** — `core/executor.rs` (`PsExecutor` trait, `RealExecutor`,
+   `MockExecutor`, free function `run_json<T>`), `core/ps_error.rs`
+   (`clean(stderr)` parses PowerShell verbose errors into single-line messages
+   with HRESULT decoding)
+4. **Discovery** — `discovery/snmp.rs` (csnmp, 4 OIDs), `discovery/ipp.rs`
+   (printer-make-and-model + printer-device-id), `discovery/port_scan.rs`
+   (9100/631/515 parallel probe), `discovery/local.rs` (Get-Printer via PS),
+   `discovery/subnet.rs` (CIDR + auto-detect from NIC)
+5. **Drivers** — `drivers/matcher.rs` (numeric scoring 0-1000 with three
+   components: model-number prefix, token overlap, skim subsequence),
+   `drivers/manifest.rs` + `drivers/known_matches.rs` (embedded TOML),
+   `drivers/downloader.rs` (HTTP + ZIP/CAB), `drivers/local_store.rs`
+6. **Installer** — `installer/powershell.rs` (thin wrappers around
+   `Add-PrinterPort` / `Add-PrinterDriver` / `Add-Printer` / `Remove-Printer` /
+   etc. with `escape_ps_string` for injection safety), `installer/mod.rs`
+   (three-step `install_printer` orchestration)
+7. **Data + persistence** — `paths.rs` (canonical paths under
+   `%APPDATA%\prinstall\` with legacy migration from `C:\ProgramData\`),
+   `config.rs` (TOML `AppConfig`), `history.rs` (install log)
 
 **Key design decisions:**
-- Data files (`data/drivers.toml`, `data/known_matches.toml`) embedded via `include_str!()` — single binary, no sidecar files
-- Driver results always show two sections: Matched (ranked by confidence) + Universal (always visible for manufacturer)
-- PowerShell executor escapes strings for injection safety (`escape_ps_string`)
-- Install history logged to `C:\ProgramData\prinstall\history.toml`
-- UAC manifest embedded via `embed-manifest` build crate
-- Static CRT linking for zero-dependency Windows binary (`.cargo/config.toml`)
+
+- **`PsExecutor` trait** for all PowerShell calls. Real impl shells out, mock
+  impl stubs responses. Every command is unit-testable on Linux via `cargo test`.
+  Free function `run_json<T>()` for typed `ConvertTo-Json` deserialization (trait
+  stays dyn-compatible).
+- **`PrinterOpResult`** is the uniform result type with `detail: serde_json::Value`
+  payload. `InstallDetail` and `RemoveDetail` are typed per-command payloads
+  serialized into the `detail` field.
+- **IPP Class Driver fallback**: when the primary install fails and port 631
+  is open, `add` falls back to `Add-Printer -DriverName "Microsoft IPP Class Driver"`.
+  Always surfaces a visible `WARNING:` line in the result so MSP audit trails
+  can identify generic-fallback installs.
+- **`%APPDATA%\prinstall\`** — single data directory for history, config, driver
+  staging, future logs. First run auto-migrates from legacy
+  `C:\ProgramData\prinstall\history.toml`.
+- **Embedded data** — `data/drivers.toml` (17 manufacturers) and
+  `data/known_matches.toml` (curated exact matches) compiled in via
+  `include_str!()`. Note: most manufacturer entries in drivers.toml have empty
+  URL fields — HP is currently the only one with a stable direct download URL.
+  Brother/Canon/Epson/etc. fall through to IPP Class Driver fallback.
+- **Terminal colors** via crossterm's `Stylize` trait, semantic helpers in
+  `output.rs`. Auto-detects via `NO_COLOR` env var, `--json` flag, and
+  stdout-is-terminal. VT mode enablement kicked via
+  `execute!(stdout, ResetColor)` on Windows.
+- PowerShell stderr is parsed through `core::ps_error::clean()` before surfacing
+  — drops `At line:`, `CategoryInfo`, `FullyQualifiedErrorId` decorators, decodes
+  HRESULT codes to human-readable text.
+- UAC manifest embedded via `embed-manifest` build crate.
+- Static CRT linking for zero-dependency Windows binary.
 
 ## CLI Commands
 
 ```
-prinstall scan [SUBNET]              # Scan subnet for printers via SNMP
-prinstall id <IP>                    # Identify a single printer
-prinstall drivers <IP>               # Show matched + universal drivers
-prinstall install <IP>               # Full install (port + driver + queue)
-prinstall                            # Launch TUI (if real terminal)
+prinstall                                  Launch interactive TUI
+prinstall scan [SUBNET]                    Multi-method subnet scan
+prinstall id <IP>                          Identify a printer via SNMP
+prinstall drivers <IP>                     Show matched + universal drivers + WU probe
+prinstall add <IP>                         Install a network printer
+prinstall add <QUEUE-NAME> --usb           Swap driver on an existing USB printer queue
+prinstall remove <IP|QUEUE-NAME>           Remove printer + orphaned driver + port
+prinstall list                             List locally installed printers
 ```
 
-Global flags: `--json`, `--verbose`, `--community <str>`, `--model <str>`, `--force`
+Global flags: `--json`, `--verbose`, `--community <str>`, `--force`,
+`--subnet <cidr>`. Per-command flags: `--driver`, `--name`, `--model`, `--usb`
+on `add`; `--keep-driver`, `--keep-port` on `remove`.
 
 ## Project Structure
 
 ```
 src/
-├── main.rs              # Entry point, CLI dispatch, all command handlers
-├── lib.rs               # Module declarations
-├── cli.rs               # clap subcommands with rich help
-├── models.rs            # Printer, DriverMatch, DriverResults, InstallResult, History
-├── output.rs            # Plain-text and JSON formatters
-├── privilege.rs         # Windows admin detection
-├── history.rs           # Install history (C:\ProgramData\prinstall\)
+├── main.rs                  Entry point, CLI dispatch, thin cmd_* wrappers
+├── lib.rs                   Module declarations
+├── cli.rs                   clap Commands enum with rich help
+├── models.rs                Printer, DriverMatch, PrinterOpResult, typed payloads
+├── output.rs                Plain-text + JSON formatters, semantic coloring
+├── paths.rs                 Canonical %APPDATA%\prinstall\ paths + legacy migration
+├── config.rs                Persistent AppConfig (TOML)
+├── history.rs               Install history log
+├── privilege.rs             Windows admin detection
+├── commands/
+│   ├── add.rs               Network + USB install paths, IPP Class Driver fallback
+│   ├── remove.rs            Three-step cleanup with orphan detection + system-port whitelist
+│   └── drivers.rs           Driver matching + Windows Update probe (currently blocked on dockurr VMs)
+├── core/
+│   ├── executor.rs          PsExecutor trait, RealExecutor, MockExecutor, run_json<T>
+│   └── ps_error.rs          PowerShell stderr → clean single-line errors + HRESULT lookup
 ├── discovery/
-│   ├── snmp.rs          # csnmp async queries
-│   ├── subnet.rs        # CIDR parsing, size validation
-│   └── mod.rs           # scan_subnet() orchestration
+│   ├── snmp.rs              csnmp async queries
+│   ├── ipp.rs               Binary IPP Get-Printer-Attributes (make/model + device-id)
+│   ├── port_scan.rs         9100/631/515 parallel probe
+│   ├── local.rs             Get-Printer via PS
+│   ├── subnet.rs            CIDR + auto-detect from NIC
+│   └── mod.rs               scan_subnet / full_discovery orchestration
 ├── drivers/
-│   ├── manifest.rs      # Embedded drivers.toml parsing
-│   ├── known_matches.rs # Embedded known_matches.toml parsing
-│   ├── matcher.rs       # Fuzzy matching + ranking
-│   ├── downloader.rs    # HTTP download, ZIP/CAB extraction
-│   ├── local_store.rs   # PowerShell driver enumeration
+│   ├── matcher.rs           Numeric scoring 0-1000 (model-num + overlap + subseq)
+│   ├── manifest.rs          Embedded drivers.toml (17 manufacturers)
+│   ├── known_matches.rs     Embedded known_matches.toml
+│   ├── downloader.rs        HTTP + ZIP/CAB extraction, staging under paths::staging_dir()
+│   ├── local_store.rs       Get-PrinterDriver enumeration
 │   └── mod.rs
 ├── installer/
-│   ├── powershell.rs    # PS cmdlet wrapper with string escaping
-│   └── mod.rs           # Three-step install orchestration
+│   ├── powershell.rs        Cmdlet wrappers, escape_ps_string, printer_exists helper
+│   └── mod.rs               Three-step install orchestration
 └── tui/
-    ├── mod.rs           # App state, event loop, page navigation
-    ├── theme.rs         # Color constants
-    └── views/           # scan, identify, drivers, install views
+    ├── mod.rs               App state, event loop, Message enum
+    ├── layout.rs            Three breakpoints: Wide/Stacked/Narrow
+    ├── keys.rs, theme.rs
+    └── views/               scan, drivers, install, help
 data/
-├── drivers.toml         # Manufacturer → universal driver URLs (8 manufacturers)
-└── known_matches.toml   # Curated model → driver name mappings
+├── drivers.toml             Manufacturer registry — HP has real URLs, others empty
+└── known_matches.toml       Curated exact matches (3 HP entries currently)
 tests/
-├── cli_parse.rs         # 7 tests
-├── models.rs            # 4 tests
-├── manifest.rs          # 5 tests
-├── known_matches.rs     # 3 tests
-├── matcher.rs           # 6 tests
-├── output.rs            # 4 tests
-└── subnet_parse.rs      # 7 tests
+├── cli_parse.rs             11 tests
+├── matcher.rs               13 tests
+├── models.rs                9 tests
+├── output.rs                6 tests
+├── manifest.rs              5 tests
+├── known_matches.rs         3 tests
+├── local_enum.rs            5 tests
+├── port_scan.rs             5 tests
+├── ipp.rs                   4 tests
+└── subnet_parse.rs          10 tests
+# Plus ~40 inline lib tests in src/commands/*.rs, src/core/*.rs, src/drivers/matcher.rs.
+# Total: 100+ tests, all run on Linux via MockExecutor (no Windows required for CI).
 ```
 
 ## Development
 
 ```bash
-cargo test                # 36 tests
+# Tests run on Linux — MockExecutor stubs all PowerShell calls
+cargo test
 cargo clippy -- -W clippy::all
-cargo build --release     # Linux dev build
+cargo build --release        # Linux native build (ratatui works, PS calls fail at runtime)
 ```
 
-Windows release builds happen via GitHub Actions (tag push triggers `.github/workflows/release.yml`).
+### Cross-compile a Windows binary from Linux
+
+```bash
+docker run --rm -v "$PWD":/io -w /io messense/cargo-xwin:latest \
+  bash -c 'ln -sf /usr/bin/llvm-mt /usr/local/bin/mt.exe && \
+           cargo xwin build --release --target x86_64-pc-windows-msvc'
+```
+
+Binary lands at `target/x86_64-pc-windows-msvc/release/prinstall.exe`.
+
+Release builds happen via GitHub Actions `windows-latest` runner on tag push
+(`.github/workflows/release.yml`). The docker workflow above is for dev loop only.
+
+## Testing infrastructure
+
+- `MockExecutor` in `core/executor.rs` provides stateless first-match-wins
+  command stubbing via `stub_exact`, `stub_prefix`, `stub_contains`, `stub_json`,
+  `stub_failure`. Used by every command's inline tests.
+- `run_json<T>` is a free function (not a trait method) so `PsExecutor` stays
+  dyn-compatible. Callers that need typed JSON output use
+  `core::executor::run_json(executor, cmd)`.
+- Existing tests against PowerShell-adjacent code (install, remove, drivers) all
+  run on Linux because the executor trait abstracts away the actual PS call.
+  Real PS tests happen only via manual testing on a Windows VM.
+
+## Dev loop (against a real Windows VM)
+
+1. Edit code in Linux
+2. `cargo test` — verify logic on Linux with MockExecutor
+3. `docker run ... messense/cargo-xwin ...` — cross-compile the Windows binary
+4. `cp target/x86_64-pc-windows-msvc/release/prinstall.exe ~/Windows/prinstall-dev.exe`
+   — the `~/Windows/` directory is bind-mounted into a `dockurr/windows` VM as
+   `\\host.lan\Data\`, so the binary appears there automatically
+5. In the Windows VM PowerShell:
+   `Copy-Item \\host.lan\Data\prinstall-dev.exe .\prinstall.exe -Force` (SMB
+   caches exe files aggressively — copy to local path then run)
+6. `.\prinstall.exe --version` / `.\prinstall.exe add <ip> --verbose` / etc.
+
+Version-bump `Cargo.toml` on every dev build so you can distinguish builds in
+the VM (currently `0.2.12-dev`).
 
 ## Spec & Plan
 
@@ -94,11 +206,39 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 - `~/dev/rmm-scripts/docs/superpowers/specs/2026-03-18-prinstall-design.md`
 - `~/dev/rmm-scripts/docs/superpowers/plans/2026-03-18-prinstall.md`
 
-## Future Work (not yet implemented)
+## Known gotchas
 
-- Printer defaults (duplex, color/mono, paper size, default printer)
-- mDNS / WS-Discovery for printers with SNMP disabled
-- Shared match database across fleet
-- Batch install mode
-- TUI subnet input prompt (currently hardcoded to 192.168.1.0/24)
-- SignPath.io code signing for SmartScreen trust
+- **PowerShell `ConvertTo-Json` unwraps single-element pipelines** — use
+  `ConvertTo-Json -InputObject @(...)` (NOT piped) for list queries. See
+  `commands/drivers.rs::probe_windows_update` for the pattern.
+- **`Add-Printer -ConnectionName "http://..."` returns HRESULT 0x80070032
+  "Not supported"** on dockurr's Windows 11 image (and possibly others). The
+  cmdlet doesn't trigger Windows Update driver lookup — it only wraps
+  `InstallPrinterDriverFromPackage` which requires a pre-existing driver. This
+  is why the WU probe feature is currently non-functional and we fall back to
+  explicit `-DriverName "Microsoft IPP Class Driver"`.
+- **`Microsoft IPP Class Driver` and other Windows system drivers are NOT
+  removable** — the remove command skips them via `is_system_driver` whitelist.
+- **TCP/IP printer port removal has a ~500ms spooler lag** — the
+  `try_remove_port_if_orphaned` helper retries once after a delay.
+- **SMB exe loader cache** — running an exe from `\\host.lan\Data\` caches the
+  binary in Windows' SMB client, so overwriting the file doesn't evict the
+  running exe. Always `Copy-Item ... -Force` to a local path before running.
+
+## Current backlog
+
+- [ ] Real manufacturer driver URLs in `drivers.toml` — HP works, others have empty URLs
+- [ ] SDI driverpack integration — authoritative offline vendor driver database (~1GB)
+- [ ] MSCatalogLTS PowerShell module integration — programmatic WU catalog query
+      by printer model, returns downloadable .cab driver packages. Needs
+      investigation against a real printer on a real VM.
+- [ ] Windows Update install path that actually works — pending diagnostic probe
+      that tests rundll32 / prnmngr.vbs / WMI / MSCatalogLTS against a real
+      Brother printer
+- [ ] Printer defaults (duplex, color/mono, paper size, set-default) via
+      `Set-PrintConfiguration`
+- [ ] `prinstall health <ip>` — toner/drum/tray status via SNMP Printer MIB
+- [ ] mDNS / WS-Discovery fallback for fully-silent printers
+- [ ] Batch install mode (multiple IPs in one shot)
+- [ ] User-editable subnet input inside the TUI (auto-detect already works)
+- [ ] SignPath.io code signing for SmartScreen trust
