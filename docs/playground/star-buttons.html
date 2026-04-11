@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Star Button Playground — prinstall</title>
+  <meta name="theme-color" content="#0a0e14" />
+
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-elevated: #111821;
+      --bg-subtle: #0f1620;
+      --border: #1e2a3a;
+      --border-bright: #2a3a50;
+      --text: #e6edf3;
+      --text-dim: #8b99a8;
+      --text-subtle: #5a6878;
+      --accent: #ff6b35;
+      --accent-bright: #ff8355;
+      --accent-dim: rgba(255, 107, 53, 0.12);
+      --green: #50fa7b;
+      --yellow: #f1fa8c;
+      --red: #ff5555;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      padding: 0;
+    }
+
+    /* Dot grid background — matches the main landing page */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+      background-size: 32px 32px;
+      opacity: 0.25;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    main { position: relative; z-index: 1; }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────── */
+    header {
+      padding: 80px 0 48px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 56px;
+    }
+    header h1 {
+      font-family: var(--mono);
+      font-size: clamp(32px, 4vw, 48px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+    header h1 .accent { color: var(--accent); }
+    header p {
+      color: var(--text-dim);
+      font-size: 16px;
+      max-width: 680px;
+      margin: 0 auto 8px;
+    }
+    header .meta {
+      margin-top: 24px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-subtle);
+    }
+    header .meta code {
+      background: var(--bg-elevated);
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    /* ── Variant card ───────────────────────────────────────────────── */
+    .variant {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 36px 40px;
+      margin-bottom: 28px;
+      transition: border-color 0.15s;
+    }
+    .variant:hover { border-color: var(--border-bright); }
+
+    .variant-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 4px;
+      flex-wrap: wrap;
+    }
+    .variant-num {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .variant-ref {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-subtle);
+      letter-spacing: 0.04em;
+    }
+    .variant-name {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      letter-spacing: -0.01em;
+    }
+
+    .variant-demo {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 48px 24px;
+      background: var(--bg);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .variant-notes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    @media (max-width: 640px) {
+      .variant-notes { grid-template-columns: 1fr; }
+    }
+    .variant-notes strong {
+      display: block;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .variant-notes .pros strong { color: var(--green); }
+    .variant-notes .cons strong { color: var(--red); }
+    .variant-notes p { color: var(--text-dim); }
+
+    /* ── Variant 1 · shadcn two-segment ─────────────────────────────── */
+    .btn-v1 {
+      display: inline-flex;
+      align-items: stretch;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--text);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-bright);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .btn-v1:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .btn-v1 .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+    }
+    .btn-v1 .divider {
+      width: 1px;
+      background: var(--border-bright);
+    }
+    .btn-v1 .count {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 16px;
+      color: var(--text-dim);
+    }
+    .btn-v1 svg { width: 16px; height: 16px; }
+
+    /* ── Variant 2 · two-segment with orange accent ─────────────────── */
+    .btn-v2 {
+      display: inline-flex;
+      align-items: stretch;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn-v2:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(255, 107, 53, 0.2);
+    }
+    .btn-v2 .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      color: var(--text);
+      background: var(--bg-elevated);
+    }
+    .btn-v2 .count {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 18px;
+      color: var(--bg);
+      background: var(--accent);
+      font-weight: 700;
+    }
+    .btn-v2 svg { width: 16px; height: 16px; }
+
+    /* ── Variant 3 · rounded pill with bullet ───────────────────────── */
+    .btn-v3 {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--border-bright);
+      border-radius: 9999px;
+      padding: 11px 22px;
+      transition: border-color 0.15s, background 0.15s, transform 0.15s;
+    }
+    .btn-v3:hover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+      transform: translateY(-1px);
+    }
+    .btn-v3 svg { width: 16px; height: 16px; }
+    .btn-v3 .bullet {
+      color: var(--text-subtle);
+      font-weight: 400;
+    }
+    .btn-v3 .count { color: var(--accent); }
+
+    /* ── Variant 4 · ghost minimal ──────────────────────────────────── */
+    .btn-v4 {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--text-dim);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 18px;
+      transition: color 0.15s, border-color 0.15s, transform 0.15s;
+    }
+    .btn-v4:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .btn-v4 .star {
+      color: var(--accent);
+      font-size: 16px;
+    }
+
+    /* ── Variant 5 · orange solid CTA (matches Download button) ─────── */
+    .btn-v5 {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--bg);
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 14px 28px;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .btn-v5:hover {
+      background: var(--accent-bright);
+      transform: translateY(-1px);
+    }
+    .btn-v5 svg { width: 16px; height: 16px; }
+    .btn-v5 .count-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      background: rgba(10, 14, 20, 0.25);
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    /* ── Variant 6 · Vercel-style with inline badge ─────────────────── */
+    .btn-v6 {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--text);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-bright);
+      border-radius: 8px;
+      padding: 10px 18px 10px 16px;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .btn-v6:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .btn-v6 svg { width: 16px; height: 16px; }
+    .btn-v6 .count-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 9px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid rgba(255, 107, 53, 0.25);
+    }
+
+    /* ── Variant 7 · terminal command-style (dev flavor) ────────────── */
+    .btn-v7 {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 13px;
+      text-decoration: none;
+      color: var(--text);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 20px;
+      transition: border-color 0.15s, transform 0.15s;
+      line-height: 1.6;
+    }
+    .btn-v7:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .btn-v7 .prompt { color: var(--green); font-weight: 700; }
+    .btn-v7 .cmd { color: var(--text); font-weight: 600; }
+    .btn-v7 .output { display: block; color: var(--text-subtle); margin-top: 2px; }
+    .btn-v7 .check { color: var(--green); font-weight: 700; }
+    .btn-v7 .count { color: var(--accent); font-weight: 700; }
+
+    /* ── Footer ─────────────────────────────────────────────────────── */
+    footer {
+      padding: 48px 0 64px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-subtle);
+      border-top: 1px solid var(--border);
+      margin-top: 48px;
+    }
+    footer a { color: var(--text-dim); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="container">
+        <h1>Star Button <span class="accent">Playground</span></h1>
+        <p>Seven approaches to merging the "View on GitHub" button with a live star count. Pick one by number and I'll swap it into the hero on <code>docs/index.html</code>.</p>
+        <p class="meta">Live count from <code>limehawk/prinstall</code> · fetched on page load via <code>api.github.com</code></p>
+      </div>
+    </header>
+
+    <div class="container">
+
+      <!-- ── Variant 1 ───────────────────────────────────────────── -->
+      <section class="variant">
+        <div class="variant-header">
+          <span class="variant-num">Variant 01</span>
+          <span class="variant-ref">Reference: shadcn/ui, GitHub native</span>
+        </div>
+        <h2 class="variant-name">Two-segment flat — the canonical</h2>
+        <div class="variant-demo">
+          <a class="btn-v1" href="https://github.com/limehawk/prinstall">
+            <span class="label">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+              Star
+            </span>
+            <span class="divider"></span>
+            <span class="count" data-stars>—</span>
+          </a>
+        </div>
+        <div class="variant-notes">
+          <div class="pros">
+            <strong>Pros</strong>
+            <p>Instantly recognizable — looks like the native GitHub "Star" button. Neutral colors blend with any theme. Works in tight layouts.</p>
+          </div>
+          <div class="cons">
+            <strong>Cons</strong>
+            <p>Blends in a little too well — easy to overlook on a busy page. Doesn't use the orange brand accent at all.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Variant 2 ───────────────────────────────────────────── -->
+      <section class="variant">
+        <div class="variant-header">
+          <span class="variant-num">Variant 02</span>
+          <span class="variant-ref">Reference: custom, brand-aligned</span>
+        </div>
+        <h2 class="variant-name">Two-segment with orange count</h2>
+        <div class="variant-demo">
+          <a class="btn-v2" href="https://github.com/limehawk/prinstall">
+            <span class="label">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+              Star on GitHub
+            </span>
+            <span class="count" data-stars>—</span>
+          </a>
+        </div>
+        <div class="variant-notes">
+          <div class="pros">
+            <strong>Pros</strong>
+            <p>Brand-aligned (orange pops), the count is the visual anchor, shadow on hover gives it weight. High click-through design.</p>
+          </div>
+          <div class="cons">
+            <strong>Cons</strong>
+            <p>Two prominent orange elements on the page (this and the Download CTA) can compete for attention.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Variant 3 ───────────────────────────────────────────── -->
+      <section class="variant">
+        <div class="variant-header">
+          <span class="variant-num">Variant 03</span>
+          <span class="variant-ref">Reference: Dub.co, Documenso</span>
+        </div>
+        <h2 class="variant-name">Rounded pill with bullet separator</h2>
+        <div class="variant-demo">
+          <a class="btn-v3" href="https://github.com/limehawk/prinstall">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            View on GitHub
+            <span class="bullet">·</span>
+            <span class="count" data-stars>—</span>
+          </a>
+        </div>
+        <div class="variant-notes">
+          <div class="pros">
+            <strong>Pros</strong>
+            <p>Soft and approachable shape. The bullet separator is classy without being loud. Orange count adds the brand touch without a solid fill.</p>
+          </div>
+          <div class="cons">
+            <strong>Cons</strong>
+            <p>Fully rounded shape doesn't match the Download button's 8px radius — might look inconsistent in the CTA row.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Variant 4 ───────────────────────────────────────────── -->
+      <section class="variant">
+        <div class="variant-header">
+          <span class="variant-num">Variant 04</span>
+          <span class="variant-ref">Reference: Tailwind CSS docs</span>
+        </div>
+        <h2 class="variant-name">Ghost minimal — star + count only</h2>
+        <div class="variant-demo">
+          <a class="btn-v4" href="https://github.com/limehawk/prinstall">
+            <span class="star">★</span>
+            <span data-stars>—</span>
+          </a>
+        </div>
+        <div class="variant-notes">
+          <div class="pros">
+            <strong>Pros</strong>
+            <p>Maximum minimalism — assumes the visitor knows what the star means. Tiny footprint in the CTA row. Orange accent on hover.</p>
+          </div>
+          <div class="cons">
+            <strong>Cons</strong>
+            <p>No "GitHub" label means first-time visitors might not instantly know what it is. Low visual weight.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Variant 5 ───────────────────────────────────────────── -->
+      <section class="variant">
+        <div class="variant-header">
+          <span class="variant-num">Variant 05</span>
+          <span class="variant-ref">Reference: matches current "Download for Windows" button</span>
+        </div>
+        <h2 class="variant-name">Solid accent CTA with count pill</h2>
+        <div class="variant-demo">
+          <a class="btn-v5" href="https://github.com/limehawk/prinstall">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            Star on GitHub
+            <span class="count-pill">★ <span data-stars>—</span></span>
+          </a>
+        </div>
+        <div class="variant-notes">
+          <div class="pros">
+            <strong>Pros</strong>
+            <p>Matches the existing Download button exactly — same padding, radius, orange fill. Count in a pill is the clearest "this is the star count" signal. Strong call to action.</p>
+          </div>
+          <div class="cons">
+            <strong>Cons</strong>
+            <p>Makes the hero have TWO solid orange buttons side-by-side, which can dilute which is the primary action. Download should still be king.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Variant 6 ───────────────────────────────────────────── -->
+      <section class="variant">
+        <div class="variant-header">
+          <span class="variant-num">Variant 06</span>
+          <span class="variant-ref">Reference: Vercel, Cal.com secondary CTAs</span>
+        </div>
+        <h2 class="variant-name">Secondary button with inline count badge</h2>
+        <div class="variant-demo">
+          <a class="btn-v6" href="https://github.com/limehawk/prinstall">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            View on GitHub
+            <span class="count-badge">★ <span data-stars>—</span></span>
+          </a>
+        </div>
+        <div class="variant-notes">
+          <div class="pros">
+            <strong>Pros</strong>
+            <p>My recommendation. Reads as "View on GitHub" first (familiar action), count is a small badge inside like a notification pill. Preserves the secondary-button hierarchy so Download stays the hero CTA. Same 8px radius as the other buttons.</p>
+          </div>
+          <div class="cons">
+            <strong>Cons</strong>
+            <p>Slightly wider than the other buttons in the row because of the inline pill.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Variant 7 ───────────────────────────────────────────── -->
+      <section class="variant">
+        <div class="variant-header">
+          <span class="variant-num">Variant 07</span>
+          <span class="variant-ref">Reference: dev-flavor custom, matches prinstall terminal theme</span>
+        </div>
+        <h2 class="variant-name">Terminal command-style (dev flavor)</h2>
+        <div class="variant-demo">
+          <a class="btn-v7" href="https://github.com/limehawk/prinstall">
+            <span class="prompt">$</span> <span class="cmd">gh repo star limehawk/prinstall</span>
+            <span class="output"><span class="check">✓</span> Starred · <span class="count" data-stars>—</span> stargazers</span>
+          </a>
+        </div>
+        <div class="variant-notes">
+          <div class="pros">
+            <strong>Pros</strong>
+            <p>Terminal-native flavor that matches the whole prinstall aesthetic. Feels like you're reading the output of a command. Devs will love it. Different from every other landing page star button.</p>
+          </div>
+          <div class="cons">
+            <strong>Cons</strong>
+            <p>Wider than a normal button so it changes the CTA row layout. Two-line design is more attention-grabbing but takes more vertical space.</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      Playground — not indexed  ·  <a href="/">Back to prinstall.limehawk.io</a>  ·  <a href="https://github.com/limehawk/prinstall">GitHub</a>
+    </div>
+  </footer>
+
+  <script>
+    // Fetch the live star count once on page load and populate every variant.
+    // No polling, no framework — just one GET, one Intl.NumberFormat.
+    (async () => {
+      try {
+        const response = await fetch('https://api.github.com/repos/limehawk/prinstall');
+        if (!response.ok) throw new Error('GitHub API returned ' + response.status);
+        const data = await response.json();
+        const count = data.stargazers_count;
+        const formatted = new Intl.NumberFormat('en-US').format(count);
+        document.querySelectorAll('[data-stars]').forEach((el) => {
+          el.textContent = formatted;
+        });
+      } catch (err) {
+        console.warn('star count fetch failed:', err);
+        document.querySelectorAll('[data-stars]').forEach((el) => {
+          el.textContent = '·';
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
