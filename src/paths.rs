@@ -76,9 +76,54 @@ pub fn staging_dir() -> PathBuf {
     data_dir().join("staging")
 }
 
+/// Root directory for the SDI (Snappy Driver Installer Origin) cache.
+///
+/// Contains the printer-only slice of SDI: per-pack `.bin` indexes and
+/// lazily-fetched `.7z` driver packs downloaded from the prinstall
+/// GitHub Releases mirror.
+pub fn sdi_dir() -> PathBuf {
+    data_dir().join("sdi")
+}
+
+/// Directory containing cached SDW-format `.bin` index files.
+///
+/// Populated by `prinstall sdi refresh` (or transparently on the first
+/// `prinstall add` that hits the SDI tier). Typical contents:
+/// `DP_Printer_<version>.bin`, `DP_ThermoPrinter_<version>.bin`.
+pub fn sdi_indexes_dir() -> PathBuf {
+    sdi_dir().join("indexes")
+}
+
+/// Directory containing lazily-fetched SDI driver pack `.7z` files.
+///
+/// Packs are downloaded on first HWID match from the configured mirror
+/// (default: prinstall's GitHub Releases `sdi-printer-v<N>` tag). Each
+/// pack can be hundreds of megabytes; `prinstall sdi clean` evicts
+/// least-recently-used packs past `config.sdi.max_cache_mb`.
+pub fn sdi_drivers_dir() -> PathBuf {
+    sdi_dir().join("drivers")
+}
+
+/// Path to the SDI cache metadata JSON file.
+///
+/// Tracks index version (from the mirror manifest), last refresh
+/// timestamp, and per-pack usage stats (`size_bytes`, `sha256`,
+/// `last_used`) used by the LRU prune logic.
+pub fn sdi_metadata_path() -> PathBuf {
+    sdi_dir().join("metadata.json")
+}
+
 /// Ensures the data directory exists. Idempotent.
 pub fn ensure_data_dir() -> std::io::Result<()> {
     std::fs::create_dir_all(data_dir())
+}
+
+/// Ensures the SDI cache directories exist. Idempotent. Creates
+/// `sdi/`, `sdi/indexes/`, and `sdi/drivers/`.
+pub fn ensure_sdi_dirs() -> std::io::Result<()> {
+    std::fs::create_dir_all(sdi_indexes_dir())?;
+    std::fs::create_dir_all(sdi_drivers_dir())?;
+    Ok(())
 }
 
 /// Path to the 0.2.2–0.3.0 APPDATA history file, used for one-time

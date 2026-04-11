@@ -7,3 +7,5 @@ pub mod local_store;
 pub mod manifest;
 pub mod matcher;
 pub mod resolver;
+pub mod sdi;
+pub mod sources;
