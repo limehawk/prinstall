@@ -20,6 +20,10 @@ fuzzy-matcher = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 zip = "8"
 cab = "0.6"
+sevenz-rust2 = { version = "0.20", default-features = false, features = ["compress"] }
+lzma-rs = "0.3"
+sha2 = "0.10"
+indicatif = "0.17"
 scraper = "0.26"
 regex = "1"
 mdns-sd = "0.19"
