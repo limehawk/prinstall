@@ -57,6 +57,10 @@ pub async fn identify_printer(ip: Ipv4Addr, community: &str, verbose: bool) -> O
         ports: vec![],
         source: PrinterSource::Network,
         local_name: None,
+        port_name: None,
+        driver_name: None,
+        shared: None,
+        is_default: None,
     })
 }
 

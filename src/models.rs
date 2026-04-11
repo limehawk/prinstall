@@ -29,6 +29,23 @@ pub struct Printer {
     pub ports: Vec<u16>,
     pub source: PrinterSource,
     pub local_name: Option<String>,
+    /// Windows port name (e.g. `IP_192.168.1.50`, `USB001`, `PORTPROMPT:`).
+    /// Populated by the `list` command from Get-Printer / Win32_Printer;
+    /// None for printers discovered via network scans.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port_name: Option<String>,
+    /// Driver name as reported by Windows. Distinct from `model`, which
+    /// is the hardware model (SNMP sysDescr). For `list` results we
+    /// populate this alongside the queue name; scan results leave it
+    /// None since `model` already carries the relevant identifier.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_name: Option<String>,
+    /// Whether the queue is shared on the network. `list` only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<bool>,
+    /// Whether this is the Windows default printer. `list` only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_default: Option<bool>,
 }
 
 impl Printer {

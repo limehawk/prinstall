@@ -168,6 +168,152 @@ pub fn format_scan_results_json(printers: &[Printer]) -> String {
     serde_json::to_string_pretty(printers).unwrap_or_else(|_| "[]".to_string())
 }
 
+/// Format `prinstall list` results.
+///
+/// Dedicated formatter because `list` carries richer metadata than
+/// scan — queue name, driver, port, shared flag, default flag — and
+/// those all deserve their own columns. A `*` marker prefixes the
+/// default printer so operators can see at a glance which queue
+/// Windows will use when an app just says "print".
+pub fn format_list_results(printers: &[Printer]) -> String {
+    if printers.is_empty() {
+        return "No locally installed printers found.".to_string();
+    }
+
+    // ── Column widths ─────────────────────────────────────────────────────
+    let name_width = printers
+        .iter()
+        .map(|p| p.local_name.as_deref().unwrap_or("-").len())
+        .max()
+        .unwrap_or(20)
+        .max(4);
+    let driver_width = printers
+        .iter()
+        .map(|p| {
+            p.driver_name
+                .as_deref()
+                .or(p.model.as_deref())
+                .unwrap_or("-")
+                .len()
+        })
+        .max()
+        .unwrap_or(20)
+        .max(6);
+    let port_width = printers
+        .iter()
+        .map(|p| p.port_name.as_deref().unwrap_or("-").len())
+        .max()
+        .unwrap_or(12)
+        .max(4);
+    let source_width = "Source".len().max(9);
+    let shared_width = "Shared".len();
+
+    let mut out = String::new();
+
+    // ── Header ────────────────────────────────────────────────────────────
+    out.push('\n');
+    out.push_str(&format!(
+        "  {:<name_w$}  {:<driver_w$}  {:<port_w$}  {:<src_w$}  {:<shared_w$}  {}\n",
+        header("Name"),
+        header("Driver"),
+        header("Port"),
+        header("Source"),
+        header("Shared"),
+        header("Status"),
+        name_w = name_width,
+        driver_w = driver_width,
+        port_w = port_width,
+        src_w = source_width,
+        shared_w = shared_width,
+    ));
+    out.push_str(&format!(
+        "  {:-<name_w$}  {:-<driver_w$}  {:-<port_w$}  {:-<src_w$}  {:-<shared_w$}  {:-<8}\n",
+        "", "", "", "", "", "",
+        name_w = name_width,
+        driver_w = driver_width,
+        port_w = port_width,
+        src_w = source_width,
+        shared_w = shared_width,
+    ));
+
+    // ── Rows ──────────────────────────────────────────────────────────────
+    let default_count = printers.iter().filter(|p| p.is_default == Some(true)).count();
+
+    for p in printers {
+        let name = p.local_name.as_deref().unwrap_or("-");
+        let driver = p
+            .driver_name
+            .as_deref()
+            .or(p.model.as_deref())
+            .unwrap_or("-");
+        let port = p.port_name.as_deref().unwrap_or("-");
+        let source_str = match p.source {
+            PrinterSource::Network => "Network",
+            PrinterSource::Usb => "USB",
+            PrinterSource::Installed => "Installed",
+        };
+        let shared_str = match p.shared {
+            Some(true) => "Yes",
+            Some(false) => "No",
+            None => "-",
+        };
+        let status_str = p.status.to_string();
+        let marker = if p.is_default == Some(true) { "*" } else { " " };
+
+        out.push_str(&format!(
+            "{} {:<name_w$}  {:<driver_w$}  {:<port_w$}  {:<src_w$}  {:<shared_w$}  {}\n",
+            marker,
+            name,
+            driver,
+            port,
+            source_str,
+            shared_str,
+            status_color(&status_str, &p.status),
+            name_w = name_width,
+            driver_w = driver_width,
+            port_w = port_width,
+            src_w = source_width,
+            shared_w = shared_width,
+        ));
+    }
+
+    // ── Footer ────────────────────────────────────────────────────────────
+    let total = printers.len();
+    let usb_count = printers
+        .iter()
+        .filter(|p| matches!(p.source, PrinterSource::Usb))
+        .count();
+    let net_count = printers
+        .iter()
+        .filter(|p| p.ip.is_some())
+        .count();
+    let virtual_count = total - usb_count - net_count;
+
+    let mut summary_parts = vec![format!("{total} printer(s)")];
+    if net_count > 0 {
+        summary_parts.push(format!("{net_count} network"));
+    }
+    if usb_count > 0 {
+        summary_parts.push(format!("{usb_count} USB"));
+    }
+    if virtual_count > 0 {
+        summary_parts.push(format!("{virtual_count} virtual/installed"));
+    }
+    if default_count > 0 {
+        summary_parts.push(format!("{default_count} default"));
+    }
+
+    out.push('\n');
+    out.push_str(&dim(&format!("  {}", summary_parts.join("  ·  "))));
+    out.push('\n');
+    if default_count > 0 {
+        out.push_str(&dim("  * = Windows default printer"));
+        out.push('\n');
+    }
+
+    out
+}
+
 /// Format driver matching results with all sections:
 ///   1. Printer info (model, IPP device ID)
 ///   2. Windows Update probe result (if available)
