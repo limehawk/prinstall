@@ -224,22 +224,47 @@
     .btn .arrow { transition: transform 0.15s; }
     .btn:hover .arrow { transform: translateX(2px); }
 
-    /* GitHub star badge — shields.io SVG wrapped as a CTA-row element.
-       Sized to align vertically with the buttons and to glow on hover. */
-    .star-badge {
+    /* Combined GitHub button + live star count (Variant 06 from the playground).
+       Reads as "View on GitHub" first so it stays a recognizable secondary CTA,
+       with the star count in a small inline pill on the right side like a
+       notification badge. Matches btn-primary's radius/padding for row alignment.
+       Live count is fetched once on page load from the GitHub API. */
+    .btn-github-stars {
       display: inline-flex;
       align-items: center;
+      gap: 12px;
+      padding: 14px 22px 14px 24px;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
       text-decoration: none;
-      transition: transform 0.15s, filter 0.15s;
-    }
-    .star-badge img {
-      height: 44px;
-      display: block;
+      color: var(--text);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-bright);
       border-radius: 8px;
+      transition: border-color 0.15s, transform 0.15s;
     }
-    .star-badge:hover {
+    .btn-github-stars:hover {
+      border-color: var(--accent);
       transform: translateY(-1px);
-      filter: drop-shadow(0 0 12px rgba(255, 107, 53, 0.35));
+    }
+    .btn-github-stars svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .btn-github-stars .count-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 11px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid rgba(255, 107, 53, 0.25);
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
     }
 
     .meta {
@@ -490,7 +515,9 @@
       .hero .hero-title { margin-bottom: 28px; }
       .hero .hero-divider { margin-bottom: 24px; }
       .hero .hero-body { margin-bottom: 32px; }
-      .star-badge img { height: 38px; }
+      .btn-github-stars { padding: 12px 18px 12px 20px; font-size: 13px; }
+      .btn-github-stars svg { width: 16px; height: 16px; }
+      .btn-github-stars .count-badge { font-size: 11px; padding: 2px 9px; }
       section { padding: 56px 0; }
       .nav-links { gap: 16px; font-size: 13px; }
       .btn { padding: 12px 22px; font-size: 13px; }
@@ -531,16 +558,10 @@
             Download for Windows
             <span class="arrow">→</span>
           </a>
-          <a class="btn btn-secondary" href="https://github.com/limehawk/prinstall">
+          <a class="btn-github-stars" href="https://github.com/limehawk/prinstall">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
             View on GitHub
-          </a>
-          <a class="star-badge" href="https://github.com/limehawk/prinstall" aria-label="Star prinstall on GitHub">
-            <img
-              src="https://img.shields.io/github/stars/limehawk/prinstall?style=for-the-badge&logo=github&label=STAR&color=ff6b35&labelColor=0a0e14"
-              alt="GitHub stars"
-              loading="lazy"
-              decoding="async"
-            />
+            <span class="count-badge">★ <span data-github-stars>—</span></span>
           </a>
         </div>
         <div class="meta">
@@ -713,5 +734,28 @@
       <p>MIT licensed  ·  built by <a href="https://limehawk.io" style="color: var(--text-dim); text-decoration: underline;">limehawk</a>  ·  designed for techs who just want the printer to work</p>
     </div>
   </footer>
+
+  <script>
+    // Populate the hero GitHub stars count with the live value from the
+    // GitHub REST API. One unauthenticated GET on page load, cached by the
+    // browser per the API's own Cache-Control headers. Silent fail — the
+    // button already has a "—" placeholder so a failed fetch just leaves it.
+    (async () => {
+      try {
+        const res = await fetch('https://api.github.com/repos/limehawk/prinstall');
+        if (!res.ok) return;
+        const data = await res.json();
+        const count = data.stargazers_count;
+        if (typeof count === 'number') {
+          const formatted = new Intl.NumberFormat('en-US').format(count);
+          document.querySelectorAll('[data-github-stars]').forEach((el) => {
+            el.textContent = formatted;
+          });
+        }
+      } catch (_) {
+        // intentionally silent
+      }
+    })();
+  </script>
 </body>
 </html>
