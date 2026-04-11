@@ -256,14 +256,22 @@
 
     .meta {
       display: flex;
-      gap: 24px;
+      gap: 8px;
       justify-content: center;
       font-family: var(--mono);
-      font-size: 13px;
+      font-size: 10px;
       color: var(--text-subtle);
       flex-wrap: wrap;
     }
-    .meta span { display: flex; align-items: center; gap: 6px; }
+    .meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+    }
 
     /* Sections */
     section { padding: 80px 0; }
@@ -662,7 +670,7 @@
       #roadmap .feature h3 { margin-top: 6px; font-size: 17px; }
 
       /* Meta and terminal */
-      .meta { gap: 12px; font-size: 12px; }
+      .meta { gap: 6px; font-size: 9px; }
       .terminal-body { padding: 16px; font-size: 12px; }
 
       /* Footer links wrap with a sane gap instead of spilling off-screen */
@@ -703,10 +711,10 @@
       .meta {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 8px 20px;
-        max-width: 280px;
+        gap: 5px 10px;
+        max-width: 240px;
         margin: 0 auto;
-        font-size: 11px;
+        font-size: 9px;
       }
       .meta span { justify-content: center; }
 
