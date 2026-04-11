@@ -39,7 +39,7 @@ release.
    etc. with `escape_ps_string` for injection safety), `installer/mod.rs`
    (three-step `install_printer` orchestration)
 7. **Data + persistence** — `paths.rs` (canonical paths under
-   `%APPDATA%\prinstall\` with legacy migration from `C:\ProgramData\`),
+   `C:\ProgramData\prinstall\` with forward-migration from the 0.2.2–0.3.0 %APPDATA% layout),
    `config.rs` (TOML `AppConfig`), `history.rs` (install log)
 
 **Key design decisions:**
@@ -55,9 +55,12 @@ release.
   is open, `add` falls back to `Add-Printer -DriverName "Microsoft IPP Class Driver"`.
   Always surfaces a visible `WARNING:` line in the result so MSP audit trails
   can identify generic-fallback installs.
-- **`%APPDATA%\prinstall\`** — single data directory for history, config, driver
-  staging, future logs. First run auto-migrates from legacy
-  `C:\ProgramData\prinstall\history.toml`.
+- **`C:\ProgramData\prinstall\`** — single machine-wide data directory for
+  history, config, driver staging, future logs. ProgramData (not APPDATA) so
+  SYSTEM-run RMM runbooks and interactive admin sessions share one audit
+  trail instead of splitting across per-user silos. On first run under 0.3.1+,
+  auto-migrates forward from the 0.2.2–0.3.0 `%APPDATA%\prinstall\`
+  location if present. See `src/paths.rs` for the rationale.
 - **Embedded data** — `data/drivers.toml` (17 manufacturers) and
   `data/known_matches.toml` (curated exact matches) compiled in via
   `include_str!()`. Note: most manufacturer entries in drivers.toml have empty
@@ -99,7 +102,7 @@ src/
 ├── cli.rs                   clap Commands enum with rich help
 ├── models.rs                Printer, DriverMatch, PrinterOpResult, typed payloads
 ├── output.rs                Plain-text + JSON formatters, semantic coloring
-├── paths.rs                 Canonical %APPDATA%\prinstall\ paths + legacy migration
+├── paths.rs                 Canonical C:\ProgramData\prinstall\ paths + legacy APPDATA migration
 ├── config.rs                Persistent AppConfig (TOML)
 ├── history.rs               Install history log
 ├── privilege.rs             Windows admin detection

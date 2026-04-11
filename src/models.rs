@@ -294,9 +294,9 @@ pub struct RemoveDetail {
     pub already_absent: bool,
 }
 
-/// Entry in the local install history (%APPDATA%\prinstall\history.toml on
-/// Windows; auto-migrated from the legacy C:\ProgramData\prinstall\ location
-/// on first run under the 0.2.2+ layout).
+/// Entry in the local install history (C:\ProgramData\prinstall\history.toml
+/// on Windows — machine-wide so SYSTEM-run RMM installs and interactive
+/// admin sessions share one audit log. See src/paths.rs for the rationale).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryEntry {
     pub model: String,
