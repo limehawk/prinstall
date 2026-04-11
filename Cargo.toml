@@ -19,6 +19,8 @@ clap = { version = "4", features = ["derive"] }
 fuzzy-matcher = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 zip = "8"
+scraper = "0.24"
+regex = "1"
 
 [build-dependencies]
 embed-manifest = "1"

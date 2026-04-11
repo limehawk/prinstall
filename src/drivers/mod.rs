@@ -1,3 +1,4 @@
+pub mod catalog;
 pub mod downloader;
 pub mod known_matches;
 pub mod local_store;
