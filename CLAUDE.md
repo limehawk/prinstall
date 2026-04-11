@@ -138,6 +138,11 @@ src/
 data/
 ├── drivers.toml             Manufacturer registry — HP has real URLs, others empty
 └── known_matches.toml       Curated exact matches (3 HP entries currently)
+assets/
+├── prinstall-icon.png       Rasterized source for the app icon (2048×2048)
+├── prinstall-icon.pdf       Vector source (kept for future re-exports)
+├── prinstall.ico            Compiled 7-resolution ICO (16/32/48/64/96/128/256)
+└── prinstall.rc             Windows resource file — embedded via build.rs
 tests/
 ├── cli_parse.rs             11 tests
 ├── matcher.rs               13 tests
@@ -174,6 +179,36 @@ Binary lands at `target/x86_64-pc-windows-msvc/release/prinstall.exe`.
 
 Release builds happen via GitHub Actions `windows-latest` runner on tag push
 (`.github/workflows/release.yml`). The docker workflow above is for dev loop only.
+
+### Changing the app icon
+
+The Windows app icon is embedded via a Windows `ICON` resource at build
+time. `build.rs` calls `embed_resource::compile("assets/prinstall.rc", ...)`
+on Windows targets only — Linux dev builds skip it so no ImageMagick or
+resource compiler is needed for `cargo check` / `cargo test`.
+
+To replace the icon:
+
+1. Drop a new square transparent PNG in at `assets/prinstall-icon.png`
+   (2048×2048 recommended — the auto-resize directive below downsamples
+   to every standard icon size).
+2. Regenerate the multi-resolution ICO:
+   ```bash
+   magick assets/prinstall-icon.png \
+     -define icon:auto-resize=256,128,96,64,48,32,16 \
+     assets/prinstall.ico
+   ```
+3. Rebuild — `build.rs` picks up the new `.ico` on the next Windows build.
+
+All icon-related files:
+
+- `assets/prinstall-icon.png` — rasterized source (2048×2048 transparent PNG)
+- `assets/prinstall-icon.pdf` — vector source, kept for future re-exports
+- `assets/prinstall.ico` — compiled 7-resolution ICO (16/32/48/64/96/128/256)
+- `assets/prinstall.rc` — Windows resource file (`1 ICON "prinstall.ico"`)
+- `build.rs` — `embed_resource::compile("assets/prinstall.rc", ...)` inside
+  the `target_os == "windows"` branch, alongside the UAC manifest embed
+- `Cargo.toml` — `embed-resource = "3"` in `[build-dependencies]`
 
 ## Testing infrastructure
 

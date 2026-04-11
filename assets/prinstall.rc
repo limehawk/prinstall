@@ -1,0 +1,4 @@
+// Windows resource script — embeds the prinstall app icon into the
+// exe so Explorer, the taskbar, and shortcut UIs show the correct
+// icon. Compiled by `embed-resource` via build.rs on Windows targets.
+1 ICON "prinstall.ico"
