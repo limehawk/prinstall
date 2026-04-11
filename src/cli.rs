@@ -244,12 +244,30 @@ pub enum Commands {
 
     /// List locally installed printers (USB, network, virtual)
     ///
-    /// Shows printers Windows already knows about via Get-Printer.
-    /// Useful in RMM scripts to check what's installed.
+    /// Enumerates every printer queue Windows already knows about via
+    /// Get-Printer. Shows the queue name, driver, port, and the source
+    /// (USB, network, or installed/virtual). This is the fastest way to
+    /// audit what's on a machine before adding or removing anything.
     #[command(
         after_help = "EXAMPLES:\n  \
             prinstall list                  Show all installed printers\n  \
-            prinstall list --json           Output as JSON"
+            prinstall list --json           Output as JSON (for scripting)\n  \
+            prinstall list --verbose        Show full Get-Printer output\n\n\
+            HOW IT WORKS:\n  \
+            Runs Get-Printer via PowerShell, parses the structured output\n  \
+            into the same Printer model scan uses, and prints:\n    \
+            • Queue name            (e.g. \"Brother MFC-L2750DW series\")\n    \
+            • Driver name           (e.g. \"Brother Laser Type1 Class Driver\")\n    \
+            • Port name             (e.g. \"IP_192.168.1.50\" or \"USB001\")\n    \
+            • Source                (network / USB / installed)\n\n\
+            USE CASES:\n  \
+            • RMM audit: pipe --json to a parser to check what's deployed\n  \
+            • Pre-install check: see if a printer is already installed\n  \
+            • Post-install verification: confirm a queue landed correctly\n  \
+            • Troubleshooting: find a queue name for `prinstall remove`\n\n\
+            NOTE:\n  \
+            Unlike scan, list is local-only — it doesn't touch the network.\n  \
+            No admin privileges required. Safe to run from any shell."
     )]
     List,
 }
