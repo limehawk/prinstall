@@ -548,18 +548,124 @@
     footer .footer-links a:hover { color: var(--accent); }
 
     @media (max-width: 700px) {
+      /* Container scales down so every section gets more usable width */
+      .container { padding: 0 18px; }
+
+      /* Nav wraps: logo on first row, links centered on second row.
+         Prevents the 5-link row from overflowing the viewport and
+         getting clipped by body's overflow-x: hidden. */
+      nav { padding: 18px 0; }
+      nav .container {
+        flex-wrap: wrap;
+        row-gap: 12px;
+        justify-content: center;
+      }
+      .logo { flex: 1 1 auto; }
+      .nav-links {
+        flex: 1 1 100%;
+        justify-content: center;
+        gap: 18px;
+        font-size: 13px;
+      }
+
+      /* Hero */
       .hero { padding: 72px 0 52px; }
       .hero .hero-title { margin-bottom: 28px; }
       .hero .hero-divider { margin-bottom: 24px; }
       .hero .hero-body { margin-bottom: 32px; }
+
+      /* CTA buttons */
+      .btn { padding: 12px 22px; font-size: 13px; }
       .btn-github-stars { padding: 12px 18px 12px 20px; font-size: 13px; }
       .btn-github-stars svg { width: 16px; height: 16px; }
       .btn-github-stars .count-badge { font-size: 11px; padding: 2px 9px; }
+
+      /* Sections + cards */
       section { padding: 56px 0; }
-      .nav-links { gap: 16px; font-size: 13px; }
-      .btn { padding: 12px 22px; font-size: 13px; }
+      section .subtitle { margin-bottom: 40px; }
+      .feature { padding: 22px; }
+
+      /* Meta and terminal */
       .meta { gap: 12px; font-size: 12px; }
       .terminal-body { padding: 16px; font-size: 12px; }
+
+      /* Footer links wrap with a sane gap instead of spilling off-screen */
+      footer .footer-links {
+        flex-wrap: wrap;
+        row-gap: 10px;
+        gap: 16px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      /* Container even narrower on small phones (iPhone SE etc.) */
+      .container { padding: 0 14px; }
+
+      /* Let nav links break to a second row if all 5 don't fit */
+      .nav-links {
+        gap: 14px;
+        font-size: 12px;
+        flex-wrap: wrap;
+      }
+
+      /* Hero compresses further so the big headline doesn't feel huge */
+      .hero { padding: 56px 0 40px; }
+      .hero .hero-title {
+        font-size: clamp(30px, 9vw, 44px);
+        margin-bottom: 22px;
+      }
+      .hero .hero-divider { margin-bottom: 20px; }
+      .hero .hero-body { font-size: 15px; margin-bottom: 28px; }
+
+      /* CTA row — tighter padding so both buttons fit one-per-row comfortably */
+      .cta { gap: 12px; margin-bottom: 20px; }
+      .btn { padding: 11px 18px; font-size: 12px; }
+      .btn-github-stars { padding: 10px 14px 10px 16px; gap: 10px; font-size: 12px; }
+      .btn-github-stars .count-badge { font-size: 10px; padding: 2px 8px; }
+
+      /* Meta row compacts */
+      .meta { gap: 10px 16px; font-size: 11px; }
+
+      /* Sections */
+      section { padding: 44px 0; }
+      section h2 { margin-bottom: 6px; }
+      section .subtitle { margin-bottom: 32px; font-size: 13px; }
+
+      /* Feature cards trim padding for more content width */
+      .feature { padding: 18px; }
+      .feature h3 { font-size: 16px; }
+      .feature p { font-size: 13px; }
+
+      /* Pipeline collapses to a single column — 2-col is too cramped at ≤480px */
+      .pipeline { grid-template-columns: 1fr; }
+      .tier { padding: 16px 14px; }
+
+      /* Install steps — smaller number bubble, tighter code padding */
+      .install-step { gap: 12px; margin-bottom: 18px; }
+      .install-step-num {
+        width: 24px;
+        height: 24px;
+        line-height: 24px;
+        font-size: 12px;
+      }
+      .install-step-body p { font-size: 13px; }
+      .install-step-body code {
+        padding: 10px 56px 10px 12px;
+        font-size: 12px;
+      }
+      .copy-btn { font-size: 10px; padding: 3px 8px; }
+
+      /* Terminal */
+      .terminal-header { padding: 10px 12px; }
+      .terminal-title { font-size: 11px; padding-right: 48px; }
+      .terminal-body { padding: 14px 12px; font-size: 11px; }
+
+      /* Footer */
+      footer {
+        padding: 36px 0 24px;
+        font-size: 12px;
+      }
+      footer .footer-links { gap: 12px; font-size: 12px; }
     }
   </style>
 </head>
