@@ -382,6 +382,7 @@ pub fn format_printer_id(printer: &Printer) -> String {
             crate::models::DiscoveryMethod::Ipp => "IPP",
             crate::models::DiscoveryMethod::Snmp => "SNMP",
             crate::models::DiscoveryMethod::Local => "Local",
+            crate::models::DiscoveryMethod::Mdns => "mDNS",
         }).collect();
         out.push_str(&format!("  Found:  {}\n", methods.join(" + ")));
     }

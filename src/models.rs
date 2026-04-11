@@ -8,6 +8,7 @@ pub enum DiscoveryMethod {
     Ipp,
     Snmp,
     Local,
+    Mdns,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

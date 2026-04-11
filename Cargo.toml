@@ -1,6 +1,6 @@
 [package]
 name = "prinstall"
-version = "0.3.1-dev"
+version = "0.3.1"
 edition = "2024"
 description = "Discover network printers, match drivers, and install them on Windows"
 license = "MIT"
@@ -21,6 +21,7 @@ chrono = { version = "0.4", features = ["serde"] }
 zip = "8"
 scraper = "0.26"
 regex = "1"
+mdns-sd = "0.19"
 
 [build-dependencies]
 embed-manifest = "1"

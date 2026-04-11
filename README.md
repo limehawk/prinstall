@@ -31,7 +31,7 @@ MSP technicians burn hours on printer installs. Find the IP, hunt the driver, wr
 
 ## Features
 
-- **Multi-method discovery** — TCP port probe, IPP, SNMP, and `Get-Printer` in one parallel pipeline
+- **Multi-method discovery** — TCP port probe, IPP, SNMP, mDNS/Bonjour, and `Get-Printer` in one parallel pipeline
 - **Deterministic driver resolution** — scrapes the Update Catalog, parses the INF, matches the synthesized HWID
 - **Network + USB** — one binary, both install paths, idempotent
 - **Clean remove** — queue, driver, and port teardown with spooler-lag retries
