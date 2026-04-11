@@ -13,6 +13,7 @@
 use std::time::Duration;
 
 use crate::core::executor::{PsExecutor, RealExecutor};
+use crate::core::ps_error;
 use crate::installer::powershell::escape_ps_string;
 use crate::models::{InstallDetail, PrinterOpResult};
 use crate::{discovery, drivers, installer};
@@ -246,7 +247,7 @@ async fn stage_driver_if_needed(
                     eprintln!(
                         "[add] Warning: failed to stage {}: {}",
                         inf.display(),
-                        stage_result.stderr
+                        ps_error::clean(&stage_result.stderr)
                     );
                 }
             }
@@ -329,7 +330,7 @@ pub(crate) fn try_ipp_fallback(
     if !result.success {
         return PrinterOpResult::err(format!(
             "Primary install failed and IPP Class Driver fallback also failed: {}",
-            result.stderr
+            ps_error::clean(&result.stderr)
         ));
     }
 

@@ -18,6 +18,7 @@ use std::net::Ipv4Addr;
 use serde::Deserialize;
 
 use crate::core::executor::{run_json, PsExecutor};
+use crate::core::ps_error;
 use crate::installer::powershell::escape_ps_string;
 use crate::models::{PrinterOpResult, RemoveDetail};
 
@@ -126,7 +127,7 @@ pub async fn run(executor: &dyn PsExecutor, args: RemoveArgs<'_>) -> PrinterOpRe
     if !remove_result.success {
         return PrinterOpResult::err(format!(
             "Failed to remove printer '{printer_name}': {}",
-            remove_result.stderr
+            ps_error::clean(&remove_result.stderr)
         ));
     }
 

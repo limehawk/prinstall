@@ -1,5 +1,6 @@
 pub mod powershell;
 
+use crate::core::ps_error;
 use crate::models::{InstallDetail, PrinterOpResult};
 
 /// Install a printer: create port, install driver, add printer queue.
@@ -15,7 +16,10 @@ pub fn install_printer(
     // Step 1: Create TCP/IP port
     let port_result = powershell::create_port(ip, verbose);
     if !port_result.success {
-        return PrinterOpResult::err(format!("Failed to create port: {}", port_result.stderr));
+        return PrinterOpResult::err(format!(
+            "Failed to create port: {}",
+            ps_error::clean(&port_result.stderr)
+        ));
     }
 
     // Step 2: Install driver
@@ -23,7 +27,7 @@ pub fn install_printer(
     if !driver_result.success {
         return PrinterOpResult::err(format!(
             "Failed to install driver: {}",
-            driver_result.stderr
+            ps_error::clean(&driver_result.stderr)
         ));
     }
 
@@ -32,7 +36,7 @@ pub fn install_printer(
     if !printer_result.success {
         return PrinterOpResult::err(format!(
             "Failed to add printer: {}",
-            printer_result.stderr
+            ps_error::clean(&printer_result.stderr)
         ));
     }
 
@@ -60,7 +64,7 @@ pub fn update_printer_driver(
     if !driver_result.success {
         return PrinterOpResult::err(format!(
             "Failed to install driver: {}",
-            driver_result.stderr
+            ps_error::clean(&driver_result.stderr)
         ));
     }
 
@@ -69,7 +73,7 @@ pub fn update_printer_driver(
     if !update_result.success {
         return PrinterOpResult::err(format!(
             "Failed to update driver: {}",
-            update_result.stderr
+            ps_error::clean(&update_result.stderr)
         ));
     }
 

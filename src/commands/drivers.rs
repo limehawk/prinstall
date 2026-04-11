@@ -33,6 +33,7 @@
 //! stays, which is fine because `prinstall add`'s port creation is idempotent.
 
 use crate::core::executor::{PsExecutor, run_json};
+use crate::core::ps_error;
 use crate::installer::powershell::escape_ps_string;
 use crate::models::{DriverResults, WindowsUpdateProbe};
 use crate::{discovery, drivers as drivers_mod, privilege};
@@ -158,7 +159,7 @@ pub fn probe_windows_update(
     if !add_result.success {
         return Err(format!(
             "Add-Printer -ConnectionName failed: {}",
-            add_result.stderr
+            ps_error::clean(&add_result.stderr)
         ));
     }
 
@@ -232,7 +233,7 @@ fn attempt_cleanup(executor: &dyn PsExecutor, probe_name: &str, verbose: bool) {
     if !result.success && verbose {
         eprintln!(
             "[drivers] Warning: failed to roll back probe queue '{probe_name}': {}",
-            result.stderr
+            ps_error::clean(&result.stderr)
         );
     }
 }

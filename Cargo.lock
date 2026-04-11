@@ -1733,7 +1733,7 @@ dependencies = [
 
 [[package]]
 name = "prinstall"
-version = "0.2.11-dev"
+version = "0.2.12-dev"
 dependencies = [
  "chrono",
  "clap",
