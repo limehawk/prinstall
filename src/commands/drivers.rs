@@ -126,8 +126,13 @@ pub fn probe_windows_update(
     }
 
     // ── Capture BEFORE list of printer names ─────────────────────────────────
+    // NOTE: The `@(...)` sub-expression array operator forces PowerShell to
+    // treat the pipeline result as an array regardless of cardinality.
+    // Without it, a single-element result is emitted as a bare JSON string
+    // (`"name"`) and an empty result as `null`, breaking the Vec<String>
+    // deserialization. With `@()`: always `["a","b"]` or `[]`.
     let before_cmd =
-        "Get-Printer | Select-Object -ExpandProperty Name | ConvertTo-Json -Compress";
+        "@(Get-Printer | Select-Object -ExpandProperty Name) | ConvertTo-Json -Compress";
     let before_names: Vec<String> = match run_json(executor, before_cmd) {
         Ok(v) => v,
         Err(e) => return Err(format!("Failed to list existing printers: {e}")),
