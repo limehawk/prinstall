@@ -18,3 +18,60 @@ source = "manufacturer"
 model = "HP Color LaserJet Pro MFP M479fdw"
 driver = "HP Color LaserJet Pro MFP M479 PCL-6 (V4)"
 source = "manufacturer"
+
+# Xerox — Global Print Driver PCL6 (universal across VersaLink/AltaLink/Phaser/WorkCentre)
+# Driver-name column here matches the `drivers.toml` entry; the real
+# Windows-driver-store name may differ slightly and will need reconciling
+# after a test install against one real unit per model family.
+
+[[matches]]
+model = "Xerox VersaLink C7030"
+driver = "Xerox Global Print Driver PCL6"
+source = "manufacturer"
+
+[[matches]]
+model = "Xerox VersaLink B405"
+driver = "Xerox Global Print Driver PCL6"
+source = "manufacturer"
+
+[[matches]]
+model = "Xerox WorkCentre 6515"
+driver = "Xerox Global Print Driver PCL6"
+source = "manufacturer"
+
+[[matches]]
+model = "Xerox AltaLink C8045"
+driver = "Xerox Global Print Driver PCL6"
+source = "manufacturer"
+
+[[matches]]
+model = "Xerox Phaser 6510"
+driver = "Xerox Global Print Driver PCL6"
+source = "manufacturer"
+
+# Kyocera — KX Universal Driver (covers TASKalfa + ECOSYS lines)
+
+[[matches]]
+model = "Kyocera TASKalfa 3253ci"
+driver = "Kyocera KX Driver"
+source = "manufacturer"
+
+[[matches]]
+model = "Kyocera TASKalfa 5053ci"
+driver = "Kyocera KX Driver"
+source = "manufacturer"
+
+[[matches]]
+model = "Kyocera TASKalfa 4054ci"
+driver = "Kyocera KX Driver"
+source = "manufacturer"
+
+[[matches]]
+model = "Kyocera ECOSYS M3645idn"
+driver = "Kyocera KX Driver"
+source = "manufacturer"
+
+[[matches]]
+model = "Kyocera ECOSYS P3055dn"
+driver = "Kyocera KX Driver"
+source = "manufacturer"
