@@ -161,14 +161,6 @@
       color: var(--accent);
       text-shadow: 0 0 40px rgba(255, 107, 53, 0.35);
     }
-    .hero .hero-divider {
-      width: 56px;
-      height: 2px;
-      background: var(--accent);
-      margin: 0 auto 36px;
-      opacity: 0.55;
-      border-radius: 2px;
-    }
     .hero .hero-body {
       font-size: clamp(16px, 1.6vw, 20px);
       color: var(--text-dim);
@@ -272,7 +264,6 @@
       flex-wrap: wrap;
     }
     .meta span { display: flex; align-items: center; gap: 6px; }
-    .meta .dot { width: 4px; height: 4px; background: var(--text-subtle); border-radius: 50%; }
 
     /* Sections */
     section { padding: 80px 0; }
@@ -642,7 +633,6 @@
       /* Hero */
       .hero { padding: 72px 0 52px; }
       .hero .hero-title { margin-bottom: 28px; }
-      .hero .hero-divider { margin-bottom: 24px; }
       .hero .hero-body { margin-bottom: 32px; }
 
       /* CTA buttons */
@@ -700,7 +690,6 @@
         font-size: clamp(30px, 9vw, 44px);
         margin-bottom: 22px;
       }
-      .hero .hero-divider { margin-bottom: 20px; }
       .hero .hero-body { font-size: 15px; margin-bottom: 28px; }
 
       /* CTA row — tighter padding so both buttons fit one-per-row comfortably */
@@ -801,7 +790,6 @@
           <span class="line-1">Adding printers on Windows sucks.</span>
           <span class="line-2"><span class="brand">prinstall</span> <span class="accent">fixes it.</span></span>
         </h1>
-        <div class="hero-divider" aria-hidden="true"></div>
         <p class="hero-body">
           One command. The right vendor driver, pulled from the Microsoft Update Catalog. Installed.
         </p>
@@ -818,11 +806,8 @@
         </div>
         <div class="meta">
           <span>built in Rust</span>
-          <span class="dot"></span>
           <span>8 MB binary</span>
-          <span class="dot"></span>
           <span>scriptable</span>
-          <span class="dot"></span>
           <span>MIT licensed</span>
         </div>
       </div>
