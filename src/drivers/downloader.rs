@@ -116,32 +116,23 @@ fn extract_zip(bytes: &[u8], dest: &Path, verbose: bool) -> Result<(), String> {
 }
 
 fn extract_cab(bytes: &[u8], dest: &Path, verbose: bool) -> Result<(), String> {
-    // Write CAB to temp file, then use expand.exe (Windows built-in)
-    let cab_path = dest.join("__temp.cab");
-    std::fs::write(&cab_path, bytes)
-        .map_err(|e| format!("Failed to write CAB file: {e}"))?;
-
     if verbose {
-        eprintln!("[cab] expanding {} → {}", cab_path.display(), dest.display());
+        eprintln!(
+            "[cab] extracting {} bytes → {}",
+            bytes.len(),
+            dest.display()
+        );
     }
 
-    let output = std::process::Command::new("expand")
-        .args([
-            cab_path.to_str().unwrap(),
-            "-F:*",
-            dest.to_str().unwrap(),
-        ])
-        .output()
-        .map_err(|e| format!("Failed to run expand.exe: {e}"))?;
+    // Pure-Rust CAB extraction via the `cab` crate. Replaces the earlier
+    // `expand.exe` subprocess — see src/drivers/cab.rs for the rationale.
+    // Linux-testable, no Windows-only dependencies.
+    let written = crate::drivers::cab::extract_cab_to_dir(bytes, dest)?;
 
-    // Clean up temp CAB
-    std::fs::remove_file(&cab_path).ok();
-
-    if !output.status.success() {
-        return Err(format!(
-            "CAB extraction failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
+    if verbose {
+        for path in &written {
+            eprintln!("[cab] {}", path.display());
+        }
     }
 
     Ok(())
