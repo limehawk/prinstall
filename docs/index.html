@@ -375,7 +375,6 @@
       overflow-x: auto;
       line-height: 1.65;
       color: var(--text);
-      white-space: pre;
     }
     .t-prompt { color: var(--green); }
     .t-cmd { color: var(--text); font-weight: 600; }
@@ -384,6 +383,18 @@
     .t-tag { color: var(--yellow); }
     .t-ok { color: var(--green); font-weight: 600; }
     .t-accent { color: var(--accent); font-weight: 600; }
+    .t-line { display: block; white-space: pre; min-height: 1.65em; }
+    .t-line.is-pending { opacity: 0; }
+    .t-caret {
+      display: inline-block;
+      width: 0.55em;
+      height: 1em;
+      vertical-align: text-bottom;
+      background: var(--accent);
+      margin-left: 2px;
+      animation: t-blink 1s steps(2, end) infinite;
+    }
+    @keyframes t-blink { 50% { opacity: 0; } }
 
     /* Pipeline diagram */
     .pipeline {
@@ -475,6 +486,9 @@
       font-size: 14px;
       margin-bottom: 10px;
     }
+    .install-step-body .code-wrap {
+      position: relative;
+    }
     .install-step-body code {
       display: block;
       font-family: var(--mono);
@@ -482,10 +496,33 @@
       background: var(--bg-subtle);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 12px 16px;
+      padding: 12px 64px 12px 16px;
       color: var(--text);
-      overflow-x: auto;
-      white-space: pre;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: color 150ms, border-color 150ms, background 150ms;
+    }
+    .copy-btn:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--bg);
+    }
+    .copy-btn.is-copied {
+      color: var(--green);
+      border-color: var(--green);
     }
 
     /* Footer */
@@ -626,32 +663,33 @@
             <span class="terminal-dot"></span>
             <span class="terminal-title">Windows PowerShell</span>
           </div>
-          <div class="terminal-body"><span class="t-prompt">PS&gt;</span> <span class="t-cmd">prinstall</span> <span class="t-cmd">add</span> 192.168.1.50 <span class="t-flag">--verbose</span>
-
-<span class="t-dim">[add]</span> SNMP → <span class="t-accent">"Brother MFC-L2750DW series"</span>
-<span class="t-dim">[add]</span> IPP device ID: MFG:Brother;MDL:MFC-L2750DW series;CID:<span class="t-accent">Brother Laser Type1</span>;...
-<span class="t-dim">[add]</span> Auto-selected driver: Brother Universal Printer
-<span class="t-dim">[add]</span> Download failed: No download URL available.
-<span class="t-dim">[PS ]</span> Add-PrinterDriver -Name 'Brother Universal Printer'
-<span class="t-dim">[PS ]</span> <span style="color: var(--red);">HRESULT 0x80070705: driver does not exist in the driver store</span>
-<span class="t-dim">[add]</span> Primary install failed. Trying catalog resolver with device ID...
-<span class="t-dim">[resolver]</span> Searching catalog by CID: <span class="t-accent">'Brother Laser Type1'</span>
-<span class="t-dim">[resolver]</span> Catalog returned 5 result(s), scanning top 5
-<span class="t-dim">[resolver]</span> HWID candidates: <span class="t-tag">1284_CID_BROTHER_LASER_TYPE1</span>, BROTHER_LASER_TYPE1, ...
-<span class="t-dim">[resolver]</span> #1: Brother - Printer - 10.0.17119.1
-<span class="t-dim">[resolver]</span>   GET https://catalog.s.download.windowsupdate.com/.../prnbrcl1.cab
-<span class="t-dim">[resolver]</span>   expand → %APPDATA%\prinstall\staging\catalog\...
-<span class="t-dim">[resolver]</span> <span class="t-accent">★ MATCH</span>: prnbrcl1.inf → Brother Laser Type1 Class Driver
-<span class="t-dim">[PS ]</span> pnputil /add-driver '...\prnbrcl1.inf' /install
-<span class="t-dim">[PS ]</span> Add-Printer -Name 'Brother MFC-L2750DW series' -DriverName ...
-
-<span class="t-ok">✓ Printer installed successfully!</span>
-  <span class="t-dim">Name  :</span> Brother MFC-L2750DW series
-  <span class="t-dim">Driver:</span> <span class="t-accent">Brother Laser Type1 Class Driver</span>
-  <span class="t-dim">Port  :</span> IP_192.168.1.50
-
-  <span class="t-dim">Installed via Microsoft Update Catalog. Matched HWID: 1284_CID_BROTHER_LASER_TYPE1.</span>
-</div>
+          <div class="terminal-body">
+<div class="t-line"><span class="t-prompt">PS&gt;</span> <span class="t-cmd">prinstall</span> <span class="t-cmd">add</span> 192.168.1.50 <span class="t-flag">--verbose</span></div>
+<div class="t-line"></div>
+<div class="t-line"><span class="t-dim">[add]</span> SNMP → <span class="t-accent">"Brother MFC-L2750DW series"</span></div>
+<div class="t-line"><span class="t-dim">[add]</span> IPP device ID: MFG:Brother;MDL:MFC-L2750DW series;CID:<span class="t-accent">Brother Laser Type1</span>;...</div>
+<div class="t-line"><span class="t-dim">[add]</span> Auto-selected driver: Brother Universal Printer</div>
+<div class="t-line"><span class="t-dim">[add]</span> Download failed: No download URL available.</div>
+<div class="t-line"><span class="t-dim">[PS ]</span> Add-PrinterDriver -Name 'Brother Universal Printer'</div>
+<div class="t-line"><span class="t-dim">[PS ]</span> <span style="color: var(--red);">HRESULT 0x80070705: driver does not exist in the driver store</span></div>
+<div class="t-line"><span class="t-dim">[add]</span> Primary install failed. Trying catalog resolver with device ID...</div>
+<div class="t-line"><span class="t-dim">[resolver]</span> Searching catalog by CID: <span class="t-accent">'Brother Laser Type1'</span></div>
+<div class="t-line"><span class="t-dim">[resolver]</span> Catalog returned 5 result(s), scanning top 5</div>
+<div class="t-line"><span class="t-dim">[resolver]</span> HWID candidates: <span class="t-tag">1284_CID_BROTHER_LASER_TYPE1</span>, BROTHER_LASER_TYPE1, ...</div>
+<div class="t-line"><span class="t-dim">[resolver]</span> #1: Brother - Printer - 10.0.17119.1</div>
+<div class="t-line"><span class="t-dim">[resolver]</span>   GET https://catalog.s.download.windowsupdate.com/.../prnbrcl1.cab</div>
+<div class="t-line"><span class="t-dim">[resolver]</span>   expand → %APPDATA%\prinstall\staging\catalog\...</div>
+<div class="t-line"><span class="t-dim">[resolver]</span> <span class="t-accent">★ MATCH</span>: prnbrcl1.inf → Brother Laser Type1 Class Driver</div>
+<div class="t-line"><span class="t-dim">[PS ]</span> pnputil /add-driver '...\prnbrcl1.inf' /install</div>
+<div class="t-line"><span class="t-dim">[PS ]</span> Add-Printer -Name 'Brother MFC-L2750DW series' -DriverName ...</div>
+<div class="t-line"></div>
+<div class="t-line"><span class="t-ok">✓ Printer installed successfully!</span></div>
+<div class="t-line">  <span class="t-dim">Name  :</span> Brother MFC-L2750DW series</div>
+<div class="t-line">  <span class="t-dim">Driver:</span> <span class="t-accent">Brother Laser Type1 Class Driver</span></div>
+<div class="t-line">  <span class="t-dim">Port  :</span> IP_192.168.1.50</div>
+<div class="t-line"></div>
+<div class="t-line">  <span class="t-dim">Installed via Microsoft Update Catalog. Matched HWID: 1284_CID_BROTHER_LASER_TYPE1.</span></div>
+          </div>
         </div>
       </div>
     </section>
@@ -694,28 +732,40 @@
             <div class="install-step-num">1</div>
             <div class="install-step-body">
               <p>Grab the latest Windows release:</p>
-              <code>iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe</code>
+              <div class="code-wrap">
+                <code>iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe</code>
+                <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+              </div>
             </div>
           </div>
           <div class="install-step">
             <div class="install-step-num">2</div>
             <div class="install-step-body">
               <p>Scan your subnet for printers:</p>
-              <code>.\prinstall.exe scan</code>
+              <div class="code-wrap">
+                <code>.\prinstall.exe scan</code>
+                <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+              </div>
             </div>
           </div>
           <div class="install-step">
             <div class="install-step-num">3</div>
             <div class="install-step-body">
               <p>Add one:</p>
-              <code>.\prinstall.exe add 192.168.1.47</code>
+              <div class="code-wrap">
+                <code>.\prinstall.exe add 192.168.1.47</code>
+                <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+              </div>
             </div>
           </div>
           <div class="install-step">
             <div class="install-step-num">4</div>
             <div class="install-step-body">
               <p>Or launch the interactive TUI:</p>
-              <code>.\prinstall.exe</code>
+              <div class="code-wrap">
+                <code>.\prinstall.exe</code>
+                <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+              </div>
             </div>
           </div>
         </div>
@@ -756,6 +806,113 @@
         // intentionally silent
       }
     })();
+
+    // Animate the "Watch it work" terminal: reveal each line sequentially
+    // with variable delays tuned to feel like real command latency, and
+    // park a blinking caret at the end of the latest revealed line. Fires
+    // once when the terminal scrolls into view. Respects reduced motion.
+    (() => {
+      const terminal = document.querySelector('section .terminal');
+      if (!terminal) return;
+      const body = terminal.querySelector('.terminal-body');
+      if (!body) return;
+      const lines = Array.from(body.querySelectorAll('.t-line'));
+      if (!lines.length) return;
+
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) return;
+
+      // Per-line delay before revealing (ms). Tuned so the "work" lines
+      // (download, expand, HRESULT fail) feel slower than the fast ones.
+      const delays = [
+        140,  // PS> prinstall add ... --verbose
+        300,  // (blank — work happens)
+        260,  // [add] SNMP
+        200,  // [add] IPP device ID
+        140,  // [add] Auto-selected driver
+        260,  // [add] Download failed
+        220,  // [PS ] Add-PrinterDriver
+        440,  // [PS ] HRESULT error (dramatic pause)
+        300,  // [add] Primary install failed
+        200,  // [resolver] Searching catalog
+        180,  // [resolver] Catalog returned 5
+        160,  // [resolver] HWID candidates
+        140,  // [resolver] #1 Brother
+        520,  // [resolver] GET catalog url (download feel)
+        380,  // [resolver] expand
+        280,  // [resolver] ★ MATCH
+        360,  // [PS ] pnputil
+        440,  // [PS ] Add-Printer
+        240,  // (blank)
+        160,  // ✓ installed
+        100,  // Name
+        100,  // Driver
+        100,  // Port
+        120,  // (blank)
+        180,  // Installed via
+      ];
+
+      const caret = document.createElement('span');
+      caret.className = 't-caret';
+
+      // Hide all lines via JS so no-JS readers see the full output.
+      lines.forEach((line) => line.classList.add('is-pending'));
+
+      let played = false;
+      const play = () => {
+        if (played) return;
+        played = true;
+        let t = 0;
+        lines.forEach((line, i) => {
+          t += delays[i] ?? 160;
+          setTimeout(() => {
+            line.classList.remove('is-pending');
+            line.appendChild(caret);
+          }, t);
+        });
+      };
+
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            play();
+            io.disconnect();
+          }
+        });
+      }, { threshold: 0.25 });
+      io.observe(terminal);
+    })();
+
+    // Copy-to-clipboard for install step code blocks. Swaps label to
+    // "Copied!" for a beat, falls back to a text selection if the
+    // Clipboard API isn't available (e.g. insecure context).
+    document.querySelectorAll('.copy-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const code = btn.parentElement?.querySelector('code');
+        if (!code) return;
+        const text = code.textContent ?? '';
+        const flashCopied = () => {
+          const prev = btn.textContent;
+          btn.textContent = 'Copied!';
+          btn.classList.add('is-copied');
+          setTimeout(() => {
+            btn.textContent = prev;
+            btn.classList.remove('is-copied');
+          }, 1400);
+        };
+        try {
+          await navigator.clipboard.writeText(text);
+          flashCopied();
+        } catch (_) {
+          // Fallback: select the code so the user can hit Ctrl+C
+          const range = document.createRange();
+          range.selectNodeContents(code);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      });
+    });
   </script>
 </body>
 </html>
