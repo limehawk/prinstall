@@ -28,21 +28,24 @@ MSP technicians burn hours on printer installs. Find the IP, hunt the driver, wr
 ## Features
 
 ```
- ▸ Multi-method discovery   TCP port probe  ·  IPP  ·  SNMP  ·  Get-Printer
- ▸ Curated driver matching  17 manufacturers, fuzzy scoring with numeric ranks
- ▸ Network + USB printers   Single binary handles both install paths
- ▸ IPP Class Driver fallback When vendor driver isn't available, install via
-                              Microsoft's in-box IPP Class Driver with a visible
-                              WARNING line so MSP techs can audit the fallback
- ▸ Clean error output       PowerShell stderr is parsed + HRESULT-decoded so you
-                              don't drown in CategoryInfo / FullyQualifiedErrorId
- ▸ Three-step remove        Queue → driver → port cleanup, with orphan detection
-                              and a whitelist so USB/LPT/COM ports are never touched
- ▸ Lazy-style TUI           Two-panel, vim keybindings, ratatui widgets
- ▸ Scriptable CLI           --json on every command for RMM automation
- ▸ Terminal colors          Semantic coloring via crossterm, honors NO_COLOR
+ ▸ Multi-method discovery    TCP port probe  ·  IPP  ·  SNMP  ·  Get-Printer
+ ▸ Deterministic driver      Microsoft Update Catalog scraped in pure Rust,
+   resolution                 driver package downloaded, INF parsed, HWID
+                              matched — no gambling, no model-name guessing
+ ▸ Four-tier matching        Local store → manufacturer → catalog → IPP fallback
+                              with a visible audit breadcrumb on whichever
+                              tier actually landed the driver
+ ▸ Network + USB printers    Single binary handles both install paths
+ ▸ Clean remove              Queue → driver → port cleanup with spooler-lag
+                              retry loop and -RemoveFromDriverStore to take the
+                              underlying oem<N>.inf package with it
+ ▸ Clean error output        PowerShell stderr is parsed + HRESULT-decoded so
+                              you don't drown in CategoryInfo/FullyQualifiedErrorId
+ ▸ Lazy-style TUI            Two-panel, vim keybindings, ratatui widgets
+ ▸ Scriptable CLI            --json on every command for RMM automation
+ ▸ Terminal colors           Semantic coloring via crossterm, honors NO_COLOR
                               and auto-disables when stdout isn't a TTY
- ▸ Single binary            Embedded data, UAC manifest, static CRT
+ ▸ Single 12 MB binary       Embedded data, UAC manifest, static CRT
  ▸ Idempotent                Existing ports, drivers, and queues are reused
 ```
 
@@ -72,17 +75,19 @@ Matching runs four tiers against the identified model string:
 
 Scoring is deterministic and ranks by a numeric 0-1000 score, not just a coarse "low/medium/high" tier. Wrong-family drivers (e.g. HP Color LaserJet matching a Brother mono printer) are filtered below the threshold.
 
-### Install fallback — the Microsoft IPP Class Driver path
+### Deterministic driver resolution via the Microsoft Update Catalog
 
-When the primary install fails (driver not in local store, no download URL, manufacturer doesn't publish stable direct links), `prinstall add` falls back to installing via `Microsoft IPP Class Driver` — the in-box driver that ships with Windows 8+. This covers any IPP Everywhere printer (essentially every printer from 2015 onwards) and gives basic print functionality without requiring any driver download.
+When the primary install fails because the matched vendor driver isn't in the local store and no manufacturer URL is available, `prinstall add` doesn't give up — it runs the **catalog resolver**: a pure-Rust port of the MSCatalogLTS PowerShell module that scrapes `catalog.update.microsoft.com` directly, searches by the IPP **`CID:`** field (not the fuzzy model name), downloads candidate driver packages from Microsoft's CDN, expands them with `expand.exe`, parses the INF, and confirms a **deterministic hardware-ID match** before staging.
 
-The fallback is always reported with a visible `WARNING:` line in both human output and the JSON result, so MSP techs can audit which printers ended up on the generic driver and later re-install with a vendor driver when one becomes available.
+The HWID match is the punch line. Your printer advertises `CID:Brother Laser Type1` over IPP. The resolver synthesizes the canonical PnP hardware ID — `1284_CID_BROTHER_LASER_TYPE1` — and looks for it verbatim in the downloaded INF's `[Models]` section. If Windows native PnP would pick this driver, we pick this driver. If the INF doesn't list the HWID, we reject the package and move on to the next candidate. No guessing, no "probably-the-right-one" heuristics.
+
+If the catalog resolver also fails (rare — usually when a cheap printer omits the `CID:` field), `prinstall add` still has a last-resort **Microsoft IPP Class Driver fallback** for any IPP Everywhere printer (Windows 8+). That path always attaches a visible `WARNING:` line to the result for audit trails.
+
+See [How prinstall picks a driver](#how-prinstall-picks-a-driver) below for the full four-tier pipeline.
 
 ## Install
 
 Grab the latest Windows binary from [Releases](https://github.com/limehawk/prinstall/releases) and drop `prinstall.exe` anywhere on `PATH`.
-
-Active development lives on branches like `feat/scaffold-printer-manager` — those dev builds have the newer commands (`add`, `remove`, USB support, IPP fallback) that aren't in a tagged release yet.
 
 Or build from source:
 
@@ -153,12 +158,13 @@ The IEEE 1284 device ID row shows the string Windows Update matches drivers agai
 
 ### Add a network printer
 
+When the vendor driver is already in the local store, install is instant:
+
 ```console
 $ prinstall add 192.168.1.12 --verbose
 
-  [add] Network mode — checking reachability of 192.168.1.12...
+  [add] SNMP → HP LaserJet Pro MFP M428fdw
   [add] Auto-selected driver: HP LaserJet Pro MFP M428f PCL-6
-  [add] Installing: printer='HP LaserJet Pro MFP M428fdw', driver='...', ip=192.168.1.12
   [PS] Add-PrinterPort -Name 'IP_192.168.1.12' -PrinterHostAddress '192.168.1.12'
   [PS] Add-PrinterDriver -Name 'HP LaserJet Pro MFP M428f PCL-6'
   [PS] Add-Printer -Name 'HP LaserJet Pro MFP M428fdw' -DriverName '...' -PortName 'IP_192.168.1.12'
@@ -169,25 +175,39 @@ $ prinstall add 192.168.1.12 --verbose
     Port:   IP_192.168.1.12
 ```
 
-If the primary install fails and the printer speaks IPP (port 631 open), the IPP Class Driver fallback kicks in automatically:
+When the vendor driver isn't staged locally and the manufacturer doesn't publish a direct download URL, the catalog resolver kicks in and fetches the exact driver from Microsoft's CDN via deterministic HWID match:
 
 ```console
 $ prinstall add 10.10.20.16 --verbose
-  ...
-  [add] Primary install failed. Port 631 is open — attempting IPP Class Driver fallback.
-  [add] IPP fallback: Add-Printer -Name 'Brother MFC-L2750DW series (IPP)' ...
+
+  [add] IPP device ID: MFG:Brother;MDL:MFC-L2750DW series;CID:Brother Laser Type1;...
+  [add] Auto-selected driver: Brother Universal Printer
+  [add] Download failed: No download URL available for 'Brother Universal Printer'.
+  [PS] Add-PrinterDriver -Name 'Brother Universal Printer'
+  [PS stderr] HRESULT 0x80070705: The specified driver does not exist in the driver store.
+  [add] Primary install failed. Trying catalog resolver with device ID...
+  [resolver] Searching catalog by CID: 'Brother Laser Type1'
+  [resolver] Catalog returned 5 result(s), scanning top 5
+  [resolver] HWID candidates: 1284_CID_BROTHER_LASER_TYPE1, BROTHER_LASER_TYPE1, ...
+  [resolver] #1: Brother - Printer - 10.0.17119.1  (4/21/2009)
+  [resolver]   GET https://catalog.s.download.windowsupdate.com/.../prnbrcl1.cab
+  [resolver]   expand → C:\Users\tech\AppData\Roaming\prinstall\staging\catalog\...
+  [resolver] ★ MATCH: prnbrcl1.inf → Brother Laser Type1 Class Driver (1284_CID_BROTHER_LASER_TYPE1)
+  [add] Catalog resolver matched 'Brother Laser Type1 Class Driver' — staging INF and retrying install.
+  [PS] pnputil /add-driver '...\prnbrcl1.inf' /install
+  [PS] Add-Printer -Name 'Brother MFC-L2750DW series' -DriverName 'Brother Laser Type1 Class Driver' ...
 
   Printer installed successfully!
-    Name:   Brother MFC-L2750DW series (IPP)
-    Driver: Microsoft IPP Class Driver
+    Name:   Brother MFC-L2750DW series
+    Driver: Brother Laser Type1 Class Driver
     Port:   IP_10.10.20.16
 
-    WARNING: Installed via Microsoft IPP Class Driver (generic fallback).
-             Basic printing should work, but vendor-specific features
-             (duplex modes, tray selection, finishing options) may not
-             be available. The matched driver 'Brother Universal Printer'
-             was not in the local store and could not be downloaded.
+    WARNING: Installed via Microsoft Update Catalog: 'Brother Laser Type1 Class Driver'
+             from 'Brother - Printer - 10.0.17119.1' (DriverVer 04/22/2009,10.0.17119.1).
+             Matched HWID: 1284_CID_BROTHER_LASER_TYPE1.
 ```
+
+The `WARNING:` line on a catalog-resolver install isn't actually a warning — it's a breadcrumb for the audit trail, naming the exact catalog package, driver version, and matched HWID so you can trace every install back to its source.
 
 ### Add a USB printer
 
@@ -211,18 +231,25 @@ $ prinstall add "Brother MFC-L2750DW" --usb --verbose
 $ prinstall remove 10.10.20.16 --verbose
 
   [remove] Looking up printer by port 'IP_10.10.20.16'
-  [remove] Resolved target '10.10.20.16' → 'Brother MFC-L2750DW series (IPP)'
-  [remove] Printer uses driver 'Microsoft IPP Class Driver' on port 'IP_10.10.20.16'
-  [PS] Remove-Printer -Name 'Brother MFC-L2750DW series (IPP)' -Confirm:$false
-  [remove] Skipping driver cleanup: 'Microsoft IPP Class Driver' is a Windows system driver
+  [remove] Resolved target '10.10.20.16' → 'Brother MFC-L2750DW series'
+  [remove] Printer uses driver 'Brother Laser Type1 Class Driver' on port 'IP_10.10.20.16'
+  [PS] Remove-Printer -Name 'Brother MFC-L2750DW series' -Confirm:$false
+  [remove] Waiting 500ms for spooler to release references...
+  [PS] Remove-PrinterDriver -Name 'Brother Laser Type1 Class Driver' -RemoveFromDriverStore -Confirm:$false
+  [remove] Removed driver 'Brother Laser Type1 Class Driver' (including driver store package)
   [PS] Remove-PrinterPort -Name 'IP_10.10.20.16' -Confirm:$false
   [remove] Removed port 'IP_10.10.20.16'
 
-  Removed printer: Brother MFC-L2750DW series (IPP)
+  Removed printer: Brother MFC-L2750DW series
     · Port also removed (no other printers were using it)
+    · Driver also removed from driver store
 ```
 
-Remove is three-step with orphan detection — after the queue is gone, it removes the driver if no other printer uses it, and removes the port if no other printer uses it. System drivers (`Microsoft IPP Class Driver`, `Universal Print Class Driver`, `Microsoft Print To PDF`, etc.) are skipped because they're not removable. Non-TCP/IP ports (`USB001`, `LPT1`, `COM1`, `PORTPROMPT:`, `WSD-*`) are whitelisted out — `prinstall` only touches ports it created.
+Remove is three-step with orphan detection and a **spooler-lag retry loop**. After `Remove-Printer` returns, the Windows spooler keeps internal reference counts on the driver and port for 1-3 seconds — long enough that a single-shot cleanup fails with a misleading "in use" error even though `Get-Printer` reports zero references. `prinstall` waits 500ms for the spooler to settle, then retries each removal with an escalating backoff schedule ([0, 1s, 2s, 2.5s]) so cleanup succeeds on slow and fast systems alike.
+
+Driver cleanup uses `Remove-PrinterDriver -RemoveFromDriverStore`, which also kills the underlying `oem<N>.inf` package in the Windows driver store. That's important when a class driver INF registers multiple siblings (e.g. `prnbrcl1.inf` ships 6+ Brother drivers — Laser Type1, Laser Leg, Color Leg, Color Type3, IJ Leg) in a single `pnputil /add-driver` call. Without the store flag, removing the named driver leaves its siblings orphaned; with it, the whole package goes.
+
+System drivers (`Microsoft IPP Class Driver`, `Universal Print Class Driver`, `Microsoft Print To PDF`, etc.) are skipped because they're not removable. Non-TCP/IP ports (`USB001`, `LPT1`, `COM1`, `PORTPROMPT:`, `WSD-*`) are whitelisted out — `prinstall` only touches ports it created.
 
 Flags: `--keep-driver` and `--keep-port` disable the respective cleanup step.
 
@@ -380,7 +407,7 @@ SNMP is no longer required. The port probe + IPP pipeline handles printers that 
 ## Development
 
 ```bash
-cargo test                       # Run the test suite (100+ tests, all run on Linux via MockExecutor)
+cargo test                       # 147 tests, all on Linux via MockExecutor + INF fixture
 cargo clippy -- -W clippy::all   # Lint
 cargo build --release            # Local dev build (Linux / macOS ok)
 ```
@@ -407,38 +434,62 @@ src/
 ├── history.rs               Install history log
 ├── privilege.rs             Windows admin detection
 ├── commands/
-│   ├── add.rs               Network + USB install paths, IPP fallback
-│   ├── remove.rs            Three-step cleanup with orphan detection
-│   └── drivers.rs           Driver matching + Windows Update probe
+│   ├── add.rs               Network + USB install, catalog resolver, IPP fallback
+│   ├── remove.rs            Three-step cleanup with spooler-lag retries
+│   └── drivers.rs           Driver matching + catalog search + WU probe
 ├── core/
 │   ├── executor.rs          PsExecutor trait, RealExecutor, MockExecutor
 │   └── ps_error.rs          PowerShell stderr → clean single-line errors
 ├── discovery/               port_scan · ipp · snmp · local · subnet
-├── drivers/                 matcher · manifest · known_matches · downloader · local_store
+├── drivers/
+│   ├── matcher.rs           Numeric 0-1000 scoring (model-num + overlap + subseq)
+│   ├── manifest.rs          Embedded data/drivers.toml (17 manufacturers)
+│   ├── known_matches.rs     Embedded data/known_matches.toml
+│   ├── downloader.rs        HTTP + ZIP/CAB extraction
+│   ├── local_store.rs       Get-PrinterDriver enumeration
+│   ├── catalog.rs           Microsoft Update Catalog scraper (Rust port of MSCatalogLTS)
+│   ├── inf.rs               INF parser + IEEE 1284 HWID synthesizer
+│   └── resolver.rs          Catalog → download → INF match orchestrator
 ├── installer/               powershell wrappers, multi-step orchestration
 └── tui/                     Two-panel ratatui UI
 data/
 ├── drivers.toml             Manufacturer registry — prefixes + universal driver URLs
 └── known_matches.toml       Curated exact model → driver name mappings
+tests/
+├── fixtures/
+│   └── brother_type1.inf    Real Brother Print Class Driver INF used by the
+│                            HWID-match end-to-end test
+└── *.rs                     Integration tests (140+ tests total, all run on
+                             Linux via MockExecutor — no Windows required for CI)
 ```
 
 ## Roadmap
 
-Shipped (on the `feat/scaffold-printer-manager` dev branch, not in a tagged release yet):
+Shipped in `0.3.0`:
 
+- [x] **Microsoft Update Catalog resolver** — pure-Rust scraper of
+      `catalog.update.microsoft.com`, CID-based search, INF `[Models]` parser,
+      deterministic `1284_CID_*` HWID match, newest-first candidate walk
+- [x] **IEEE 1284 INF parser + HWID synthesizer** (`src/drivers/inf.rs`) with
+      UTF-16 LE/BE BOM handling and a real Brother INF fixture test
 - [x] `add` / `remove` commands with idempotent install + orphan cleanup
+- [x] **Spooler-lag retry loop** in remove — settle sleep + backoff schedule,
+      `-RemoveFromDriverStore` flag to take the underlying oem<N>.inf package
+      with the registered driver
 - [x] USB printer support via `--usb` flag
-- [x] IPP Class Driver fallback with visible audit warnings
+- [x] Microsoft IPP Class Driver fallback with visible audit breadcrumbs
 - [x] `PsExecutor` trait for Linux-testable command logic
-- [x] `ps_error` module for clean single-line error output with HRESULT decoding
+- [x] `core::ps_error::clean` — PowerShell stderr → single-line errors with
+      HRESULT decoding, no more `CategoryInfo` / `FullyQualifiedErrorId` noise
 - [x] `%APPDATA%\prinstall\` unified data directory + legacy migration
 - [x] Terminal color output (crossterm, respects NO_COLOR)
 - [x] IPP device ID surfacing in `drivers` output
 
 Planned:
 
-- [ ] Real manufacturer driver URLs in `drivers.toml` for Brother, Canon, Epson, Xerox (HP already works)
-- [ ] SDI driverpack integration — authoritative offline vendor driver database
+- [ ] Catalog resolver for USB printer installs (`add --usb`)
+- [ ] Catalog result caching with TTL to cut network chatter on bulk installs
+- [ ] `prinstall drivers <ip> --install <N>` to pick a specific catalog row
 - [ ] Printer defaults — duplex, color/mono, paper size, set-default
 - [ ] mDNS / WS-Discovery fallback for fully-silent printers
 - [ ] Batch install mode (multiple IPs in one shot)

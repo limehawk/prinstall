@@ -40,9 +40,25 @@ ehthumbs.db
 .mcp.json
 CLAUDE.local.md
 
+# Claude Code / AI tooling working state
+# NOTE: CLAUDE.md (the project instructions) stays tracked intentionally.
+# Everything else under .claude/ — agent worktrees, local settings,
+# session caches — is local-only and MUST NOT be committed.
+.claude/
+.claude-agent-worktrees/
+claude_debug.log
+.anthropic/
+
 # Superpowers working docs
 docs/superpowers/
 .superpowers/
+
+# Dev loop scratch files (probe scripts, test captures, manual test output)
+probe-results.txt
+/prinstall-probe.ps1
+*.probe.log
+scratch/
+.scratch/
 
 # Temporary files
 *.tmp
