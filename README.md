@@ -467,37 +467,114 @@ tests/
 
 ## Roadmap
 
-Shipped in `0.3.0`:
+### Shipped in `0.3.0` — catalog-based driver resolution
 
+The big feature drop: prinstall can now install a real vendor driver for
+a network printer entirely on its own, deterministically, without hardcoded
+URLs or IPP Class Driver fallback. Verified end-to-end against a real
+Brother MFC-L2750DW.
+
+**Driver resolution**
 - [x] **Microsoft Update Catalog resolver** — pure-Rust scraper of
-      `catalog.update.microsoft.com`, CID-based search, INF `[Models]` parser,
-      deterministic `1284_CID_*` HWID match, newest-first candidate walk
-- [x] **IEEE 1284 INF parser + HWID synthesizer** (`src/drivers/inf.rs`) with
-      UTF-16 LE/BE BOM handling and a real Brother INF fixture test
+      `catalog.update.microsoft.com`, CID-based search, INF `[Models]`
+      parser, deterministic `1284_CID_*` HWID match, newest-first
+      candidate walk
+- [x] **IEEE 1284 INF parser + HWID synthesizer** (`src/drivers/inf.rs`)
+      with UTF-16 LE/BE BOM handling and a real Brother INF fixture test
+- [x] Four-tier resolution pipeline (local store → manufacturer download →
+      catalog + INF match → IPP Class Driver fallback) with a visible
+      audit breadcrumb naming the tier that landed the driver
+
+**Install + remove**
 - [x] `add` / `remove` commands with idempotent install + orphan cleanup
-- [x] **Spooler-lag retry loop** in remove — settle sleep + backoff schedule,
-      `-RemoveFromDriverStore` flag to take the underlying oem<N>.inf package
-      with the registered driver
-- [x] USB printer support via `--usb` flag
-- [x] Microsoft IPP Class Driver fallback with visible audit breadcrumbs
-- [x] `PsExecutor` trait for Linux-testable command logic
-- [x] `core::ps_error::clean` — PowerShell stderr → single-line errors with
-      HRESULT decoding, no more `CategoryInfo` / `FullyQualifiedErrorId` noise
-- [x] `%APPDATA%\prinstall\` unified data directory + legacy migration
-- [x] Terminal color output (crossterm, respects NO_COLOR)
-- [x] IPP device ID surfacing in `drivers` output
+- [x] USB printer support via `--usb` flag (hot-swaps driver on an
+      existing PnP-created queue via `Set-Printer`)
+- [x] **Spooler-lag retry loop** in remove — settle sleep + backoff
+      schedule, plus `-RemoveFromDriverStore` to take the underlying
+      `oem<N>.inf` package (and all its sibling drivers) with the named
+      driver
 
-Planned:
+**Architecture**
+- [x] `PsExecutor` trait — every PowerShell call goes through
+      `&dyn PsExecutor`, making the command layer testable on Linux via
+      `MockExecutor` with zero Windows dependency for CI
+- [x] `core::ps_error::clean` — PowerShell stderr → single-line errors
+      with HRESULT decoding, no more `CategoryInfo` /
+      `FullyQualifiedErrorId` noise
+- [x] `%APPDATA%\prinstall\` unified data directory + auto-migration
+      from legacy `C:\ProgramData\prinstall\`
+- [x] Terminal color output (crossterm, respects `NO_COLOR`, auto-off
+      when stdout isn't a TTY)
 
+### Next up — TUI expansion for `0.4.0`
+
+The `0.3.0` rework left the TUI intentionally untouched so the CLI could
+land first. The command layer is now fully abstracted behind `PsExecutor`
+and the catalog resolver returns structured data — which means the TUI
+can start calling the same functions the CLI does, without any PowerShell
+code duplication. That's the unlock: every new feature below leverages
+code that already exists and is already tested.
+
+- [ ] **Interactive scan + add in one view** — fzf-style picker on top
+      of the multi-method discovery results, highlight-and-press-a to
+      install, live tier-by-tier progress readout as the resolver walks
+- [ ] **Live driver matching preview** for the selected printer — show
+      all four tiers side-by-side (local store hits, manufacturer
+      matches, catalog candidates with CID + DriverVer, IPP fallback
+      status) and let the user override the auto-pick with `Enter`
+- [ ] **Catalog results pane** — scrollable list of catalog rows
+      returned for the selected printer's CID, with size / date / package
+      metadata, one-keypress download + INF-match + install
+- [ ] **Install/remove progress modal** with real-time log streaming
+      from the same verbose output the CLI uses — no more
+      launch-and-pray, tech sees every PowerShell call as it fires
+- [ ] **Driver store explorer** — browse what's already staged via
+      `Get-PrinterDriver`, see provenance (which catalog package /
+      download URL provided each driver), remove orphaned packages
+      without a printer queue
+- [ ] **Batch multi-select** — shift-select multiple printers from scan
+      results, run a batched `add` across all of them with a single
+      summary report
+- [ ] **Persistent scan history** — previous scans stored under
+      `%APPDATA%\prinstall\history\` so reopening the TUI shows the
+      last subnet view without re-scanning
+- [ ] **User-editable subnet input** (the one planned item from 0.2.x
+      that hasn't landed yet — auto-detect already works)
+
+### Backlog
+
+**Driver coverage**
 - [ ] Catalog resolver for USB printer installs (`add --usb`)
-- [ ] Catalog result caching with TTL to cut network chatter on bulk installs
-- [ ] `prinstall drivers <ip> --install <N>` to pick a specific catalog row
+- [ ] Catalog result caching with TTL to cut network chatter on bulk
+      installs / repeated `drivers` invocations against the same printer
+- [ ] `prinstall drivers <ip> --install <N>` to pick a specific catalog
+      row from the CLI when the auto-picker gets it wrong
+- [ ] SDI driverpack integration — authoritative offline vendor driver
+      database as a fallback when the catalog is unreachable
+
+**Printer management**
 - [ ] Printer defaults — duplex, color/mono, paper size, set-default
-- [ ] mDNS / WS-Discovery fallback for fully-silent printers
-- [ ] Batch install mode (multiple IPs in one shot)
-- [ ] `prinstall health <ip>` — toner/drum/tray status via SNMP Printer MIB
-- [ ] User-editable subnet input inside the TUI (auto-detect already works)
+      via `Set-PrintConfiguration`
+- [ ] `prinstall health <ip>` — toner / drum / tray status via SNMP
+      Printer MIB
+- [ ] Batch install mode from a CSV or JSON manifest (fleet bootstrap)
+- [ ] Remote execution against other Windows hosts over WinRM / SSH
+      for MSP fleet management from a single console
+
+**Discovery**
+- [ ] mDNS / WS-Discovery fallback for fully-silent printers that don't
+      respond to SNMP or port scans
+- [ ] IPv6 support on the port scan pipeline
+
+**Distribution**
 - [ ] SignPath.io code signing for SmartScreen trust
+- [ ] Chocolatey / winget package publication
+- [ ] MSI installer with scheduled task for auto-update check
+
+**Polish**
+- [ ] Real manufacturer URLs in `drivers.toml` for Brother / Canon / Epson
+      (HP already works; Tier 3 covers the gap for everyone else but
+      direct vendor downloads are still faster when available)
 
 ## License
 
