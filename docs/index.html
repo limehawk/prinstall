@@ -486,6 +486,11 @@
       font-size: 14px;
       margin-bottom: 10px;
     }
+    .install-step-body .install-alt {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--text-subtle);
+    }
     .install-step-body .code-wrap {
       position: relative;
     }
@@ -731,9 +736,14 @@
           <div class="install-step">
             <div class="install-step-num">1</div>
             <div class="install-step-body">
-              <p>Grab the latest Windows release:</p>
+              <p>Grab the latest release and drop it in the current directory:</p>
               <div class="code-wrap">
                 <code>iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe</code>
+                <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+              </div>
+              <p class="install-alt">Or install to a canonical location and add to PATH:</p>
+              <div class="code-wrap">
+                <code>iwr -useb https://raw.githubusercontent.com/limehawk/prinstall/main/scripts/setup.ps1 | iex</code>
                 <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
               </div>
             </div>
