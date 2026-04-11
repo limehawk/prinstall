@@ -36,7 +36,7 @@ MSP technicians burn hours on printer installs. Find the IP, hunt the driver, wr
 - **Network + USB** — one binary, both install paths, idempotent
 - **Clean remove** — queue, driver, and port teardown with spooler-lag retries
 - **Readable errors** — PowerShell stderr parsed and HRESULT-decoded before you see it
-- **Scriptable CLI, vim TUI** — `--json` for RMM automation, two-panel ratatui when you're on a real terminal
+- **Scriptable CLI, lazy-style TUI** — `--json` for RMM automation, two-panel ratatui when you're on a real terminal
 
 ## Install
 
