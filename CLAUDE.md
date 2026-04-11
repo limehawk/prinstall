@@ -5,8 +5,8 @@
 Prinstall — a Rust CLI and TUI for Windows that discovers network printers,
 matches them to drivers, and installs or removes them. Built for MSP technicians
 running it locally or through RMM remote shells (SuperOps). Active development
-happens on `feat/scaffold-printer-manager`; `main` still points at the v0.2.1
-release.
+happens on the `dev` branch; `main` tracks the latest release and accumulates
+website/docs iterations between cuts. See "Branching & release workflow" below.
 
 ## Architecture
 
@@ -281,6 +281,49 @@ All icon-related files:
 
 Version-bump `Cargo.toml` on every dev build so you can distinguish builds in
 the VM (currently `0.2.12-dev`).
+
+## Branching & release workflow
+
+The only two long-lived branches are `dev` and `main`. Everything else (feature
+branches, agent worktrees, experimental spikes) is transient and should be
+deleted after it merges or gets abandoned.
+
+**The flow:**
+
+1. All work happens on `dev`. Commit there directly or merge short-lived
+   feature branches into it. Never commit directly to `main`.
+2. When `dev` is ready to ship (a release, a docs iteration, anything), open
+   a PR from `dev` → `main`:
+   ```bash
+   gh pr create --base main --head dev --title "<title>" --body "<body>"
+   ```
+3. Merge the PR with `gh pr merge <num> --merge` (regular merge commit, not
+   squash — preserves the dev history). Then locally:
+   ```bash
+   git checkout main && git pull --ff-only
+   git checkout dev
+   ```
+4. Keep working on `dev`. Rinse and repeat.
+
+**What NOT to do:**
+
+- Do not commit directly to `main` from the terminal, the GitHub web UI, or
+  a mobile Claude Code session. Every stray commit on `main` that skips the
+  `dev` PR flow creates a merge conflict later and breaks history audit.
+- Do not push `claude/*`, `feat/*`, or any other transient branch straight
+  into `main`. Route it through `dev` first.
+- Do not squash-merge PRs. The non-squash merge commit is the marker we rely
+  on to reason about release history.
+
+**Releases specifically:**
+
+- A release is just a `dev` → `main` PR that also includes a `Cargo.toml`
+  version bump and a git tag pushed after the merge lands on `main`.
+- CI on `windows-latest` builds the release binary from the tag — see
+  `.github/workflows/release.yml`.
+- Website-only iterations (the kind that touch `docs/` and nothing else) use
+  the same PR flow but don't need a version bump or a tag — they just
+  fast-forward `main`.
 
 ## Spec & Plan
 
