@@ -57,9 +57,9 @@ cargo install --git https://github.com/limehawk/prinstall
 ```powershell
 prinstall                             # launch the interactive TUI
 prinstall scan                        # scan your subnet for printers
-prinstall id 10.10.20.16              # identify one via SNMP + IPP
-prinstall add 10.10.20.16             # install it
-prinstall remove 10.10.20.16          # rip it out cleanly
+prinstall id 192.168.1.50             # identify one via SNMP + IPP
+prinstall add 192.168.1.50            # install it
+prinstall remove 192.168.1.50         # rip it out cleanly
 ```
 
 Every command takes `--json` for scripting and `--verbose` for the full audit trail.
