@@ -1,20 +1,52 @@
 //! Canonical paths for all prinstall data files.
 //!
 //! Everything — install history, config, driver staging, future logs — lives
-//! under a single root directory. On Windows that's `%APPDATA%\prinstall\`
-//! (per-user, roaming). On Linux (dev builds) it's `$XDG_DATA_HOME/prinstall`
-//! or `~/.local/share/prinstall`.
+//! under a single root directory. On Windows that's `%PROGRAMDATA%\prinstall\`
+//! (machine-wide, shared across all user accounts and services including
+//! SYSTEM). On Linux (dev builds) it's `$XDG_DATA_HOME/prinstall` or
+//! `~/.local/share/prinstall`.
+//!
+//! ## Why ProgramData, not APPDATA
+//!
+//! prinstall is an MSP admin tool. It's commonly invoked by:
+//! - Interactive admin sessions (techs on a remote session / local console)
+//! - SYSTEM-level runbooks deployed via RMM (SuperOps, NinjaRMM, etc.)
+//!
+//! These two invocation paths have different `%APPDATA%` values — SYSTEM's
+//! APPDATA is `C:\Windows\System32\config\systemprofile\AppData\Roaming\`,
+//! which isn't accessible to interactive users, and interactive admins'
+//! APPDATA isn't visible to SYSTEM. Putting the data dir at `%APPDATA%`
+//! would split the install history across per-user silos and break the
+//! MSP audit trail.
+//!
+//! `%PROGRAMDATA%` (typically `C:\ProgramData\`) is machine-wide and
+//! writable by admin-privileged processes regardless of user context, so
+//! every prinstall invocation — interactive or SYSTEM — reads and writes
+//! the same history log. That's what an MSP tool needs.
+//!
+//! ## History of this decision
+//!
+//! - pre-0.2.2: data dir at `C:\ProgramData\prinstall\` (original)
+//! - 0.2.2 through 0.3.0: data dir at `%APPDATA%\prinstall\` (mistake —
+//!   made per-user, broke the shared audit trail)
+//! - 0.3.1+: data dir back at `C:\ProgramData\prinstall\` (corrected)
+//!
+//! The 0.2.2→0.3.0 APPDATA history is migrated forward on first run under
+//! 0.3.1+ via [`legacy_appdata_history_path`].
 
 use std::path::PathBuf;
 
 /// Returns the single root directory where prinstall stores all its files.
+///
+/// Windows: `C:\ProgramData\prinstall\` via the `%PROGRAMDATA%` env var.
+/// Linux: `$XDG_DATA_HOME/prinstall` or `~/.local/share/prinstall`.
 pub fn data_dir() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            return PathBuf::from(appdata).join("prinstall");
+        if let Ok(programdata) = std::env::var("ProgramData") {
+            return PathBuf::from(programdata).join("prinstall");
         }
-        // Should never happen on a real Windows session — fall back to ProgramData.
+        // Hard fallback — should never fire on a real Windows session.
         PathBuf::from(r"C:\ProgramData").join("prinstall")
     }
     #[cfg(not(target_os = "windows"))]
@@ -49,9 +81,15 @@ pub fn ensure_data_dir() -> std::io::Result<()> {
     std::fs::create_dir_all(data_dir())
 }
 
-/// Legacy history location from versions prior to 0.2.2 (pre-APPDATA consolidation).
-/// Used for one-time copy-forward migration on first run under the new layout.
+/// Path to the 0.2.2–0.3.0 APPDATA history file, used for one-time
+/// copy-forward migration on first run under 0.3.1+.
+///
+/// Returns `None` when the `%APPDATA%` environment variable is missing
+/// (shouldn't happen on a real interactive Windows session, but for
+/// SYSTEM-run scripts it can be an unusual path or absent entirely).
 #[cfg(target_os = "windows")]
-pub fn legacy_history_path() -> PathBuf {
-    PathBuf::from(r"C:\ProgramData\prinstall\history.toml")
+pub fn legacy_appdata_history_path() -> Option<PathBuf> {
+    std::env::var("APPDATA")
+        .ok()
+        .map(|p| PathBuf::from(p).join("prinstall").join("history.toml"))
 }

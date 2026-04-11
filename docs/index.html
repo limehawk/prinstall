@@ -136,40 +136,51 @@
     }
     .nav-links a:hover { color: var(--text); }
 
-    /* Hero */
+    /* Hero — Option 1: lead with the pain */
     .hero {
-      padding: 100px 0 80px;
+      padding: 120px 0 96px;
       text-align: center;
     }
-    .hero .banner {
-      font-family: var(--mono);
-      font-size: clamp(6px, 1.4vw, 11px);
-      line-height: 1;
-      color: var(--accent);
-      white-space: pre;
-      overflow: hidden;
-      max-width: 100%;
+    .hero .hero-title {
+      font-size: clamp(40px, 7vw, 88px);
+      font-weight: 800;
+      letter-spacing: -0.028em;
+      line-height: 1.02;
       margin-bottom: 40px;
-      text-shadow: 0 0 24px rgba(255, 107, 53, 0.4);
-      user-select: none;
-      display: inline-block;
+      color: var(--text);
     }
-    .hero h1 {
-      font-size: clamp(28px, 5vw, 52px);
+    .hero .hero-title .line-1 {
+      display: block;
+      color: var(--text);
+    }
+    .hero .hero-title .line-2 {
+      display: block;
+      margin-top: 0.12em;
+    }
+    .hero .hero-title .brand {
+      font-family: var(--mono);
       font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1.1;
-      margin-bottom: 20px;
+      letter-spacing: -0.01em;
     }
-    .hero h1 .accent { color: var(--accent); }
-    .hero .tagline {
-      font-family: var(--mono);
-      font-size: clamp(14px, 2vw, 18px);
+    .hero .hero-title .accent {
+      color: var(--accent);
+      text-shadow: 0 0 40px rgba(255, 107, 53, 0.35);
+    }
+    .hero .hero-divider {
+      width: 56px;
+      height: 2px;
+      background: var(--accent);
+      margin: 0 auto 36px;
+      opacity: 0.55;
+      border-radius: 2px;
+    }
+    .hero .hero-body {
+      font-size: clamp(16px, 1.6vw, 20px);
       color: var(--text-dim);
-      margin-bottom: 40px;
-      letter-spacing: 0.02em;
+      max-width: 640px;
+      margin: 0 auto 48px;
+      line-height: 1.55;
     }
-    .hero .tagline span { color: var(--accent); }
 
     /* CTA buttons */
     .cta {
@@ -212,6 +223,24 @@
     }
     .btn .arrow { transition: transform 0.15s; }
     .btn:hover .arrow { transform: translateX(2px); }
+
+    /* GitHub star badge — shields.io SVG wrapped as a CTA-row element.
+       Sized to align vertically with the buttons and to glow on hover. */
+    .star-badge {
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+      transition: transform 0.15s, filter 0.15s;
+    }
+    .star-badge img {
+      height: 44px;
+      display: block;
+      border-radius: 8px;
+    }
+    .star-badge:hover {
+      transform: translateY(-1px);
+      filter: drop-shadow(0 0 12px rgba(255, 107, 53, 0.35));
+    }
 
     .meta {
       display: flex;
@@ -457,7 +486,11 @@
     footer .footer-links a:hover { color: var(--accent); }
 
     @media (max-width: 700px) {
-      .hero { padding: 60px 0 40px; }
+      .hero { padding: 72px 0 52px; }
+      .hero .hero-title { margin-bottom: 28px; }
+      .hero .hero-divider { margin-bottom: 24px; }
+      .hero .hero-body { margin-bottom: 32px; }
+      .star-badge img { height: 38px; }
       section { padding: 56px 0; }
       .nav-links { gap: 16px; font-size: 13px; }
       .btn { padding: 12px 22px; font-size: 13px; }
@@ -485,15 +518,14 @@
   <main>
     <section class="hero">
       <div class="container">
-        <pre class="banner" aria-hidden="true">
-▄▄▄▄▄▄▄   ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄    ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄   ▄▄▄▄   ▄▄▄      ▄▄▄     
-███▀▀███▄ ███▀▀███▄  ███  ████▄  ███ █████▀▀▀ ▀▀▀███▀▀▀ ▄██▀▀██▄ ███      ███     
-███▄▄███▀ ███▄▄███▀  ███  ███▀██▄███  ▀████▄     ███    ███  ███ ███      ███     
-███▀▀▀▀   ███▀▀██▄   ███  ███  ▀████    ▀████    ███    ███▀▀███ ███      ███     
-███       ███  ▀███ ▄███▄ ███    ███ ███████▀    ███    ███  ███ ████████ ████████
-        </pre>
-        <h1>Discover. Match. <span class="accent">Add. Remove.</span></h1>
-        <p class="tagline">A Rust CLI and TUI for nuking printer setup pain on <span>Windows</span>.</p>
+        <h1 class="hero-title">
+          <span class="line-1">Adding printers on Windows sucks.</span>
+          <span class="line-2"><span class="brand">prinstall</span> <span class="accent">fixes it.</span></span>
+        </h1>
+        <div class="hero-divider" aria-hidden="true"></div>
+        <p class="hero-body">
+          One command. The right vendor driver, pulled from the Microsoft Update Catalog. Installed.
+        </p>
         <div class="cta">
           <a class="btn btn-primary" href="https://github.com/limehawk/prinstall/releases/latest">
             Download for Windows
@@ -502,15 +534,23 @@
           <a class="btn btn-secondary" href="https://github.com/limehawk/prinstall">
             View on GitHub
           </a>
+          <a class="star-badge" href="https://github.com/limehawk/prinstall" aria-label="Star prinstall on GitHub">
+            <img
+              src="https://img.shields.io/github/stars/limehawk/prinstall?style=for-the-badge&logo=github&label=STAR&color=ff6b35&labelColor=0a0e14"
+              alt="GitHub stars"
+              loading="lazy"
+              decoding="async"
+            />
+          </a>
         </div>
         <div class="meta">
           <span>built in Rust</span>
           <span class="dot"></span>
-          <span>12 MB single binary</span>
+          <span>12 MB binary</span>
+          <span class="dot"></span>
+          <span>scriptable</span>
           <span class="dot"></span>
           <span>MIT licensed</span>
-          <span class="dot"></span>
-          <span>no dependencies</span>
         </div>
       </div>
     </section>

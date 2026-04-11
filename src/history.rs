@@ -2,15 +2,17 @@
 //!
 //! Records every successful install/update so techs can audit what's been
 //! done on a machine. Stored as TOML at `paths::history_path()`
-//! (`%APPDATA%\prinstall\history.toml` on Windows).
+//! (`C:\ProgramData\prinstall\history.toml` on Windows) — see `paths.rs`
+//! for the rationale behind the machine-wide ProgramData location.
 
 use crate::models::{History, HistoryEntry};
 use crate::paths;
 
 /// Load install history from disk.
 ///
-/// On first run under the 0.2.2+ layout, migrates from the legacy
-/// `C:\ProgramData\prinstall\history.toml` location if present.
+/// On first run under the 0.3.1+ layout, migrates forward from the
+/// 0.2.2–0.3.0 `%APPDATA%\prinstall\history.toml` location if that file
+/// exists and the ProgramData target doesn't.
 pub fn load() -> History {
     let path = paths::history_path();
     if !path.exists() {
@@ -45,12 +47,21 @@ pub fn record_install(model: &str, driver_name: &str, source: &str) {
     save(&history);
 }
 
-/// One-time copy-forward of pre-0.2.2 history from
-/// `C:\ProgramData\prinstall\history.toml` into the new APPDATA layout.
-/// No-op if the new location already exists or the legacy file isn't present.
+/// One-time copy-forward of a 0.2.2–0.3.0 history file from
+/// `%APPDATA%\prinstall\history.toml` into the machine-wide ProgramData
+/// layout. No-op if the new location already exists, the legacy file
+/// isn't present, or `%APPDATA%` isn't available for the current session
+/// (e.g. SYSTEM contexts without a user profile).
+///
+/// Note: prior to 0.2.2 the history was already at
+/// `C:\ProgramData\prinstall\history.toml` — that's the same location
+/// we're returning to in 0.3.1+, so the pre-0.2.2 path is automatically
+/// picked up by the regular load() without any explicit migration.
 #[cfg(target_os = "windows")]
 fn migrate_legacy_if_present() {
-    let legacy = paths::legacy_history_path();
+    let Some(legacy) = paths::legacy_appdata_history_path() else {
+        return;
+    };
     let new = paths::history_path();
     if new.exists() || !legacy.exists() {
         return;

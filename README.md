@@ -380,7 +380,8 @@ If a printer doesn't speak IPP at all, Tier 3 is skipped and the pipeline lands 
 │   port_scan   │   │    matcher   │       │   paths.rs  config.rs │
 │      ipp      │   │   manifest   │       │     history.rs        │
 │      snmp     │   │known_matches │       │                       │
-│     local     │   │  downloader  │       │  %APPDATA%\prinstall\ │
+│     local     │   │  downloader  │       │  C:\ProgramData\      │
+│               │   │              │       │    prinstall\         │
 │    subnet     │   │ local_store  │       │                       │
 └───────────────┘   └──────────────┘       └───────────────────────┘
 ```
@@ -392,7 +393,7 @@ Layered, testable, single binary.
 - **`PsExecutor` trait** — every PowerShell call goes through a `&dyn PsExecutor`. `RealExecutor` shells out to `powershell.exe`; `MockExecutor` stubs responses for Linux unit tests. Lets us test the command logic on any platform without a Windows host.
 - **`PrinterOpResult`** — uniform result type across all commands with a `detail: serde_json::Value` payload. `InstallDetail` and `RemoveDetail` are typed payloads serialized into the detail field. Works cleanly with `--json`.
 - **`core::ps_error::clean`** — parses PowerShell stderr into single-line messages with HRESULT decoding. Drops the `CategoryInfo`, `FullyQualifiedErrorId`, line/column decorators that make raw PS errors unreadable.
-- **`%APPDATA%\prinstall\`** — single data directory for history, config, driver staging, future logs. On first run, auto-migrates history from the legacy `C:\ProgramData\prinstall\` location.
+- **`C:\ProgramData\prinstall\`** — single machine-wide data directory for history, config, driver staging, future logs. ProgramData (not APPDATA) so SYSTEM-run RMM runbooks and interactive admin sessions share one audit trail instead of splitting across per-user silos. On first run under 0.3.1+, auto-migrates forward from the 0.2.2–0.3.0 `%APPDATA%\prinstall\` location if present.
 - **Embedded data** — `data/drivers.toml` and `data/known_matches.toml` are compiled into the binary via `include_str!()`. No sidecar files to lose.
 - **Escaped PS strings** — all user-controlled strings go through `escape_ps_string()` before entering `format!()` command templates. No injection vectors.
 - **UAC manifest** — embedded via `embed-manifest` at build time so Windows prompts for elevation on launch.
@@ -431,7 +432,7 @@ src/
 ├── cli.rs                   clap subcommands with rich help
 ├── models.rs                Printer, DriverMatch, PrinterOpResult, payloads
 ├── output.rs                Plain-text + JSON formatters, semantic coloring
-├── paths.rs                 Canonical paths under %APPDATA%\prinstall\
+├── paths.rs                 Canonical paths under C:\ProgramData\prinstall\
 ├── config.rs                Persistent AppConfig (TOML)
 ├── history.rs               Install history log
 ├── privilege.rs             Windows admin detection
@@ -501,7 +502,9 @@ Brother MFC-L2750DW.
 - [x] `core::ps_error::clean` — PowerShell stderr → single-line errors
       with HRESULT decoding, no more `CategoryInfo` /
       `FullyQualifiedErrorId` noise
-- [x] `%APPDATA%\prinstall\` unified data directory + auto-migration
+- [x] `%APPDATA%\prinstall\` unified data directory with auto-migration
+      from the original `C:\ProgramData\` location (later reverted in 0.3.1 —
+      see below)
       from legacy `C:\ProgramData\prinstall\`
 - [x] Terminal color output (crossterm, respects `NO_COLOR`, auto-off
       when stdout isn't a TTY)
@@ -536,7 +539,7 @@ code that already exists and is already tested.
       results, run a batched `add` across all of them with a single
       summary report
 - [ ] **Persistent scan history** — previous scans stored under
-      `%APPDATA%\prinstall\history\` so reopening the TUI shows the
+      `C:\ProgramData\prinstall\history\` so reopening the TUI shows the
       last subnet view without re-scanning
 - [ ] **User-editable subnet input** (the one planned item from 0.2.x
       that hasn't landed yet — auto-detect already works)
