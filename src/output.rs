@@ -284,6 +284,11 @@ pub fn format_driver_results(results: &DriverResults) -> String {
                 dim("No catalog matches — try a broader model or manufacturer name.")
             ));
         } else {
+            out.push_str(&format!(
+                "  {} {}\n\n",
+                dim("query:"),
+                dim(&catalog.query),
+            ));
             for entry in &catalog.updates {
                 out.push_str(&format!(
                     "  #{:<2} {}\n",
@@ -291,13 +296,11 @@ pub fn format_driver_results(results: &DriverResults) -> String {
                     entry.title,
                 ));
                 out.push_str(&format!(
-                    "      {} {}  {} {}  {} {}\n",
+                    "      {} {}  {} {}\n",
                     label("size:"),
                     entry.size,
                     label("updated:"),
                     entry.last_updated,
-                    label("ver:"),
-                    if entry.version.is_empty() { "-" } else { entry.version.as_str() },
                 ));
                 out.push_str(&format!(
                     "      {} {}\n",

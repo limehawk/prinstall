@@ -101,23 +101,48 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
     }
 
     // ── Step 5: Microsoft Update Catalog search (no admin needed) ────────────
-    // Runs unconditionally when we have a non-empty model. Network-only,
-    // failure-tolerant — a dead catalog should degrade the report, not abort.
-    if !model.is_empty() {
-        results.catalog = Some(search_catalog(&model, verbose).await);
+    // Prefer the IPP device ID's CID field as the search query when we have
+    // one — it narrows the result set to the exact driver family (e.g.
+    // "Brother Laser Type1" returns 5 targeted packages instead of 25 generic
+    // Brother rows from a model-name search). Falls back to the model string
+    // when no CID is available. Same strategy the `add` command's catalog
+    // resolver uses, so this preview matches what `add` would actually pick.
+    let (query, query_source) = pick_catalog_query(&model, results.device_id.as_deref());
+    if !query.is_empty() {
+        results.catalog = Some(search_catalog(&query, query_source, verbose).await);
     }
 
     results
 }
 
-/// Search the Microsoft Update Catalog for a printer model. Always returns
+/// Decide what string to feed the catalog search.
+///
+/// Returns `(query, source_label)`. `source_label` is a human-readable tag
+/// that gets printed in verbose mode so the user knows why we picked this
+/// particular query.
+fn pick_catalog_query<'a>(model: &'a str, device_id: Option<&str>) -> (String, &'static str) {
+    if let Some(dev) = device_id
+        && let Some(cid) = drivers_mod::resolver::extract_field(dev, "CID")
+    {
+        return (cid, "CID");
+    }
+    (model.to_string(), "model")
+}
+
+/// Search the Microsoft Update Catalog for a printer. Always returns
 /// a [`CatalogSearchResult`] so the output formatter can render either the
 /// hits, the empty-result case, or the error reason uniformly.
-async fn search_catalog(model: &str, verbose: bool) -> CatalogSearchResult {
+async fn search_catalog(
+    query: &str,
+    query_source: &str,
+    verbose: bool,
+) -> CatalogSearchResult {
     if verbose {
-        eprintln!("[drivers] Searching Microsoft Update Catalog for '{model}'...");
+        eprintln!(
+            "[drivers] Searching Microsoft Update Catalog by {query_source}: '{query}'..."
+        );
     }
-    match drivers_mod::catalog::search(model).await {
+    match drivers_mod::catalog::search(query).await {
         Ok(mut updates) => {
             let total = updates.len();
             updates.truncate(CATALOG_MAX_ROWS);
@@ -131,7 +156,7 @@ async fn search_catalog(model: &str, verbose: bool) -> CatalogSearchResult {
                 }
             }
             CatalogSearchResult {
-                query: model.to_string(),
+                query: query.to_string(),
                 updates: updates.into_iter().map(CatalogEntry::from).collect(),
                 error: None,
             }
@@ -140,7 +165,7 @@ async fn search_catalog(model: &str, verbose: bool) -> CatalogSearchResult {
             if verbose {
                 eprintln!("[drivers] Catalog search failed: {e}");
             }
-            CatalogSearchResult::failure(model, e)
+            CatalogSearchResult::failure(query, e)
         }
     }
 }
