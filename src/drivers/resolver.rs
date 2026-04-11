@@ -244,12 +244,11 @@ pub(crate) fn extract_field(device_id: &str, key: &str) -> Option<String> {
     None
 }
 
-/// Download a CAB URL and expand it into `dest` using `expand.exe`.
+/// Download a CAB URL and expand it into `dest` using the pure-Rust `cab`
+/// crate.
 ///
-/// Windows-only at runtime: `expand.exe` doesn't exist on Linux, so this
-/// function returns an error when called from a Linux build. All resolver
-/// tests stay on Linux-safe surfaces (parsing, string helpers) to keep CI
-/// green.
+/// Runs on Linux and Windows alike — no `expand.exe` subprocess needed.
+/// See `src/drivers/cab.rs` for the extraction helper.
 async fn download_and_expand(url: &str, dest: &Path, verbose: bool) -> Result<(), String> {
     std::fs::create_dir_all(dest)
         .map_err(|e| format!("create dir {}: {e}", dest.display()))?;
@@ -277,35 +276,15 @@ async fn download_and_expand(url: &str, dest: &Path, verbose: bool) -> Result<()
         .await
         .map_err(|e| format!("body read failed: {e}"))?;
 
-    let cab_path = dest.join("__catalog.cab");
-    std::fs::write(&cab_path, &bytes).map_err(|e| format!("write cab: {e}"))?;
-
     if verbose {
         eprintln!(
-            "[resolver]   expand {} → {}",
-            cab_path.display(),
+            "[resolver]   expand {} bytes → {}",
+            bytes.len(),
             dest.display()
         );
     }
 
-    let output = std::process::Command::new("expand")
-        .args([
-            cab_path.to_str().unwrap_or_default(),
-            "-F:*",
-            dest.to_str().unwrap_or_default(),
-        ])
-        .output()
-        .map_err(|e| format!("expand.exe invoke failed: {e}"))?;
-
-    // Clean up the downloaded cab either way.
-    let _ = std::fs::remove_file(&cab_path);
-
-    if !output.status.success() {
-        return Err(format!(
-            "expand.exe failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
+    crate::drivers::cab::extract_cab_to_dir(&bytes, dest)?;
     Ok(())
 }
 
