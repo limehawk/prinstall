@@ -12,6 +12,10 @@ mod output_test {
             ports: vec![],
             source: PrinterSource::Network,
             local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
         }
     }
 
@@ -103,5 +107,90 @@ mod output_test {
         let text = output::format_scan_guidance("192.168.1.0/24", 3, 0);
         assert!(text.contains("3 device"));
         assert!(text.contains("model"));
+    }
+
+    fn make_local_printer(
+        name: &str,
+        driver: &str,
+        port: &str,
+        source: PrinterSource,
+        shared: bool,
+        is_default: bool,
+    ) -> Printer {
+        Printer {
+            ip: if port.starts_with("IP_") {
+                port.trim_start_matches("IP_").parse().ok()
+            } else {
+                None
+            },
+            model: Some(driver.to_string()),
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![DiscoveryMethod::Local],
+            ports: vec![],
+            source,
+            local_name: Some(name.to_string()),
+            port_name: Some(port.to_string()),
+            driver_name: Some(driver.to_string()),
+            shared: Some(shared),
+            is_default: Some(is_default),
+        }
+    }
+
+    #[test]
+    fn format_list_results_shows_name_driver_port_and_default_marker() {
+        let printers = vec![
+            make_local_printer(
+                "Front Desk",
+                "HP Universal Printing PCL 6",
+                "IP_10.0.0.5",
+                PrinterSource::Installed,
+                true,
+                true,
+            ),
+            make_local_printer(
+                "Back Office",
+                "Brother Laser Type1 Class Driver",
+                "USB001",
+                PrinterSource::Usb,
+                false,
+                false,
+            ),
+            make_local_printer(
+                "Microsoft Print to PDF",
+                "Microsoft Print To PDF",
+                "PORTPROMPT:",
+                PrinterSource::Installed,
+                false,
+                false,
+            ),
+        ];
+        let text = output::format_list_results(&printers);
+        // Queue names
+        assert!(text.contains("Front Desk"));
+        assert!(text.contains("Back Office"));
+        assert!(text.contains("Microsoft Print to PDF"));
+        // Drivers
+        assert!(text.contains("HP Universal Printing PCL 6"));
+        assert!(text.contains("Brother Laser Type1 Class Driver"));
+        // Ports
+        assert!(text.contains("IP_10.0.0.5"));
+        assert!(text.contains("USB001"));
+        assert!(text.contains("PORTPROMPT:"));
+        // Shared column
+        assert!(text.contains("Yes"));
+        assert!(text.contains("No"));
+        // Summary footer
+        assert!(text.contains("3 printer(s)"));
+        assert!(text.contains("1 USB"));
+        assert!(text.contains("1 default"));
+        // Default marker
+        assert!(text.contains("* = Windows default printer"));
+    }
+
+    #[test]
+    fn format_list_results_empty_message() {
+        let text = output::format_list_results(&[]);
+        assert!(text.contains("No locally installed printers"));
     }
 }

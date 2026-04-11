@@ -15,6 +15,10 @@ mod models_test {
             ports: vec![],
             source: PrinterSource::Network,
             local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
         };
         let json = serde_json::to_string(&_printer).unwrap();
         assert!(json.contains("192.168.1.50"));
@@ -98,6 +102,10 @@ mod models_test {
             ports: vec![9100, 631],
             source: PrinterSource::Network,
             local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
         };
         let json = serde_json::to_string(&printer).unwrap();
         assert!(json.contains("192.168.1.50"));
@@ -115,6 +123,10 @@ mod models_test {
             ports: vec![],
             source: PrinterSource::Usb,
             local_name: Some("HP OfficeJet Pro 9010".to_string()),
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
         };
         assert_eq!(printer.display_ip(), "USB");
         let json = serde_json::to_string(&printer).unwrap();
@@ -132,6 +144,10 @@ mod models_test {
             ports: vec![9100],
             source: PrinterSource::Network,
             local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
         };
         assert_eq!(printer.display_ip(), "10.0.0.5");
     }

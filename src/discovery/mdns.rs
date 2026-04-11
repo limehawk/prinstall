@@ -58,6 +58,10 @@ impl MdnsPrinter {
             ports: vec![canonical_port],
             source: PrinterSource::Network,
             local_name: Some(self.hostname),
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
         }
     }
 }

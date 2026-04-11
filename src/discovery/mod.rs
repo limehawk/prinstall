@@ -130,6 +130,10 @@ async fn scan_port_only(hosts: Vec<Ipv4Addr>, timeout: Duration, verbose: bool) 
             ports: c.open_ports,
             source: PrinterSource::Network,
             local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
         })
         .collect()
 }
@@ -194,6 +198,10 @@ async fn scan_all(
                 ports: candidate.open_ports,
                 source: PrinterSource::Network,
                 local_name: None,
+                port_name: None,
+                driver_name: None,
+                shared: None,
+                is_default: None,
             }
         });
         handles.push(handle);

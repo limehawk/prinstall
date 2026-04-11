@@ -199,11 +199,12 @@ async fn cmd_scan(
 async fn cmd_list(cli: &cli::Cli) {
     let printers = discovery::local::list_local_printers(cli.verbose);
     if cli.json {
-        println!("{}", serde_json::to_string_pretty(&printers).unwrap_or_else(|_| "[]".to_string()));
-    } else if printers.is_empty() {
-        println!("No locally installed printers found.");
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&printers).unwrap_or_else(|_| "[]".to_string())
+        );
     } else {
-        println!("{}", output::format_scan_results(&printers));
+        println!("{}", output::format_list_results(&printers));
     }
 }
 
