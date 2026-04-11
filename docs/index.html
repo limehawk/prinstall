@@ -297,8 +297,76 @@
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 20px;
     }
+    /* Roadmap — vertical timeline rail
+       Single column, with a dashed rail running down the left gutter and
+       the 01-07 number badges transformed into circular timeline waypoints
+       that sit on the rail. Each milestone owns the rail segment beneath
+       its own circle; the circle's opaque bg makes the rail appear to pass
+       behind it cleanly. */
     #roadmap .features {
       grid-template-columns: 1fr;
+      gap: 0;
+      max-width: 760px;
+      margin: 0 auto;
+      padding-left: 72px;
+    }
+    #roadmap .feature {
+      position: relative;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 0 0 40px 0;
+      transition: none;
+    }
+    #roadmap .feature:last-child {
+      padding-bottom: 0;
+    }
+    #roadmap .feature:hover {
+      transform: none;
+      border-color: transparent;
+      background: transparent;
+    }
+    /* Rail segment extending from below this feature's circle down to
+       the top of the next feature's circle. Last feature skips the segment. */
+    #roadmap .feature::before {
+      content: "";
+      position: absolute;
+      left: -50px;
+      top: 46px;
+      bottom: 0;
+      width: 0;
+      border-left: 2px dashed var(--border-bright);
+    }
+    #roadmap .feature:last-child::before {
+      display: none;
+    }
+    /* Number badge becomes the timeline waypoint circle */
+    #roadmap .feature .icon {
+      position: absolute;
+      left: -73px;
+      top: 0;
+      width: 46px;
+      height: 46px;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    #roadmap .feature h3 {
+      margin-top: 10px;
+      margin-bottom: 8px;
+      font-size: 19px;
+    }
+    #roadmap .feature p {
+      max-width: 620px;
     }
     .feature {
       background: var(--bg-elevated);
@@ -588,6 +656,21 @@
       section .subtitle { margin-bottom: 40px; }
       .feature { padding: 22px; }
 
+      /* Roadmap rail scales down — narrower gutter, smaller waypoint circles */
+      #roadmap .features { padding-left: 56px; }
+      #roadmap .feature { padding-bottom: 32px; }
+      #roadmap .feature .icon {
+        left: -56px;
+        width: 38px;
+        height: 38px;
+        font-size: 11px;
+      }
+      #roadmap .feature::before {
+        left: -38px;
+        top: 38px;
+      }
+      #roadmap .feature h3 { margin-top: 6px; font-size: 17px; }
+
       /* Meta and terminal */
       .meta { gap: 12px; font-size: 12px; }
       .terminal-body { padding: 16px; font-size: 12px; }
@@ -638,6 +721,22 @@
       .feature { padding: 18px; }
       .feature h3 { font-size: 16px; }
       .feature p { font-size: 13px; }
+
+      /* Roadmap rail compresses further at iPhone SE widths */
+      #roadmap .features { padding-left: 48px; }
+      #roadmap .feature { padding-bottom: 28px; }
+      #roadmap .feature .icon {
+        left: -48px;
+        width: 34px;
+        height: 34px;
+        font-size: 10px;
+      }
+      #roadmap .feature::before {
+        left: -32px;
+        top: 34px;
+      }
+      #roadmap .feature h3 { margin-top: 4px; font-size: 15px; }
+      #roadmap .feature p { font-size: 13px; }
 
       /* Pipeline collapses to a single column — 2-col is too cramped at ≤480px */
       .pipeline { grid-template-columns: 1fr; }
