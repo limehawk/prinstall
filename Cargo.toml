@@ -25,3 +25,4 @@ mdns-sd = "0.19"
 
 [build-dependencies]
 embed-manifest = "1"
+embed-resource = "3"
