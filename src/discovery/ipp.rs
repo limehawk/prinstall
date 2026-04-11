@@ -21,45 +21,57 @@ pub fn build_get_printer_attributes(ip: &str) -> Vec<u8> {
     write_ipp_attribute(&mut buf, 0x47, "attributes-charset", "utf-8");
     write_ipp_attribute(&mut buf, 0x48, "attributes-natural-language", "en");
     write_ipp_attribute(&mut buf, 0x45, "printer-uri", &printer_uri);
+    // Multi-value requested-attributes: first value uses 0x44 tag, subsequent
+    // values use 0x44 with an empty name (additional-value marker).
     write_ipp_attribute(
         &mut buf,
         0x44,
         "requested-attributes",
         "printer-make-and-model",
     );
+    write_ipp_additional_value(&mut buf, 0x44, "printer-device-id");
 
     // End of attributes (tag 0x03)
     buf.push(0x03);
     buf
 }
 
-fn write_ipp_attribute(buf: &mut Vec<u8>, value_tag: u8, name: &str, value: &str) {
+/// Write a second-or-later value for a multi-value IPP attribute.
+/// Uses an empty name, same tag as the first value.
+fn write_ipp_additional_value(buf: &mut Vec<u8>, value_tag: u8, value: &str) {
     buf.push(value_tag);
-    buf.extend_from_slice(&(name.len() as u16).to_be_bytes());
-    buf.extend_from_slice(name.as_bytes());
+    // Empty name (length 0)
+    buf.extend_from_slice(&0u16.to_be_bytes());
     buf.extend_from_slice(&(value.len() as u16).to_be_bytes());
     buf.extend_from_slice(value.as_bytes());
 }
 
-/// Parse an IPP response to extract the printer-make-and-model attribute.
-pub fn parse_printer_make_and_model(data: &[u8]) -> Option<String> {
+/// Captured IPP printer attributes used for pre-flight display.
+#[derive(Debug, Clone, Default)]
+pub struct IppAttributes {
+    pub make_and_model: Option<String>,
+    /// IEEE 1284 device ID string: `MFG:Brother;MDL:MFC-L2750DW series;CLS:PRINTER;CMD:PCL,PS;`
+    /// This is the key Windows Update uses to match drivers against.
+    pub device_id: Option<String>,
+}
+
+/// Parse any single IPP attribute by name. Returns the raw bytes interpreted
+/// as UTF-8 (lossy). Used by both `parse_printer_make_and_model` and the
+/// multi-attribute `parse_ipp_attributes`.
+fn parse_ipp_attribute_by_name(data: &[u8], target_name: &[u8]) -> Option<String> {
     if data.len() < 9 {
         return None;
     }
-    let mut pos = 8; // Skip header: version(2) + status(2) + request-id(4)
-    let target = b"printer-make-and-model";
-
+    let mut pos = 8; // Skip header
     while pos < data.len() {
         let tag = data[pos];
         pos += 1;
-
         if tag <= 0x0F {
             if tag == 0x03 {
                 break;
-            } // End of attributes
+            }
             continue;
         }
-
         if pos + 2 > data.len() {
             break;
         }
@@ -81,7 +93,7 @@ pub fn parse_printer_make_and_model(data: &[u8]) -> Option<String> {
         let value = &data[pos..pos + value_len];
         pos += value_len;
 
-        if name == target {
+        if name == target_name {
             let s = String::from_utf8_lossy(value).trim().to_string();
             if !s.is_empty() {
                 return Some(s);
@@ -91,13 +103,43 @@ pub fn parse_printer_make_and_model(data: &[u8]) -> Option<String> {
     None
 }
 
+/// Parse multiple IPP attributes of interest in a single pass.
+pub fn parse_ipp_attributes(data: &[u8]) -> IppAttributes {
+    IppAttributes {
+        make_and_model: parse_ipp_attribute_by_name(data, b"printer-make-and-model"),
+        device_id: parse_ipp_attribute_by_name(data, b"printer-device-id"),
+    }
+}
+
+fn write_ipp_attribute(buf: &mut Vec<u8>, value_tag: u8, name: &str, value: &str) {
+    buf.push(value_tag);
+    buf.extend_from_slice(&(name.len() as u16).to_be_bytes());
+    buf.extend_from_slice(name.as_bytes());
+    buf.extend_from_slice(&(value.len() as u16).to_be_bytes());
+    buf.extend_from_slice(value.as_bytes());
+}
+
+/// Parse an IPP response to extract the printer-make-and-model attribute.
+pub fn parse_printer_make_and_model(data: &[u8]) -> Option<String> {
+    parse_ipp_attribute_by_name(data, b"printer-make-and-model")
+}
+
 /// Query a printer via IPP to get its make-and-model string.
 pub async fn identify_printer_ipp(ip: Ipv4Addr, verbose: bool) -> Option<String> {
-    let client = reqwest::Client::builder()
+    query_ipp_attributes(ip, verbose).await.make_and_model
+}
+
+/// Query a printer via IPP and return the full set of attributes we care about.
+/// Returns an empty `IppAttributes` if the printer doesn't respond to IPP at all.
+pub async fn query_ipp_attributes(ip: Ipv4Addr, verbose: bool) -> IppAttributes {
+    let client = match reqwest::Client::builder()
         .timeout(IPP_TIMEOUT)
         .danger_accept_invalid_certs(true)
         .build()
-        .ok()?;
+    {
+        Ok(c) => c,
+        Err(_) => return IppAttributes::default(),
+    };
 
     let request_body = build_get_printer_attributes(&ip.to_string());
 
@@ -115,13 +157,19 @@ pub async fn identify_printer_ipp(ip: Ipv4Addr, verbose: bool) -> Option<String>
             .await
         {
             Ok(resp) => {
-                if let Ok(body) = resp.bytes().await
-                    && let Some(model) = parse_printer_make_and_model(&body)
-                {
-                    if verbose {
-                        eprintln!("[scan] {ip}: IPP → \"{model}\"");
+                if let Ok(body) = resp.bytes().await {
+                    let attrs = parse_ipp_attributes(&body);
+                    if attrs.make_and_model.is_some() || attrs.device_id.is_some() {
+                        if verbose {
+                            if let Some(ref m) = attrs.make_and_model {
+                                eprintln!("[scan] {ip}: IPP → \"{m}\"");
+                            }
+                            if let Some(ref d) = attrs.device_id {
+                                eprintln!("[scan] {ip}: IPP device-id → \"{d}\"");
+                            }
+                        }
+                        return attrs;
                     }
-                    return Some(model);
                 }
             }
             Err(e) => {
@@ -133,7 +181,7 @@ pub async fn identify_printer_ipp(ip: Ipv4Addr, verbose: bool) -> Option<String>
     }
 
     if verbose {
-        eprintln!("[scan] {ip}: IPP → no model found");
+        eprintln!("[scan] {ip}: IPP → no attributes found");
     }
-    None
+    IppAttributes::default()
 }

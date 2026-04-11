@@ -42,6 +42,8 @@ mod models_test {
             printer_model: "HP LaserJet Pro MFP M428fdw".to_string(),
             matched: vec![],
             universal: vec![],
+            device_id: None,
+            windows_update: None,
         };
         assert_eq!(results.matched.len(), 0);
         assert_eq!(results.universal.len(), 0);

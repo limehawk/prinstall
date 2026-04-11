@@ -101,6 +101,8 @@ pub fn match_drivers(model: &str, local_store_drivers: &[String]) -> DriverResul
         printer_model: model.to_string(),
         matched,
         universal,
+        device_id: None,
+        windows_update: None,
     }
 }
 

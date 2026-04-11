@@ -2,7 +2,7 @@ use clap::Parser;
 use std::io::IsTerminal;
 
 use prinstall::core::executor::RealExecutor;
-use prinstall::{cli, commands, discovery, drivers, output, privilege, tui};
+use prinstall::{cli, commands, discovery, output, privilege, tui};
 
 #[tokio::main]
 async fn main() {
@@ -200,48 +200,26 @@ async fn cmd_id(ip: &str, cli: &cli::Cli) {
 }
 
 async fn cmd_drivers(ip: &str, model_override: Option<&str>, cli: &cli::Cli) {
-    // Get model via --model override or SNMP
-    let model = if let Some(m) = model_override {
-        m.to_string()
-    } else {
-        resolve_model(ip, cli).await
-    };
-
     if cli.verbose {
-        eprintln!("[drivers] Finding drivers for: {model}");
+        eprintln!("[drivers] Finding drivers for printer at {ip}");
     }
 
-    let local_drivers = drivers::local_store::list_drivers(cli.verbose);
-    let results = drivers::matcher::match_drivers(&model, &local_drivers);
+    let executor = RealExecutor::new(cli.verbose);
+    let results = commands::drivers::run(
+        &executor,
+        commands::drivers::DriversArgs {
+            ip,
+            model_override,
+            community: &cli.community,
+            verbose: cli.verbose,
+        },
+    )
+    .await;
 
     if cli.json {
         println!("{}", output::format_driver_results_json(&results));
     } else {
         println!("{}", output::format_driver_results(&results));
-    }
-}
-
-/// Resolve printer model: use --model if provided, otherwise query SNMP.
-async fn resolve_model(ip: &str, cli: &cli::Cli) -> String {
-    // Check for global --model override (via install subcommand, not available here directly)
-    // For drivers/id commands, we always use SNMP
-    let addr: std::net::Ipv4Addr = match ip.parse() {
-        Ok(a) => a,
-        Err(e) => {
-            eprintln!("Error: invalid IP address '{ip}': {e}");
-            std::process::exit(1);
-        }
-    };
-
-    match discovery::snmp::identify_printer(addr, &cli.community, cli.verbose).await {
-        Some(p) => p.model.unwrap_or_else(|| {
-            eprintln!("{}", output::format_snmp_failure_guidance(ip));
-            std::process::exit(1);
-        }),
-        None => {
-            eprintln!("{}", output::format_snmp_failure_guidance(ip));
-            std::process::exit(1);
-        }
     }
 }
 

@@ -168,10 +168,50 @@ pub fn format_scan_results_json(printers: &[Printer]) -> String {
     serde_json::to_string_pretty(printers).unwrap_or_else(|_| "[]".to_string())
 }
 
-/// Format driver matching results with two sections.
+/// Format driver matching results with all sections:
+///   1. Printer info (model, IPP device ID)
+///   2. Windows Update probe result (if available)
+///   3. Matched drivers (ranked by fuzzy score)
+///   4. Universal drivers (manufacturer fallback)
 pub fn format_driver_results(results: &DriverResults) -> String {
     let mut out = String::new();
     out.push_str(&format!("\n{} {}\n", label("Printer:"), results.printer_model));
+    if let Some(ref device_id) = results.device_id {
+        out.push_str(&format!("{} {}\n", label("IPP Device ID:"), dim(device_id)));
+    }
+
+    // ── Windows Update probe ──────────────────────────────────────────────────
+    if let Some(ref probe) = results.windows_update {
+        out.push_str(&format!(
+            "\n{}\n",
+            header("── Windows Update ───────────────────────────────────────────")
+        ));
+        if let Some(ref err) = probe.probe_error {
+            out.push_str(&format!("  {} {}\n", warn("probe skipped:"), dim(err)));
+        } else if probe.from_in_box_fallback {
+            out.push_str(&format!(
+                "  {} {}  {}\n",
+                dim("○"),
+                probe.driver_name,
+                dim("[Windows in-box fallback]"),
+            ));
+            out.push_str(&format!(
+                "    {}\n",
+                dim("Windows Update had no vendor-specific driver for this model.")
+            ));
+        } else {
+            out.push_str(&format!(
+                "  {} {}  {}\n",
+                badge_exact("★ Windows Update"),
+                probe.driver_name,
+                dim("[staged in local driver store]"),
+            ));
+            out.push_str(&format!(
+                "    {}\n",
+                dim("Ready for install — run: prinstall add <ip>")
+            ));
+        }
+    }
 
     if results.matched.is_empty() && results.universal.is_empty() {
         out.push_str("\nNo drivers found for this printer.\n");
