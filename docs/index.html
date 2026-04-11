@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>prinstall · Discover. Match. Add. Remove.</title>
+  <meta name="description" content="A Rust CLI and TUI for nuking printer setup pain on Windows. Scan a subnet, match a driver from the Microsoft Update Catalog, install a printer — single 12 MB binary." />
+  <meta name="theme-color" content="#0a0e14" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="prinstall — Discover. Match. Add. Remove." />
+  <meta property="og:description" content="A Rust CLI and TUI for nuking printer setup pain on Windows." />
+  <meta property="og:url" content="https://prinstall.limehawk.io" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23ff6b35'/%3E%3Ctext x='32' y='44' font-family='monospace' font-size='36' font-weight='700' text-anchor='middle' fill='%230a0e14'%3Ep%3C/text%3E%3C/svg%3E" />
+
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-elevated: #111821;
+      --bg-subtle: #0f1620;
+      --border: #1e2a3a;
+      --border-bright: #2a3a50;
+      --text: #e6edf3;
+      --text-dim: #8b99a8;
+      --text-subtle: #5a6878;
+      --accent: #ff6b35;
+      --accent-bright: #ff8355;
+      --accent-dim: rgba(255, 107, 53, 0.12);
+      --green: #50fa7b;
+      --yellow: #f1fa8c;
+      --red: #ff5555;
+      --cyan: #8be9fd;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* Background dot grid */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+      background-size: 32px 32px;
+      opacity: 0.25;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Subtle gradient glow behind hero */
+    body::after {
+      content: "";
+      position: fixed;
+      top: -20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      height: 60%;
+      background: radial-gradient(ellipse at center, var(--accent-dim) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    main { position: relative; z-index: 1; }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Nav */
+    nav {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .logo {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo-mark {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      background: var(--accent);
+      color: var(--bg);
+      border-radius: 6px;
+      text-align: center;
+      line-height: 24px;
+      font-weight: 800;
+    }
+    .nav-links {
+      display: flex;
+      gap: 28px;
+      font-size: 14px;
+    }
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* Hero */
+    .hero {
+      padding: 100px 0 80px;
+      text-align: center;
+    }
+    .hero .banner {
+      font-family: var(--mono);
+      font-size: clamp(6px, 1.4vw, 11px);
+      line-height: 1;
+      color: var(--accent);
+      white-space: pre;
+      overflow-x: auto;
+      margin-bottom: 40px;
+      text-shadow: 0 0 24px rgba(255, 107, 53, 0.4);
+      user-select: none;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 5vw, 52px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+    .hero h1 .accent { color: var(--accent); }
+    .hero .tagline {
+      font-family: var(--mono);
+      font-size: clamp(14px, 2vw, 18px);
+      color: var(--text-dim);
+      margin-bottom: 40px;
+      letter-spacing: 0.02em;
+    }
+    .hero .tagline span { color: var(--accent); }
+
+    /* CTA buttons */
+    .cta {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      transition: transform 0.15s, background 0.15s, border 0.15s;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+    }
+    .btn-primary:hover {
+      background: var(--accent-bright);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border-color: var(--border-bright);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent);
+    }
+    .btn .arrow { transition: transform 0.15s; }
+    .btn:hover .arrow { transform: translateX(2px); }
+
+    .meta {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text-subtle);
+      flex-wrap: wrap;
+    }
+    .meta span { display: flex; align-items: center; gap: 6px; }
+    .meta .dot { width: 4px; height: 4px; background: var(--text-subtle); border-radius: 50%; }
+
+    /* Sections */
+    section { padding: 80px 0; }
+    section h2 {
+      font-size: clamp(24px, 3vw, 34px);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    section .subtitle {
+      text-align: center;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 14px;
+      margin-bottom: 56px;
+    }
+
+    /* Feature grid */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .feature {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .feature:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .feature .icon {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 12px;
+      display: inline-block;
+      padding: 6px 10px;
+      background: var(--accent-dim);
+      border-radius: 6px;
+    }
+    .feature h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .feature p {
+      font-size: 14px;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    /* Terminal demo */
+    .terminal {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      font-family: var(--mono);
+      font-size: 13px;
+      max-width: 900px;
+      margin: 0 auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 80px rgba(255, 107, 53, 0.08);
+    }
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .terminal-dot:nth-child(1) { background: #ff5f57; }
+    .terminal-dot:nth-child(2) { background: #febc2e; }
+    .terminal-dot:nth-child(3) { background: #28c840; }
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      color: var(--text-subtle);
+      font-size: 12px;
+      padding-right: 60px;
+    }
+    .terminal-body {
+      padding: 20px 24px;
+      overflow-x: auto;
+      line-height: 1.65;
+      color: var(--text);
+      white-space: pre;
+    }
+    .t-prompt { color: var(--green); }
+    .t-cmd { color: var(--text); font-weight: 600; }
+    .t-flag { color: var(--cyan); }
+    .t-dim { color: var(--text-subtle); }
+    .t-tag { color: var(--yellow); }
+    .t-ok { color: var(--green); font-weight: 600; }
+    .t-accent { color: var(--accent); font-weight: 600; }
+
+    /* Pipeline diagram */
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    @media (max-width: 760px) {
+      .pipeline { grid-template-columns: 1fr 1fr; }
+    }
+    .tier {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 18px;
+      position: relative;
+      transition: border-color 0.15s;
+    }
+    .tier:hover { border-color: var(--accent); }
+    .tier .tier-num {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .tier h4 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .tier p {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+    .tier.highlight {
+      border-color: var(--accent);
+      background: linear-gradient(180deg, var(--bg-elevated), var(--bg-subtle));
+    }
+    .tier.highlight::before {
+      content: "★ new in 0.3.0";
+      position: absolute;
+      top: -10px;
+      left: 16px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--bg);
+      background: var(--accent);
+      padding: 3px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+    }
+
+    /* Install block */
+    .install-block {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .install-step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      align-items: flex-start;
+    }
+    .install-step-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 28px;
+    }
+    .install-step-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .install-step-body p {
+      color: var(--text-dim);
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .install-step-body code {
+      display: block;
+      font-family: var(--mono);
+      font-size: 13px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--text);
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    /* Footer */
+    footer {
+      padding: 48px 0 32px;
+      border-top: 1px solid var(--border);
+      margin-top: 60px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text-subtle);
+    }
+    footer .footer-links {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    footer .footer-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+    }
+    footer .footer-links a:hover { color: var(--accent); }
+
+    @media (max-width: 700px) {
+      .hero { padding: 60px 0 40px; }
+      section { padding: 56px 0; }
+      .nav-links { gap: 16px; font-size: 13px; }
+      .btn { padding: 12px 22px; font-size: 13px; }
+      .meta { gap: 12px; font-size: 12px; }
+      .terminal-body { padding: 16px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <a class="logo" href="/">
+        <span class="logo-mark">p</span>
+        prinstall
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#pipeline">Pipeline</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/limehawk/prinstall">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <pre class="banner" aria-hidden="true">
+▄▄▄▄▄▄▄   ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄    ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄   ▄▄▄▄   ▄▄▄      ▄▄▄
+███▀▀███▄ ███▀▀███▄  ███  ████▄  ███ █████▀▀▀ ▀▀▀███▀▀▀ ▄██▀▀██▄ ███      ███
+███▄▄███▀ ███▄▄███▀  ███  ███▀██▄███  ▀████▄     ███    ███  ███ ███      ███
+███▀▀▀▀   ███▀▀██▄   ███  ███  ▀████    ▀████    ███    ███▀▀███ ███      ███
+███       ███  ▀███ ▄███▄ ███    ███ ███████▀    ███    ███  ███ ████████ ████████
+        </pre>
+        <h1>Discover. Match. <span class="accent">Add. Remove.</span></h1>
+        <p class="tagline">A Rust CLI and TUI for nuking printer setup pain on <span>Windows</span>.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://github.com/limehawk/prinstall/releases/latest">
+            Download for Windows
+            <span class="arrow">→</span>
+          </a>
+          <a class="btn btn-secondary" href="https://github.com/limehawk/prinstall">
+            View on GitHub
+          </a>
+        </div>
+        <div class="meta">
+          <span>built in Rust</span>
+          <span class="dot"></span>
+          <span>12 MB single binary</span>
+          <span class="dot"></span>
+          <span>MIT licensed</span>
+          <span class="dot"></span>
+          <span>no dependencies</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="container">
+        <h2>What it does</h2>
+        <p class="subtitle">Built for MSP technicians running it locally or through RMM remote shells.</p>
+        <div class="features">
+          <div class="feature">
+            <div class="icon">01</div>
+            <h3>Multi-method discovery</h3>
+            <p>TCP port probe, IPP, SNMP, and local Get-Printer all in one parallel pipeline. Works even on printers that have SNMP disabled.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">02</div>
+            <h3>Deterministic driver matching</h3>
+            <p>Scrapes the Microsoft Update Catalog, downloads the candidate driver, parses the INF, and confirms a <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">1284_CID_*</code> hardware-ID match before installing. No guessing.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">03</div>
+            <h3>Network + USB printers</h3>
+            <p>One binary handles both install paths. USB printers hot-swap their driver via Set-Printer without re-creating the queue.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">04</div>
+            <h3>Clean remove</h3>
+            <p>Queue → driver → port cleanup with spooler-lag retry and driver-store package removal. No orphaned ports, no dead drivers cluttering Print Server Properties.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">05</div>
+            <h3>Scriptable CLI, vim TUI</h3>
+            <p>Pipe <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> to jq for RMM automation, or drop into a dense two-panel lazy-style TUI when launched from a real terminal.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">06</div>
+            <h3>Readable errors</h3>
+            <p>PowerShell stderr is parsed and HRESULT-decoded before you see it. No more drowning in CategoryInfo and FullyQualifiedErrorId noise.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <h2>Watch it work</h2>
+        <p class="subtitle">prinstall add 10.10.20.16 --verbose  ·  real terminal output</p>
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-title">Windows PowerShell</span>
+          </div>
+          <div class="terminal-body"><span class="t-prompt">PS&gt;</span> <span class="t-cmd">prinstall</span> <span class="t-cmd">add</span> 10.10.20.16 <span class="t-flag">--verbose</span>
+
+<span class="t-dim">[add]</span> SNMP → <span class="t-accent">"Brother MFC-L2750DW series"</span>
+<span class="t-dim">[add]</span> IPP device ID: MFG:Brother;MDL:MFC-L2750DW series;CID:<span class="t-accent">Brother Laser Type1</span>;...
+<span class="t-dim">[add]</span> Auto-selected driver: Brother Universal Printer
+<span class="t-dim">[add]</span> Download failed: No download URL available.
+<span class="t-dim">[PS ]</span> Add-PrinterDriver -Name 'Brother Universal Printer'
+<span class="t-dim">[PS ]</span> <span style="color: var(--red);">HRESULT 0x80070705: driver does not exist in the driver store</span>
+<span class="t-dim">[add]</span> Primary install failed. Trying catalog resolver with device ID...
+<span class="t-dim">[resolver]</span> Searching catalog by CID: <span class="t-accent">'Brother Laser Type1'</span>
+<span class="t-dim">[resolver]</span> Catalog returned 5 result(s), scanning top 5
+<span class="t-dim">[resolver]</span> HWID candidates: <span class="t-tag">1284_CID_BROTHER_LASER_TYPE1</span>, BROTHER_LASER_TYPE1, ...
+<span class="t-dim">[resolver]</span> #1: Brother - Printer - 10.0.17119.1
+<span class="t-dim">[resolver]</span>   GET https://catalog.s.download.windowsupdate.com/.../prnbrcl1.cab
+<span class="t-dim">[resolver]</span>   expand → %APPDATA%\prinstall\staging\catalog\...
+<span class="t-dim">[resolver]</span> <span class="t-accent">★ MATCH</span>: prnbrcl1.inf → Brother Laser Type1 Class Driver
+<span class="t-dim">[PS ]</span> pnputil /add-driver '...\prnbrcl1.inf' /install
+<span class="t-dim">[PS ]</span> Add-Printer -Name 'Brother MFC-L2750DW series' -DriverName ...
+
+<span class="t-ok">✓ Printer installed successfully!</span>
+  <span class="t-dim">Name  :</span> Brother MFC-L2750DW series
+  <span class="t-dim">Driver:</span> <span class="t-accent">Brother Laser Type1 Class Driver</span>
+  <span class="t-dim">Port  :</span> IP_10.10.20.16
+
+  <span class="t-dim">Installed via Microsoft Update Catalog. Matched HWID: 1284_CID_BROTHER_LASER_TYPE1.</span>
+</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pipeline">
+      <div class="container">
+        <h2>Four tiers, one command</h2>
+        <p class="subtitle">prinstall add walks the pipeline in priority order — only escalates when the previous tier comes up empty.</p>
+        <div class="pipeline">
+          <div class="tier">
+            <div class="tier-num">TIER 01</div>
+            <h4>Local driver store</h4>
+            <p>Reuse what's already installed. No network, no side effects. Instant.</p>
+          </div>
+          <div class="tier">
+            <div class="tier-num">TIER 02</div>
+            <h4>Manufacturer download</h4>
+            <p>Pull from the embedded URL manifest when the vendor publishes a stable direct link.</p>
+          </div>
+          <div class="tier highlight">
+            <div class="tier-num">TIER 03</div>
+            <h4>Update Catalog + INF HWID</h4>
+            <p>Search by IPP CID, download a candidate CAB, parse the INF, match the synthesized hardware ID. Deterministic.</p>
+          </div>
+          <div class="tier">
+            <div class="tier-num">TIER 04</div>
+            <h4>IPP Class Driver</h4>
+            <p>The always-works safety net for any printer that speaks IPP Everywhere (Windows 8+).</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="install">
+      <div class="container">
+        <h2>Install</h2>
+        <p class="subtitle">Single 12 MB binary. Drop it on PATH and go.</p>
+        <div class="install-block">
+          <div class="install-step">
+            <div class="install-step-num">1</div>
+            <div class="install-step-body">
+              <p>Grab the latest Windows release:</p>
+              <code>iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe</code>
+            </div>
+          </div>
+          <div class="install-step">
+            <div class="install-step-num">2</div>
+            <div class="install-step-body">
+              <p>Scan your subnet for printers:</p>
+              <code>.\prinstall.exe scan</code>
+            </div>
+          </div>
+          <div class="install-step">
+            <div class="install-step-num">3</div>
+            <div class="install-step-body">
+              <p>Add one:</p>
+              <code>.\prinstall.exe add 192.168.1.47</code>
+            </div>
+          </div>
+          <div class="install-step">
+            <div class="install-step-num">4</div>
+            <div class="install-step-body">
+              <p>Or launch the interactive TUI:</p>
+              <code>.\prinstall.exe</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <div class="footer-links">
+        <a href="https://github.com/limehawk/prinstall">GitHub</a>
+        <a href="https://github.com/limehawk/prinstall/releases">Releases</a>
+        <a href="https://github.com/limehawk/prinstall/blob/main/README.md">Docs</a>
+        <a href="https://github.com/limehawk/prinstall/issues">Issues</a>
+      </div>
+      <p>MIT licensed  ·  built by <a href="https://limehawk.io" style="color: var(--text-dim); text-decoration: underline;">limehawk</a>  ·  designed for techs who just want the printer to work</p>
+    </div>
+  </footer>
+</body>
+</html>
