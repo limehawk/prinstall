@@ -44,22 +44,22 @@ mod cli_parse_test {
     }
 
     #[test]
-    fn install_with_all_flags() {
+    fn add_with_all_flags() {
         let cli = prinstall::cli::Cli::parse_from([
-            "prinstall", "install", "192.168.1.100",
+            "prinstall", "add", "192.168.1.100",
             "--driver", "HP Universal Print Driver PCL6",
             "--name", "Front Desk Printer",
             "--model", "HP LaserJet Pro MFP M428fdw",
         ]);
         match cli.command {
-            Some(prinstall::cli::Commands::Install { ip, driver, name, model, usb }) => {
-                assert_eq!(ip, "192.168.1.100");
+            Some(prinstall::cli::Commands::Add { target, driver, name, model, usb }) => {
+                assert_eq!(target, "192.168.1.100");
                 assert_eq!(driver.unwrap(), "HP Universal Print Driver PCL6");
                 assert_eq!(name.unwrap(), "Front Desk Printer");
                 assert_eq!(model.unwrap(), "HP LaserJet Pro MFP M428fdw");
                 assert!(!usb);
             }
-            _ => panic!("expected Install"),
+            _ => panic!("expected Add"),
         }
     }
 
@@ -109,13 +109,13 @@ mod cli_parse_test {
     }
 
     #[test]
-    fn install_with_usb_flag() {
-        let cli = prinstall::cli::Cli::parse_from(["prinstall", "install", "192.168.1.100", "--usb"]);
+    fn add_with_usb_flag() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "add", "192.168.1.100", "--usb"]);
         match cli.command {
-            Some(prinstall::cli::Commands::Install { usb, .. }) => {
+            Some(prinstall::cli::Commands::Add { usb, .. }) => {
                 assert!(usb);
             }
-            _ => panic!("expected Install"),
+            _ => panic!("expected Add"),
         }
     }
 }
