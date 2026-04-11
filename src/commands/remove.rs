@@ -14,13 +14,29 @@
 //! on the `RemoveDetail` payload, not as a failed operation.
 
 use std::net::Ipv4Addr;
+use std::time::Duration;
 
 use serde::Deserialize;
 
 use crate::core::executor::{run_json, PsExecutor};
 use crate::core::ps_error;
-use crate::installer::powershell::escape_ps_string;
+use crate::installer::powershell::{escape_ps_string, PsResult};
 use crate::models::{PrinterOpResult, RemoveDetail};
+
+/// Wait this long after `Remove-Printer` succeeds before attempting driver
+/// or port cleanup. The Windows spooler holds internal references on the
+/// driver and port for a few hundred milliseconds after the queue goes
+/// away — without a settle delay, cleanup fails with a misleading "in use"
+/// error even though `Get-Printer` reports zero references.
+const SPOOLER_SETTLE_MS: u64 = 500;
+
+/// Retry schedule for `Remove-PrinterDriver` and `Remove-PrinterPort`. Each
+/// entry is the sleep duration *before* the corresponding attempt. First
+/// attempt is immediate (`0`). Cumulative wait across all retries is ~5.5s,
+/// which covers spooler-lag cases seen on both real hardware and VMs.
+/// Windows usually releases references within 1–3s; the extended tail is
+/// insurance for slow/loaded systems.
+const REMOVE_RETRY_DELAYS_MS: &[u64] = &[0, 1000, 2000, 2500];
 
 /// Arguments for `prinstall remove <target>`.
 pub struct RemoveArgs<'a> {
@@ -131,6 +147,18 @@ pub async fn run(executor: &dyn PsExecutor, args: RemoveArgs<'_>) -> PrinterOpRe
         ));
     }
 
+    // Give the spooler a moment to release references on the driver and
+    // port before we try to remove them. Without this, both removals fail
+    // with "in use" errors even though Get-Printer shows zero references.
+    if !(args.keep_driver && args.keep_port) {
+        if verbose {
+            eprintln!(
+                "[remove] Waiting {SPOOLER_SETTLE_MS}ms for spooler to release references..."
+            );
+        }
+        std::thread::sleep(Duration::from_millis(SPOOLER_SETTLE_MS));
+    }
+
     // ── Step 4: driver cleanup (non-fatal) ───────────────────────────────────
     let driver_removed = if args.keep_driver {
         if verbose {
@@ -222,6 +250,57 @@ fn fetch_printer_info(executor: &dyn PsExecutor, printer_name: &str) -> Result<P
     run_json::<PrinterInfo>(executor, &cmd)
 }
 
+/// Run a PowerShell command with a retry schedule. Each entry in
+/// `delays_ms` is the sleep *before* the corresponding attempt — the first
+/// entry should normally be `0` so the first attempt is immediate. Returns
+/// the first successful result, or the last failure if all attempts fail.
+///
+/// The Windows spooler keeps internal references on printer drivers and
+/// ports for 1–3 seconds after `Remove-Printer` returns, sometimes longer
+/// in VMs, so a single-shot removal frequently fails with a misleading
+/// "in use" error even though `Get-Printer` shows zero references. This
+/// helper exists specifically to smooth over that race.
+fn run_with_retries(
+    executor: &dyn PsExecutor,
+    cmd: &str,
+    delays_ms: &[u64],
+    verbose: bool,
+) -> PsResult {
+    let mut last = PsResult {
+        success: false,
+        stdout: String::new(),
+        stderr: "no attempts were made".to_string(),
+    };
+    for (i, delay) in delays_ms.iter().enumerate() {
+        if *delay > 0 {
+            if verbose {
+                eprintln!(
+                    "[remove] Waiting {delay}ms before retry {}/{}...",
+                    i + 1,
+                    delays_ms.len()
+                );
+            }
+            std::thread::sleep(Duration::from_millis(*delay));
+        }
+        if verbose {
+            if i == 0 {
+                eprintln!("[remove] {cmd}");
+            } else {
+                eprintln!("[remove] retry {}/{}: {cmd}", i + 1, delays_ms.len());
+            }
+        }
+        let result = executor.run(cmd);
+        if result.success {
+            if verbose && i > 0 {
+                eprintln!("[remove] Succeeded on attempt {}", i + 1);
+            }
+            return result;
+        }
+        last = result;
+    }
+    last
+}
+
 /// If the driver is no longer used by any printer, remove it. Returns `true`
 /// on successful removal, `false` if skipped (still in use, system driver,
 /// or removal failed).
@@ -280,25 +359,49 @@ fn try_remove_driver_if_orphaned(
         return false;
     }
 
+    // Try with -RemoveFromDriverStore first, which also kills the underlying
+    // oem<N>.inf package in the Windows driver store. That's how we avoid
+    // leaving behind sibling drivers from multi-driver INF packages (e.g.
+    // prnbrcl1.inf registers 6+ Brother class drivers in one shot — stale
+    // siblings clutter Print Server Properties if we only remove the one we
+    // care about). If the store-delete fails (usually because a sibling is
+    // still referenced by another printer), fall back to the plain
+    // Remove-PrinterDriver which at least unregisters the named driver.
+    let cmd_with_store = format!(
+        "Remove-PrinterDriver -Name '{}' -RemoveFromDriverStore -Confirm:$false",
+        escape_ps_string(driver_name)
+    );
+    let result = run_with_retries(executor, &cmd_with_store, REMOVE_RETRY_DELAYS_MS, verbose);
+    if result.success {
+        if verbose {
+            eprintln!("[remove] Removed driver '{driver_name}' (including driver store package)");
+        }
+        return true;
+    }
+    if verbose {
+        eprintln!(
+            "[remove] -RemoveFromDriverStore attempt failed ({}), falling back to soft unregister.",
+            ps_error::clean(&result.stderr)
+        );
+    }
+
     let cmd = format!(
         "Remove-PrinterDriver -Name '{}' -Confirm:$false",
         escape_ps_string(driver_name)
     );
-    if verbose {
-        eprintln!("[remove] {cmd}");
-    }
-    let result = executor.run(&cmd);
+    let result = run_with_retries(executor, &cmd, REMOVE_RETRY_DELAYS_MS, verbose);
     if !result.success {
         if verbose {
             eprintln!(
-                "[remove] Warning: failed to remove driver '{driver_name}': {}",
-                result.stderr
+                "[remove] Warning: failed to remove driver '{driver_name}' after {} attempts: {}",
+                REMOVE_RETRY_DELAYS_MS.len(),
+                ps_error::clean(&result.stderr)
             );
         }
         return false;
     }
     if verbose {
-        eprintln!("[remove] Removed driver '{driver_name}'");
+        eprintln!("[remove] Removed driver '{driver_name}' (unregistered only — driver store package may remain)");
     }
     true
 }
@@ -362,31 +465,18 @@ fn try_remove_port_if_orphaned(
         "Remove-PrinterPort -Name '{}' -Confirm:$false",
         escape_ps_string(port_name)
     );
-    if verbose {
-        eprintln!("[remove] {cmd}");
-    }
-    let result = executor.run(&cmd);
+    // Same spooler-lag retry schedule as driver removal — Windows holds the
+    // port lock for 1–3s after `Remove-Printer`, sometimes longer in VMs.
+    let result = run_with_retries(executor, &cmd, REMOVE_RETRY_DELAYS_MS, verbose);
     if !result.success {
-        // The Windows spooler sometimes lags a few hundred ms behind Remove-Printer:
-        // Get-Printer returns a fresh (empty) view of printers using the port while
-        // the spooler's internal port lock hasn't released yet. Wait briefly and
-        // retry once before giving up.
         if verbose {
             eprintln!(
-                "[remove] Port removal failed on first attempt (spooler lag?), retrying after 500ms..."
+                "[remove] Warning: failed to remove port '{port_name}' after {} attempts: {}",
+                REMOVE_RETRY_DELAYS_MS.len(),
+                ps_error::clean(&result.stderr)
             );
         }
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        let retry = executor.run(&cmd);
-        if !retry.success {
-            if verbose {
-                eprintln!(
-                    "[remove] Warning: failed to remove port '{port_name}' after retry: {}",
-                    retry.stderr
-                );
-            }
-            return false;
-        }
+        return false;
     }
     if verbose {
         eprintln!("[remove] Removed port '{port_name}'");
