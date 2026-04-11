@@ -139,10 +139,14 @@ data/
 ├── drivers.toml             Manufacturer registry — HP has real URLs, others empty
 └── known_matches.toml       Curated exact matches (3 HP entries currently)
 assets/
-├── prinstall-icon.svg       Vector source for the app icon (source of truth)
-├── prinstall-icon.png       Rasterized 2048×2048 PNG (rendered from the SVG)
-├── prinstall.ico            Compiled 7-resolution ICO (16/32/48/64/96/128/256)
-└── prinstall.rc             Windows resource file — embedded via build.rs
+├── prinstall-icon.svg       Vector source — full orange-tile design
+├── prinstall-icon-glyph.svg Vector source — transparent glyph for small sizes
+├── prinstall-icon.png       Rasterized 2048×2048 PNG (rendered from the tile)
+├── prinstall.ico            Compiled 7-resolution ICO (mixed tile + glyph)
+├── prinstall.rc             Windows resource file — embedded via build.rs
+└── icon-previews/           Reference renders at every standard size
+    ├── tile/{16,32,48,64,96,128,256}.png
+    └── glyph/{16,32,48,64,96,128,256}.png
 tests/
 ├── cli_parse.rs             11 tests
 ├── matcher.rs               13 tests
@@ -187,40 +191,62 @@ time. `build.rs` calls `embed_resource::compile("assets/prinstall.rc", ...)`
 on Windows targets only — Linux dev builds skip it so no ImageMagick or
 resource compiler is needed for `cargo check` / `cargo test`.
 
+There are **two** SVG sources because the full orange-tile design loses
+the printer glyph below ~32 px (most of the pixels are background, the
+printer is a tiny dark smudge in the middle). The ICO shipped in the exe
+uses a transparent glyph-only variant at 16 and 32 px, and the full tile
+design at 48 px and up. See `assets/icon-previews/` for renders of both
+variants at every standard size.
+
 To replace the icon:
 
-1. Edit `assets/prinstall-icon.svg` (the vector source of truth) or
-   drop a new square transparent SVG in at the same path.
-2. Re-render the rasterized PNG (kept alongside so the README and the
-   homepage `<img>` stay up to date):
+1. Edit `assets/prinstall-icon.svg` (the large tile) and/or
+   `assets/prinstall-icon-glyph.svg` (the small glyph). Keep them
+   visually aligned so the transition at the 32→48 px boundary doesn't
+   jar.
+2. Re-render the reference PNG previews at every size:
+   ```bash
+   for size in 16 32 48 64 96 128 256; do
+     magick -background none -density 300 assets/prinstall-icon.svg       -resize "${size}x${size}" "assets/icon-previews/tile/${size}.png"
+     magick -background none -density 300 assets/prinstall-icon-glyph.svg -resize "${size}x${size}" "assets/icon-previews/glyph/${size}.png"
+   done
+   ```
+3. Re-render the 2048×2048 PNG used by the README logo:
    ```bash
    magick -background none -density 300 assets/prinstall-icon.svg \
      -resize 2048x2048 assets/prinstall-icon.png
    ```
-3. Regenerate the multi-resolution ICO from the SVG. `magick`'s
-   `icon:auto-resize` directive reads SVG directly, so no intermediate
-   raster step is needed:
+4. Rebuild the multi-image ICO from those previews. `magick` composes
+   a multi-resolution ICO when you pass multiple PNGs, each becoming
+   one entry at its own native size:
    ```bash
-   magick -background none -density 300 assets/prinstall-icon.svg \
-     -define icon:auto-resize=256,128,96,64,48,32,16 \
+   magick \
+     assets/icon-previews/glyph/16.png  assets/icon-previews/glyph/32.png \
+     assets/icon-previews/tile/48.png   assets/icon-previews/tile/64.png \
+     assets/icon-previews/tile/96.png   assets/icon-previews/tile/128.png \
+     assets/icon-previews/tile/256.png \
      assets/prinstall.ico
    ```
-4. Rebuild — `build.rs` picks up the new `.ico` on the next Windows
-   build, and the PNG is referenced by `README.md` and the homepage
-   favicon in `docs/index.html` (which inlines the SVG as a data URI;
-   re-URL-encode it there if the SVG source changes shape).
+5. Rebuild — `build.rs` picks up the new `.ico` on the next Windows
+   build. If you changed the tile SVG's shape, also re-URL-encode the
+   inline SVG data URI in `docs/index.html`'s `<link rel="icon">` tag
+   so the homepage favicon stays in sync.
 
 All icon-related files:
 
-- `assets/prinstall-icon.svg` — vector source of truth (edit this)
-- `assets/prinstall-icon.png` — rasterized 2048×2048 PNG (rendered from the SVG)
-- `assets/prinstall.ico` — compiled 7-resolution ICO (16/32/48/64/96/128/256)
+- `assets/prinstall-icon.svg` — tile source (orange background + printer)
+- `assets/prinstall-icon-glyph.svg` — glyph source (transparent, for 16/32 in the ICO)
+- `assets/prinstall-icon.png` — rasterized 2048×2048 tile (for README logo)
+- `assets/prinstall.ico` — multi-image ICO (16/32 from glyph, 48+ from tile)
 - `assets/prinstall.rc` — Windows resource file (`1 ICON "prinstall.ico"`)
+- `assets/icon-previews/tile/` and `assets/icon-previews/glyph/` — PNG
+  renders of each source at 16/32/48/64/96/128/256 for reference and as
+  the direct inputs to the ICO build in step 4
 - `build.rs` — `embed_resource::compile("assets/prinstall.rc", ...)` inside
   the `target_os == "windows"` branch, alongside the UAC manifest embed
 - `Cargo.toml` — `embed-resource = "3"` in `[build-dependencies]`
 - `README.md` — `<img src="assets/prinstall-icon.png">` at the top
-- `docs/index.html` — inline SVG data URI in the `<link rel="icon">` tag
+- `docs/index.html` — inline tile SVG data URI in the `<link rel="icon">` tag
 
 ## Testing infrastructure
 
