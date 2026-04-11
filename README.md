@@ -8,7 +8,7 @@
                                                                                    
                                                                                    
 ```
-<p align="center">
+<p>
   <img src="assets/prinstall-icon.png" width="128" alt="prinstall" />
 </p>
 
