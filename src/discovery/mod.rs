@@ -1,5 +1,6 @@
 pub mod ipp;
 pub mod local;
+pub mod mdns;
 pub mod port_scan;
 pub mod snmp;
 pub mod subnet;
@@ -12,12 +13,30 @@ const DEFAULT_CONCURRENCY: usize = 128;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanMethod {
+    /// Full multi-method scan: port probe + IPP + SNMP (unicast, per-host)
+    /// plus an mDNS multicast browse. This is the default — running
+    /// `prinstall scan` with no flags picks this mode.
     All,
+    /// SNMP-only unicast probe against every host on the subnet.
     Snmp,
+    /// TCP port-check probe against 9100/631/515 per host.
     Port,
+    /// mDNS-only multicast browse. Ignores the subnet argument entirely
+    /// since mDNS runs on the link, not on a specific host range.
+    Mdns,
 }
 
+/// How long the mDNS browse pass waits for multicast responses before
+/// giving up. Most responsive printers answer in under 1s; 3s is a
+/// reasonable ceiling for a subnet scan without being noticeably slow.
+const MDNS_BROWSE_TIMEOUT: Duration = Duration::from_secs(3);
+
 /// Multi-method scan pipeline.
+///
+/// `ScanMethod::All` runs every discovery path we have — including the
+/// mDNS multicast browse — so a bare `prinstall scan` surfaces as many
+/// printers as possible. The narrower methods (`Snmp`, `Port`, `Mdns`)
+/// run exactly what they name and nothing else.
 pub async fn scan_subnet(
     hosts: Vec<Ipv4Addr>,
     community: &str,
@@ -28,11 +47,45 @@ pub async fn scan_subnet(
     let mut printers = match method {
         ScanMethod::Snmp => scan_snmp_only(hosts, community, verbose).await,
         ScanMethod::Port => scan_port_only(hosts, timeout, verbose).await,
+        ScanMethod::Mdns => Vec::new(),
         ScanMethod::All => scan_all(hosts, community, timeout, verbose).await,
     };
 
+    if matches!(method, ScanMethod::All | ScanMethod::Mdns) {
+        let mdns_printers = mdns::discover(MDNS_BROWSE_TIMEOUT, verbose).await;
+        merge_mdns_results(&mut printers, mdns_printers);
+    }
+
     printers.sort_by(|a, b| a.ip.cmp(&b.ip));
     printers
+}
+
+/// Merge mDNS-discovered printers into the main result list. For IPs
+/// already known from port/SNMP/IPP, attach the `Mdns` method and
+/// backfill any missing model name. For new IPs, append the mDNS entry
+/// as-is so silent printers become visible.
+fn merge_mdns_results(main: &mut Vec<Printer>, mdns_printers: Vec<Printer>) {
+    for mdns_printer in mdns_printers {
+        let Some(mdns_ip) = mdns_printer.ip else { continue };
+        if let Some(existing) = main.iter_mut().find(|p| p.ip == Some(mdns_ip)) {
+            if !existing.discovery_methods.contains(&DiscoveryMethod::Mdns) {
+                existing.discovery_methods.push(DiscoveryMethod::Mdns);
+            }
+            if existing.model.is_none() {
+                existing.model = mdns_printer.model;
+            }
+            if existing.local_name.is_none() {
+                existing.local_name = mdns_printer.local_name;
+            }
+            for port in mdns_printer.ports {
+                if !existing.ports.contains(&port) {
+                    existing.ports.push(port);
+                }
+            }
+        } else {
+            main.push(mdns_printer);
+        }
+    }
 }
 
 /// SNMP-only scan (legacy behavior).

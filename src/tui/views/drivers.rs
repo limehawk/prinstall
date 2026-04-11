@@ -81,6 +81,7 @@ pub fn render_detail_pane(
                 DiscoveryMethod::Ipp => "IPP",
                 DiscoveryMethod::PortScan => "PortScan",
                 DiscoveryMethod::Local => "Local",
+                DiscoveryMethod::Mdns => "mDNS",
             })
             .collect::<Vec<_>>()
             .join(", ")

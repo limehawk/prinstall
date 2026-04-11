@@ -56,28 +56,36 @@ pub enum Commands {
     /// Subnets larger than /24 require --force.
     #[command(
         after_help = "EXAMPLES:\n  \
-            prinstall scan                          Scan local subnet (all methods)\n  \
-            prinstall scan 192.168.1.0/24           Scan specific subnet\n  \
-            prinstall scan --method snmp            SNMP-only scan\n  \
-            prinstall scan --method port            TCP port-check scan\n  \
+            prinstall scan                          Auto-detect subnet, run all methods\n  \
+            prinstall scan 192.168.1.0/24           Scan a specific subnet\n  \
+            prinstall scan --method snmp            SNMP-only (no mDNS)\n  \
+            prinstall scan --method port            TCP port-check only\n  \
+            prinstall scan --method mdns            mDNS-only multicast browse (no subnet)\n  \
             prinstall scan --timeout 200            200ms per-host timeout\n  \
             prinstall scan 10.0.0.0/24 --community private\n\n\
             HOW IT WORKS:\n  \
-            snmp: Sends SNMP v2c GET requests to each IP on UDP port 161.\n  \
+            all (default): port probe + IPP + SNMP across the subnet,\n                 \
+                           PLUS an mDNS multicast browse. Results merged.\n  \
             port: Checks TCP port 9100 (raw print) for responsive hosts.\n  \
-            all:  Runs both methods and merges results.\n  \
-            Max 64 concurrent probes per method.\n\n\
+            snmp: Sends SNMP v2c GET requests to each IP on UDP port 161.\n  \
+            mdns: Browses _ipp/_ipps/_pdl-datastream/_printer._tcp.local.\n        \
+                  Multicast-based — subnet arg is not needed or used.\n        \
+                  Runs for 3 seconds.\n  \
+            Max 64 concurrent probes per unicast method.\n\n\
             TROUBLESHOOTING:\n  \
             No results? Common causes:\n  \
             • SNMP disabled on printer — enable via printer web UI\n  \
             • Non-default community string — try --community <string>\n  \
-            • Firewall blocking UDP 161 — check network rules"
+            • Firewall blocking UDP 161 — check network rules\n  \
+            • mDNS multicast blocked by the NIC or router"
     )]
     Scan {
-        /// Subnet in CIDR notation (e.g., 192.168.1.0/24)
+        /// Subnet in CIDR notation (e.g., 192.168.1.0/24). Ignored when
+        /// `--method mdns` is used — mDNS is multicast and doesn't care
+        /// about the subnet. Auto-detected from the local NIC otherwise.
         subnet: Option<String>,
 
-        /// Discovery method: all (default), snmp, port
+        /// Discovery method: all (default), snmp, port, mdns
         #[arg(long)]
         method: Option<String>,
 

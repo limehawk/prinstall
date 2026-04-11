@@ -31,7 +31,7 @@ MSP technicians burn hours on printer installs. Find the IP, hunt the driver, wr
 
 ## Features
 
-- **Multi-method discovery** — TCP port probe, IPP, SNMP, and `Get-Printer` in one parallel pipeline
+- **Multi-method discovery** — TCP port probe, IPP, SNMP, mDNS/Bonjour, and `Get-Printer` in one parallel pipeline
 - **Deterministic driver resolution** — scrapes the Update Catalog, parses the INF, matches the synthesized HWID
 - **Network + USB** — one binary, both install paths, idempotent
 - **Clean remove** — queue, driver, and port teardown with spooler-lag retries
@@ -57,9 +57,9 @@ cargo install --git https://github.com/limehawk/prinstall
 ```powershell
 prinstall                             # launch the interactive TUI
 prinstall scan                        # scan your subnet for printers
-prinstall id 10.10.20.16              # identify one via SNMP + IPP
-prinstall add 10.10.20.16             # install it
-prinstall remove 10.10.20.16          # rip it out cleanly
+prinstall id 192.168.1.50             # identify one via SNMP + IPP
+prinstall add 192.168.1.50            # install it
+prinstall remove 192.168.1.50         # rip it out cleanly
 ```
 
 Every command takes `--json` for scripting and `--verbose` for the full audit trail.

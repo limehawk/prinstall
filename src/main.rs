@@ -115,41 +115,77 @@ async fn cmd_scan(
     timeout_ms: Option<u64>,
     cli: &cli::Cli,
 ) {
-    let cidr = match subnet {
-        Some(s) => s,
-        None => {
-            eprintln!("Auto-detecting local subnet is not yet implemented.");
-            eprintln!("Please provide a subnet: prinstall scan 192.168.1.0/24");
-            std::process::exit(1);
-        }
-    };
-
-    if let Err(e) = discovery::subnet::validate_subnet_size(&cidr, cli.force) {
-        eprintln!("Error: {e}");
-        std::process::exit(1);
-    }
-
-    let hosts = match discovery::subnet::parse_cidr(&cidr) {
-        Ok(h) => h,
-        Err(e) => {
-            eprintln!("Error: {e}");
-            std::process::exit(1);
-        }
-    };
-
-    if cli.verbose {
-        eprintln!("[scan] Scanning {} hosts on {cidr}...", hosts.len());
-    }
-
     let scan_method = match method {
         Some("snmp") => discovery::ScanMethod::Snmp,
         Some("port") => discovery::ScanMethod::Port,
+        Some("mdns") => discovery::ScanMethod::Mdns,
         _ => discovery::ScanMethod::All,
+    };
+
+    // mDNS is multicast — it doesn't need a subnet argument at all.
+    // `--method mdns` skips host enumeration entirely.
+    let mdns_only = matches!(scan_method, discovery::ScanMethod::Mdns);
+
+    let (cidr, hosts) = if mdns_only {
+        if cli.verbose {
+            eprintln!("[scan] mDNS-only scan (no subnet target needed)");
+        }
+        (String::from("(mdns)"), Vec::new())
+    } else {
+        let cidr = match subnet {
+            Some(s) => s,
+            None => {
+                if cli.verbose {
+                    eprintln!("[scan] No subnet arg — auto-detecting from local NIC...");
+                }
+                match discovery::subnet::auto_detect_subnet(cli.verbose) {
+                    Some(detected) => {
+                        if cli.verbose {
+                            eprintln!("[scan] Auto-detected subnet: {detected}");
+                        } else {
+                            eprintln!("Auto-detected subnet: {detected}");
+                        }
+                        detected
+                    }
+                    None => {
+                        eprintln!("Could not auto-detect the local subnet.");
+                        eprintln!("Please provide a subnet: prinstall scan 192.168.1.0/24");
+                        std::process::exit(1);
+                    }
+                }
+            }
+        };
+
+        if let Err(e) = discovery::subnet::validate_subnet_size(&cidr, cli.force) {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+
+        let hosts = match discovery::subnet::parse_cidr(&cidr) {
+            Ok(h) => h,
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        };
+
+        if cli.verbose {
+            eprintln!("[scan] Scanning {} hosts on {cidr}...", hosts.len());
+        }
+
+        (cidr, hosts)
     };
 
     let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(100));
 
-    let printers = discovery::scan_subnet(hosts, &cli.community, &scan_method, timeout, cli.verbose).await;
+    let printers = discovery::scan_subnet(
+        hosts,
+        &cli.community,
+        &scan_method,
+        timeout,
+        cli.verbose,
+    )
+    .await;
 
     if cli.json {
         println!("{}", output::format_scan_results_json(&printers));
