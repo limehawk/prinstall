@@ -1,6 +1,6 @@
 [package]
 name = "prinstall"
-version = "0.3.6"
+version = "0.3.7-dev"
 edition = "2024"
 description = "Discover network printers, match drivers, and install them on Windows"
 license = "MIT"
