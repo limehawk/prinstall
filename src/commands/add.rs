@@ -1,14 +1,18 @@
 //! The `add` command — install a network or USB printer.
 //!
-//! Flow:
+//! Network flow:
 //! 1. Resolve the printer model (via `--model` or SNMP).
-//! 2. Auto-pick a driver (via matcher) unless `--driver` overrides.
-//! 3. Attempt to download + stage the driver if not already present.
-//! 4. Run the standard three-step install (Add-PrinterPort → Add-PrinterDriver → Add-Printer).
-//! 5. If that fails AND the target printer has IPP (port 631) open, fall back to
-//!    `Microsoft IPP Class Driver` via `Add-Printer -ConnectionName`. The user gets a
-//!    clearly-marked warning that this is a generic fallback and vendor-specific
-//!    features (duplex, trays, finishing) may not be available.
+//! 2. Probe IPP for the device ID (used by the catalog resolver if needed).
+//! 3. Auto-pick a driver (via matcher) unless `--driver` overrides.
+//! 4. Attempt to download + stage the driver if not already present.
+//! 5. Run the standard three-step install (Add-PrinterPort → Add-PrinterDriver → Add-Printer).
+//! 6. If that fails AND we have an IPP device ID, try the catalog resolver
+//!    (search Microsoft Update Catalog by CID → download → INF HWID match →
+//!    stage → retry install). Deterministic match on the `1284_CID_*` form.
+//! 7. If the catalog resolver also fails AND port 631 is open, fall back to
+//!    `Microsoft IPP Class Driver`. The user gets a clearly-marked warning
+//!    that this is a generic fallback and vendor-specific features (duplex,
+//!    trays, finishing) may not be available.
 
 use std::time::Duration;
 
@@ -90,7 +94,22 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         }
     };
 
-    // ── Step 2: resolve the driver ────────────────────────────────────────
+    // ── Step 2: IPP device ID (for the catalog resolver's CID query) ─────
+    // Best-effort — many printers speak IPP even when SNMP is flaky, so this
+    // is the most reliable path for the deterministic catalog match. If the
+    // printer doesn't advertise a CID, we still install; we just won't be
+    // able to escalate to Tier 3 on failure.
+    let device_id = discovery::ipp::query_ipp_attributes(addr, verbose)
+        .await
+        .device_id;
+    if verbose {
+        match &device_id {
+            Some(d) => eprintln!("[add] IPP device ID: {d}"),
+            None => eprintln!("[add] IPP device ID: (not advertised)"),
+        }
+    }
+
+    // ── Step 3: resolve the driver ────────────────────────────────────────
     let local_drivers = drivers::local_store::list_drivers(verbose);
     let driver_name = match resolve_driver(&args, &model, &local_drivers, verbose) {
         Ok(name) => name,
@@ -104,10 +123,10 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         );
     }
 
-    // ── Step 3: stage the driver if not in local store ───────────────────
+    // ── Step 4: stage the driver if not in local store ───────────────────
     stage_driver_if_needed(&driver_name, &model, &local_drivers, verbose).await;
 
-    // ── Step 4: three-step install ───────────────────────────────────────
+    // ── Step 5: three-step install ───────────────────────────────────────
     let primary_result =
         installer::install_printer(target, &driver_name, &printer_name, &model, verbose);
 
@@ -115,22 +134,107 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         return primary_result;
     }
 
-    // ── Step 5: IPP Class Driver fallback ────────────────────────────────
+    // ── Step 6: Catalog resolver (Tier 3 in the driver-picking pipeline) ─
+    // Only attempt when we have an IPP device ID — the resolver needs the
+    // CID to run a targeted catalog search. When the resolver finds a
+    // verified-matching INF, we stage it and retry the three-step install
+    // using the INF's display name (which becomes the registered driver
+    // name in the Windows driver store).
+    if let Some(ref dev_id) = device_id {
+        if verbose {
+            eprintln!(
+                "[add] Primary install failed. Trying catalog resolver with device ID..."
+            );
+        }
+        match drivers::resolver::resolve_driver_for_device(dev_id, verbose).await {
+            Ok(resolved) => {
+                if verbose {
+                    eprintln!(
+                        "[add] Catalog resolver matched '{}' from '{}' — staging INF and retrying install.",
+                        resolved.display_name, resolved.catalog_title
+                    );
+                }
+                let inf_str = resolved.inf_path.to_string_lossy().to_string();
+                let stage_result = installer::powershell::stage_driver_inf(&inf_str, verbose);
+                if !stage_result.success {
+                    if verbose {
+                        eprintln!(
+                            "[add] INF staging failed: {} — falling through to IPP fallback.",
+                            ps_error::clean(&stage_result.stderr)
+                        );
+                    }
+                } else {
+                    let retry = installer::install_printer(
+                        target,
+                        &resolved.display_name,
+                        &printer_name,
+                        &model,
+                        verbose,
+                    );
+                    if retry.success {
+                        return annotate_catalog_success(retry, &resolved);
+                    }
+                    if verbose {
+                        eprintln!(
+                            "[add] Retry install with catalog driver failed — falling through to IPP fallback."
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                if verbose {
+                    eprintln!("[add] Catalog resolver: {e}");
+                }
+            }
+        }
+    }
+
+    // ── Step 7: IPP Class Driver fallback ────────────────────────────────
     if !ipp_reachable(target).await {
         if verbose {
             eprintln!(
-                "[add] Primary install failed and port 631 not reachable — no fallback available."
+                "[add] Catalog resolver did not succeed and port 631 not reachable — no fallback available."
             );
         }
         return primary_result;
     }
     if verbose {
         eprintln!(
-            "[add] Primary install failed. Port 631 is open — attempting IPP Class Driver fallback."
+            "[add] Falling back to Microsoft IPP Class Driver (port 631 open)."
         );
     }
     let executor = RealExecutor::new(verbose);
     try_ipp_fallback(&executor, target, &driver_name, &model, verbose)
+}
+
+/// Attach a catalog-success note to an otherwise-successful install result
+/// so the CLI output and JSON payload show which tier actually landed the
+/// driver. We overwrite the `warning` field because this message is an
+/// informational breadcrumb, not a warning about degraded functionality.
+fn annotate_catalog_success(
+    mut result: PrinterOpResult,
+    resolved: &drivers::resolver::ResolvedDriver,
+) -> PrinterOpResult {
+    if let Some(mut detail) = result.detail_as::<InstallDetail>() {
+        let ver = resolved
+            .driver_ver
+            .as_deref()
+            .map(|v| format!(" (DriverVer {v})"))
+            .unwrap_or_default();
+        detail.warning = Some(format!(
+            "Installed via Microsoft Update Catalog: '{}' from '{}'{ver}. \
+             Matched HWID: {}.",
+            resolved.display_name,
+            resolved.catalog_title,
+            resolved.matched_hwid,
+        ));
+        // Re-wrap with the updated detail. Ignore serialization failures —
+        // the install itself still succeeded so keep the original result.
+        if let Ok(value) = serde_json::to_value(&detail) {
+            result.detail = value;
+        }
+    }
+    result
 }
 
 /// USB-printer install path: verify queue exists → driver match → stage
