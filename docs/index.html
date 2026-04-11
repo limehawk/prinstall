@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>prinstall · Discover. Match. Add. Remove.</title>
-  <meta name="description" content="A Rust CLI and TUI for nuking printer setup pain on Windows. Scan a subnet, match a driver from the Microsoft Update Catalog, install a printer — single 9 MB binary." />
+  <meta name="description" content="A Rust CLI and TUI for nuking printer setup pain on Windows. Scan a subnet, match a driver from the Microsoft Update Catalog, install a printer — single 8 MB binary." />
   <meta name="theme-color" content="#0a0e14" />
 
   <!-- Open Graph -->
@@ -579,6 +579,7 @@
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#pipeline">Pipeline</a>
+        <a href="#roadmap">Roadmap</a>
         <a href="#install">Install</a>
         <a href="https://github.com/limehawk/prinstall">GitHub</a>
       </div>
@@ -610,7 +611,7 @@
         <div class="meta">
           <span>built in Rust</span>
           <span class="dot"></span>
-          <span>9 MB binary</span>
+          <span>8 MB binary</span>
           <span class="dot"></span>
           <span>scriptable</span>
           <span class="dot"></span>
@@ -646,8 +647,8 @@
           </div>
           <div class="feature">
             <div class="icon">05</div>
-            <h3>Scriptable CLI, lazy-style TUI</h3>
-            <p>Pipe <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> to jq for RMM automation, or drop into a dense two-panel lazy-style TUI when launched from a real terminal.</p>
+            <h3>Scriptable CLI</h3>
+            <p>Pipe <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> to jq for RMM automation. Plain text output for humans, structured JSON for scripts, semantic coloring that respects <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">NO_COLOR</code>.</p>
           </div>
           <div class="feature">
             <div class="icon">06</div>
@@ -729,10 +730,54 @@
       </div>
     </section>
 
+    <section id="roadmap">
+      <div class="container">
+        <h2>Roadmap</h2>
+        <p class="subtitle">What's next — loosely ordered, priority shifts based on what MSPs actually hit in the field.</p>
+        <div class="features">
+          <div class="feature">
+            <div class="icon">01</div>
+            <h3>Real vendor driver URLs</h3>
+            <p>Expand the embedded driver manifest beyond HP. Brother, Canon, Epson, Ricoh, Xerox, Lexmark. Most vendors don't publish stable direct download links, so this is slow manual curation work.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">02</div>
+            <h3>SDI Origin integration</h3>
+            <p>Pull from the SDI (Snappy Driver Installer) Origin lists as an upstream source of truth for where each vendor hosts their driver packs. Sidesteps the per-vendor URL curation problem — if SDI knows, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall</code> knows.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">03</div>
+            <h3>prinstall health &lt;ip&gt;</h3>
+            <p>SNMP Printer MIB query for toner level, drum life, paper tray status, and error state. One <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> per machine and the RMM knows which printers need attention before the ticket lands.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">04</div>
+            <h3>Printer defaults at install</h3>
+            <p>Duplex, color/mono, paper size, and set-as-default via <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">Set-PrintConfiguration</code> during <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">add</code>, so the printer shows up ready-to-use instead of needing a second pass.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">05</div>
+            <h3>Batch install mode</h3>
+            <p>One command, multiple IPs. Parallel driver matching across every printer on a site, JSON results per target, one invocation per site visit instead of one per printer.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">06</div>
+            <h3>Signed binary</h3>
+            <p>SignPath.io code signing so Windows SmartScreen stops warning on download. MSP deployment gets a lot friendlier when the tech doesn't have to click "Run anyway" every time.</p>
+          </div>
+          <div class="feature">
+            <div class="icon">07</div>
+            <h3>Interactive TUI rework</h3>
+            <p>The dense two-panel lazy-style TUI is currently under construction. When it comes back, expect lazygit-style panels, real vim keybindings, and scan-as-you-type subnet filtering.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="install">
       <div class="container">
         <h2>Install</h2>
-        <p class="subtitle">Single 9 MB binary. Drop it on PATH and go.</p>
+        <p class="subtitle">Single 8 MB binary. Drop it on PATH and go.</p>
         <div class="install-block">
           <div class="install-step">
             <div class="install-step-num">1</div>

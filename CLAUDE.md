@@ -198,6 +198,12 @@ uses a transparent glyph-only variant at 16 and 32 px, and the full tile
 design at 48 px and up. See `assets/icon-previews/` for renders of both
 variants at every standard size.
 
+The rasterization uses `rsvg-convert` (from `librsvg`, the same renderer
+Firefox and GNOME use for SVG). It does a direct vector-to-raster at each
+target size — no intermediate high-density raster that then gets
+downsampled, so the previews stay crisp at 16 and 32 px. Install via
+`pacman -S librsvg` if missing.
+
 To replace the icon:
 
 1. Edit `assets/prinstall-icon.svg` (the large tile) and/or
@@ -207,18 +213,17 @@ To replace the icon:
 2. Re-render the reference PNG previews at every size:
    ```bash
    for size in 16 32 48 64 96 128 256; do
-     magick -background none -density 300 assets/prinstall-icon.svg       -resize "${size}x${size}" "assets/icon-previews/tile/${size}.png"
-     magick -background none -density 300 assets/prinstall-icon-glyph.svg -resize "${size}x${size}" "assets/icon-previews/glyph/${size}.png"
+     rsvg-convert -w "$size" -h "$size" assets/prinstall-icon.svg       -o "assets/icon-previews/tile/${size}.png"
+     rsvg-convert -w "$size" -h "$size" assets/prinstall-icon-glyph.svg -o "assets/icon-previews/glyph/${size}.png"
    done
    ```
 3. Re-render the 2048×2048 PNG used by the README logo:
    ```bash
-   magick -background none -density 300 assets/prinstall-icon.svg \
-     -resize 2048x2048 assets/prinstall-icon.png
+   rsvg-convert -w 2048 -h 2048 assets/prinstall-icon.svg -o assets/prinstall-icon.png
    ```
-4. Rebuild the multi-image ICO from those previews. `magick` composes
-   a multi-resolution ICO when you pass multiple PNGs, each becoming
-   one entry at its own native size:
+4. Compose the multi-image ICO from the previews. `magick` takes
+   multiple PNG inputs and packs each as one entry at its native size —
+   the glyph carries 16/32, the tile carries 48 through 256:
    ```bash
    magick \
      assets/icon-previews/glyph/16.png  assets/icon-previews/glyph/32.png \
@@ -230,7 +235,8 @@ To replace the icon:
 5. Rebuild — `build.rs` picks up the new `.ico` on the next Windows
    build. If you changed the tile SVG's shape, also re-URL-encode the
    inline SVG data URI in `docs/index.html`'s `<link rel="icon">` tag
-   so the homepage favicon stays in sync.
+   and the inline `<svg class="logo-mark">` in the nav so the homepage
+   stays in sync with the new geometry.
 
 All icon-related files:
 
