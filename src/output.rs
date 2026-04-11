@@ -270,6 +270,49 @@ pub fn format_driver_results(results: &DriverResults) -> String {
         }
     }
 
+    // ── Microsoft Update Catalog ──────────────────────────────────────────────
+    if let Some(ref catalog) = results.catalog {
+        out.push_str(&format!(
+            "\n{}\n",
+            header("── Microsoft Update Catalog ─────────────────────────────────")
+        ));
+        if let Some(ref err) = catalog.error {
+            out.push_str(&format!("  {} {}\n", warn("search failed:"), dim(err)));
+        } else if catalog.updates.is_empty() {
+            out.push_str(&format!(
+                "  {}\n",
+                dim("No catalog matches — try a broader model or manufacturer name.")
+            ));
+        } else {
+            for entry in &catalog.updates {
+                out.push_str(&format!(
+                    "  #{:<2} {}\n",
+                    num,
+                    entry.title,
+                ));
+                out.push_str(&format!(
+                    "      {} {}  {} {}  {} {}\n",
+                    label("size:"),
+                    entry.size,
+                    label("updated:"),
+                    entry.last_updated,
+                    label("ver:"),
+                    if entry.version.is_empty() { "-" } else { entry.version.as_str() },
+                ));
+                out.push_str(&format!(
+                    "      {} {}\n",
+                    dim("products:"),
+                    dim(&entry.products),
+                ));
+                num += 1;
+            }
+            out.push_str(&format!(
+                "\n  {}\n",
+                dim("Source: catalog.update.microsoft.com"),
+            ));
+        }
+    }
+
     out
 }
 

@@ -103,6 +103,7 @@ pub fn match_drivers(model: &str, local_store_drivers: &[String]) -> DriverResul
         universal,
         device_id: None,
         windows_update: None,
+        catalog: None,
     }
 }
 

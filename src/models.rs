@@ -115,6 +115,70 @@ pub struct DriverResults {
     /// Result of the Windows Update install-rollback probe, if one was run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub windows_update: Option<WindowsUpdateProbe>,
+    /// Result of the Microsoft Update Catalog search, if one was run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog: Option<CatalogSearchResult>,
+}
+
+/// Outcome of a Microsoft Update Catalog search for a printer model.
+///
+/// The catalog is the authoritative Windows-side source of driver packages
+/// for network printers that don't advertise themselves to PnP. Searching
+/// here gives us a list of candidate `.cab` driver packages we can download
+/// via the catalog's download-dialog endpoint without ever touching Windows
+/// Update Agent APIs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogSearchResult {
+    /// The search query we sent to the catalog (typically the printer model).
+    pub query: String,
+    /// Matching updates from the catalog, in the order returned.
+    pub updates: Vec<CatalogEntry>,
+    /// Present when the search could not complete. Graceful degradation — the
+    /// rest of the driver report stays useful.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+impl CatalogSearchResult {
+    /// Build a failure result carrying an error message.
+    pub fn failure(query: impl Into<String>, error: impl Into<String>) -> Self {
+        Self {
+            query: query.into(),
+            updates: Vec::new(),
+            error: Some(error.into()),
+        }
+    }
+}
+
+/// A single catalog update row, trimmed down to the fields we render in
+/// the CLI output. Mirrors [`crate::drivers::catalog::CatalogUpdate`] but
+/// lives in `models` so it can serialize through `--json` without pulling
+/// in the catalog module.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogEntry {
+    pub title: String,
+    pub products: String,
+    pub classification: String,
+    pub last_updated: String,
+    pub version: String,
+    pub size: String,
+    pub size_bytes: u64,
+    pub guid: String,
+}
+
+impl From<crate::drivers::catalog::CatalogUpdate> for CatalogEntry {
+    fn from(u: crate::drivers::catalog::CatalogUpdate) -> Self {
+        Self {
+            title: u.title,
+            products: u.products,
+            classification: u.classification,
+            last_updated: u.last_updated,
+            version: u.version,
+            size: u.size,
+            size_bytes: u.size_bytes,
+            guid: u.guid,
+        }
+    }
 }
 
 /// Outcome of an install-rollback probe against Windows Update.

@@ -35,8 +35,13 @@
 use crate::core::executor::{PsExecutor, run_json};
 use crate::core::ps_error;
 use crate::installer::powershell::escape_ps_string;
-use crate::models::{DriverResults, WindowsUpdateProbe};
+use crate::models::{CatalogEntry, CatalogSearchResult, DriverResults, WindowsUpdateProbe};
 use crate::{discovery, drivers as drivers_mod, privilege};
+
+/// Maximum number of catalog rows to keep. The catalog can return hundreds
+/// of rows for a broad manufacturer query — capping to the top 20 keeps the
+/// CLI report readable and the JSON output useful for scripting.
+const CATALOG_MAX_ROWS: usize = 20;
 
 /// Arguments for `prinstall drivers <ip>`.
 pub struct DriversArgs<'a> {
@@ -95,7 +100,49 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
         }
     }
 
+    // ── Step 5: Microsoft Update Catalog search (no admin needed) ────────────
+    // Runs unconditionally when we have a non-empty model. Network-only,
+    // failure-tolerant — a dead catalog should degrade the report, not abort.
+    if !model.is_empty() {
+        results.catalog = Some(search_catalog(&model, verbose).await);
+    }
+
     results
+}
+
+/// Search the Microsoft Update Catalog for a printer model. Always returns
+/// a [`CatalogSearchResult`] so the output formatter can render either the
+/// hits, the empty-result case, or the error reason uniformly.
+async fn search_catalog(model: &str, verbose: bool) -> CatalogSearchResult {
+    if verbose {
+        eprintln!("[drivers] Searching Microsoft Update Catalog for '{model}'...");
+    }
+    match drivers_mod::catalog::search(model).await {
+        Ok(mut updates) => {
+            let total = updates.len();
+            updates.truncate(CATALOG_MAX_ROWS);
+            if verbose {
+                if total > CATALOG_MAX_ROWS {
+                    eprintln!(
+                        "[drivers] Catalog returned {total} rows, showing top {CATALOG_MAX_ROWS}"
+                    );
+                } else {
+                    eprintln!("[drivers] Catalog returned {total} rows");
+                }
+            }
+            CatalogSearchResult {
+                query: model.to_string(),
+                updates: updates.into_iter().map(CatalogEntry::from).collect(),
+                error: None,
+            }
+        }
+        Err(e) => {
+            if verbose {
+                eprintln!("[drivers] Catalog search failed: {e}");
+            }
+            CatalogSearchResult::failure(model, e)
+        }
+    }
 }
 
 /// Resolve a printer model via SNMP. Returns a placeholder on failure so

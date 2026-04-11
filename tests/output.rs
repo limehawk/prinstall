@@ -74,6 +74,7 @@ mod output_test {
             ],
             device_id: None,
             windows_update: None,
+            catalog: None,
         };
         let text = output::format_driver_results(&results);
         assert!(text.contains("Matched Drivers"));

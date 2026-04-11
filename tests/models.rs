@@ -44,6 +44,7 @@ mod models_test {
             universal: vec![],
             device_id: None,
             windows_update: None,
+            catalog: None,
         };
         assert_eq!(results.matched.len(), 0);
         assert_eq!(results.universal.len(), 0);
