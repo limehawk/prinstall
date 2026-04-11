@@ -28,14 +28,16 @@ jobs:
 
       - name: Package
         run: |
-          cd target/x86_64-pc-windows-msvc/release
-          7z a ../../../prinstall-windows-amd64.zip prinstall.exe
+          Copy-Item target/x86_64-pc-windows-msvc/release/prinstall.exe prinstall.exe
+          7z a prinstall-windows-amd64.zip prinstall.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: prinstall-windows-amd64
-          path: prinstall-windows-amd64.zip
+          path: |
+            prinstall-windows-amd64.zip
+            prinstall.exe
 
   release:
     needs: build
@@ -48,5 +50,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: prinstall-windows-amd64.zip
+          files: |
+            prinstall-windows-amd64.zip
+            prinstall.exe
           generate_release_notes: true
