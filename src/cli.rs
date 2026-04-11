@@ -11,13 +11,16 @@ use clap::{Parser, Subcommand};
                   or use subcommands for scripted/RMM usage.",
     after_help = "EXAMPLES:\n  \
         prinstall                              Launch interactive TUI\n  \
-        prinstall scan                         Scan local subnet for printers\n  \
+        prinstall scan                         Scan local subnet (all methods, incl. mDNS)\n  \
         prinstall scan 192.168.1.0/24          Scan a specific subnet\n  \
+        prinstall scan --method mdns           mDNS-only multicast browse (no subnet needed)\n  \
         prinstall id 192.168.1.100             Identify a printer by IP\n  \
         prinstall drivers 192.168.1.100        Show matched drivers for a printer\n  \
         prinstall add 192.168.1.100            Install printer with best-match driver\n  \
         prinstall add 192.168.1.100 --driver \"HP Universal Print Driver PCL6\"\n  \
-        prinstall remove 192.168.1.100         Remove printer and clean up orphaned driver/port\n\n\
+        prinstall remove 192.168.1.100         Remove printer and clean up driver/port\n  \
+        prinstall list                         List locally installed printers\n  \
+        prinstall list --json                  List printers as JSON (for scripting)\n\n\
         Each subcommand has detailed --help. Try: prinstall scan --help"
 )]
 pub struct Cli {
