@@ -885,14 +885,9 @@
 <div class="t-line"></div>
 <div class="t-line"><span class="t-dim">[scan]</span> SNMP → model <span class="t-accent">"Brother MFC-L2750DW series"</span></div>
 <div class="t-line"><span class="t-dim">[scan]</span> IPP device-id → MFG:Brother;CID:<span class="t-accent">Brother Laser Type1</span>;...</div>
-<div class="t-line"><span class="t-dim">[add]</span> Auto-selected driver: Brother Universal Printer</div>
-<div class="t-line"><span class="t-dim">[PS ]</span> Add-PrinterDriver -Name 'Brother Universal Printer'</div>
-<div class="t-line"><span class="t-dim">[PS ]</span> <span style="color: var(--red);">HRESULT 0x80070705: driver does not exist in the driver store</span></div>
-<div class="t-line"></div>
-<div class="t-line"><span class="t-dim">[sdi]</span> Auto-registered 1 pack(s) from sdi/drivers/</div>
 <div class="t-line"><span class="t-dim">[sdi]</span> <span class="t-accent">SDI match found</span>: 'Brother Laser Type1 Class Driver' (<span class="t-tag">SdiCached</span>)</div>
-<div class="t-line"><span class="t-dim">[sdi]</span> Extracting Brother\Allx64\FORCED\-Class\prnbrcl1.inf from DP_Printer_26000.7z</div>
-<div class="t-line"><span class="t-dim">[sdi]</span> Staging INF: ...staging\sdi\brother\allx64\forced\-class\prnbrcl1.inf</div>
+<div class="t-line"><span class="t-dim">[sdi]</span> Using cached extraction</div>
+<div class="t-line"><span class="t-dim">[sdi]</span> Staging INF: ...sdi\extracted\brother\allx64\forced\-class\prnbrcl1.inf</div>
 <div class="t-line"><span class="t-dim">[PS ]</span> pnputil /add-driver '...\prnbrcl1.inf' /install</div>
 <div class="t-line"><span class="t-dim">[PS ]</span> Add-Printer -Name 'Brother MFC-L2750DW series' -DriverName ...</div>
 <div class="t-line"></div>
@@ -901,7 +896,7 @@
 <div class="t-line">  <span class="t-dim">Driver:</span> <span class="t-accent">Brother Laser Type1 Class Driver</span></div>
 <div class="t-line">  <span class="t-dim">Port  :</span> IP_192.168.1.50</div>
 <div class="t-line"></div>
-<div class="t-line">  <span class="t-dim">SOURCE: Installed via SDI: 'Brother Laser Type1 Class Driver' from Brother [SdiCached].</span></div>
+<div class="t-line">  <span class="t-dim">SOURCE: Installed via SDI — Brother Laser Type1 Class Driver [cached].</span></div>
           </div>
         </div>
       </div>
