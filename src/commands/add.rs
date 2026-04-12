@@ -137,62 +137,13 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         return primary_result;
     }
 
-    // ── Step 5.5: SDI resolver (Tier 2.5 — Snappy Driver Installer) ─────
-    // Only attempt when (a) we have a device ID, (b) SDI is not disabled
-    // via --no-sdi or config.sdi.enabled, and (c) the SDI cache has
-    // indexed indexes to search.
-    //
-    // When an SDI match is found AND the pack is cached (or --sdi-fetch
-    // is set), we extract the driver's subdirectory from the cached .7z,
-    // stage the INF via pnputil, and retry the three-step install. If
-    // the pack isn't cached and --sdi-fetch isn't set, we log a visible
-    // warning and fall through to Tier 3 catalog.
-    if !args.no_sdi {
-        if let Some(ref dev_id) = device_id {
-            if let Ok(mut cache) = drivers::sdi::cache::SdiCache::load() {
-                // Auto-register any .7z packs that exist on disk but aren't
-                // in metadata yet (e.g., manually copied by the tech).
-                let newly_registered = cache.auto_register_packs();
-                if newly_registered > 0 && verbose {
-                    eprintln!("[sdi] Auto-registered {newly_registered} pack(s) from sdi/drivers/");
-                }
-                let candidates = drivers::sdi::resolver::enumerate_candidates(dev_id, &cache);
-                if let Some(best) = pick_sdi_candidate(&candidates, args.sdi_fetch) {
-                    if verbose {
-                        eprintln!(
-                            "[sdi] SDI match found: '{}' ({:?})",
-                            best.driver_name,
-                            best.source
-                        );
-                    }
-                    match try_sdi_install(best, target, &printer_name, &model, verbose) {
-                        Some(result) => return result,
-                        None => {
-                            if verbose {
-                                eprintln!("[sdi] SDI install did not succeed — falling through to catalog resolver.");
-                            }
-                        }
-                    }
-                } else if !candidates.is_empty() && verbose {
-                    // We have matches but all are uncached and --sdi-fetch wasn't set
-                    eprintln!(
-                        "[sdi] SDI has {} match(es) but the pack is not cached.",
-                        candidates.len()
-                    );
-                    eprintln!(
-                        "[sdi] Run `prinstall sdi prefetch` to pre-cache, or re-run with --sdi-fetch."
-                    );
-                }
-            }
-        }
-    }
-
-    // ── Step 6: Catalog resolver (Tier 3 in the driver-picking pipeline) ─
-    // Only attempt when we have an IPP device ID — the resolver needs the
-    // CID to run a targeted catalog search. When the resolver finds a
-    // verified-matching INF, we stage it and retry the three-step install
-    // using the INF's display name (which becomes the registered driver
-    // name in the Windows driver store).
+    // ── Step 6: Catalog resolver (Tier 3 — Microsoft Update Catalog) ────
+    // Runs BEFORE SDI because the Catalog is faster (~10 sec for a 4 MB
+    // CAB download) than SDI's first-run solid-LZMA2 decompression (~5
+    // min). When both sources carry the same driver, Catalog wins on
+    // speed. SDI only fires when the Catalog comes up empty — its value
+    // is coverage (Brother, Canon, Epson, Ricoh drivers the Catalog
+    // doesn't reliably carry), not speed.
     if args.no_catalog {
         if verbose {
             eprintln!("[add] Catalog resolver disabled (--no-catalog). Skipping.");
@@ -216,7 +167,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                 if !stage_result.success {
                     if verbose {
                         eprintln!(
-                            "[add] INF staging failed: {} — falling through to IPP fallback.",
+                            "[add] INF staging failed: {} — falling through to SDI resolver.",
                             ps_error::clean(&stage_result.stderr)
                         );
                     }
@@ -233,7 +184,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                     }
                     if verbose {
                         eprintln!(
-                            "[add] Retry install with catalog driver failed — falling through to IPP fallback."
+                            "[add] Retry install with catalog driver failed — falling through to SDI resolver."
                         );
                     }
                 }
@@ -241,6 +192,52 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
             Err(e) => {
                 if verbose {
                     eprintln!("[add] Catalog resolver: {e}");
+                }
+            }
+        }
+    }
+
+    // ── Step 6.5: SDI resolver (Tier 4 — Snappy Driver Installer) ───────
+    // Runs AFTER the Catalog because SDI's first extraction from a solid
+    // LZMA2 pack takes minutes. Once the extraction cache is warm,
+    // subsequent SDI installs are instant — but the Catalog should get
+    // first crack at drivers it carries. SDI covers the gaps: vendors
+    // the Catalog misses entirely.
+    if !args.no_sdi {
+        if let Some(ref dev_id) = device_id {
+            if let Ok(mut cache) = drivers::sdi::cache::SdiCache::load() {
+                // Auto-register any .7z packs that exist on disk but aren't
+                // in metadata yet (e.g., manually copied by the tech).
+                let newly_registered = cache.auto_register_packs();
+                if newly_registered > 0 && verbose {
+                    eprintln!("[sdi] Auto-registered {newly_registered} pack(s) from sdi/drivers/");
+                }
+                let candidates = drivers::sdi::resolver::enumerate_candidates(dev_id, &cache);
+                if let Some(best) = pick_sdi_candidate(&candidates, args.sdi_fetch) {
+                    if verbose {
+                        eprintln!(
+                            "[sdi] SDI match found: '{}' ({:?})",
+                            best.driver_name,
+                            best.source
+                        );
+                    }
+                    match try_sdi_install(best, target, &printer_name, &model, verbose) {
+                        Some(result) => return result,
+                        None => {
+                            if verbose {
+                                eprintln!("[sdi] SDI install did not succeed — falling through to IPP fallback.");
+                            }
+                        }
+                    }
+                } else if !candidates.is_empty() && verbose {
+                    // We have matches but all are uncached and --sdi-fetch wasn't set
+                    eprintln!(
+                        "[sdi] SDI has {} match(es) but the pack is not cached.",
+                        candidates.len()
+                    );
+                    eprintln!(
+                        "[sdi] Run `prinstall sdi prefetch` to pre-cache, or re-run with --sdi-fetch."
+                    );
                 }
             }
         }
