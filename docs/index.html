@@ -512,33 +512,31 @@
     body[data-nsfw] .nsfw-grid { display: grid; }
     body[data-nsfw] .sfw-grid { display: none; }
 
-    /* NSFW community callout — only visible in NSFW mode */
-    .nsfw-callout {
-      display: none;
+    /* Community callout */
+    .community-callout {
       text-align: center;
       padding: 64px 0;
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
     }
-    body[data-nsfw] .nsfw-callout { display: block; }
-    .nsfw-callout h2 {
+    .community-callout h2 {
       font-size: clamp(28px, 4vw, 48px);
       font-weight: 800;
       letter-spacing: -0.02em;
       margin-bottom: 16px;
     }
-    .nsfw-callout .callout-body {
+    .community-callout .callout-body {
       font-size: clamp(14px, 1.4vw, 17px);
       color: var(--text-dim);
       max-width: 580px;
       margin: 0 auto 32px;
       line-height: 1.6;
     }
-    .nsfw-callout .btn {
+    .community-callout .btn {
       border-color: var(--red);
       color: var(--text);
     }
-    .nsfw-callout .btn:hover {
+    .community-callout .btn:hover {
       background: rgba(255, 85, 85, 0.1);
     }
 
@@ -1098,14 +1096,14 @@
       </div>
     </section>
 
-    <section class="nsfw-callout">
+    <section class="community-callout">
       <div class="container">
-        <h2>why <span style="font-family: var(--mono);">prinstall</span>?<br><span style="color: var(--red);">because FUCK printers.</span></h2>
+        <h2><span class="sfw">Built for the field, built in the open</span><span class="nsfw">why <span style="font-family: var(--mono);">prinstall</span>?<br><span style="color: var(--red);">because FUCK printers.</span></span></h2>
         <p class="callout-body">
-          We're a community of MSP techs, sysadmins, and IT pros who've collectively lost thousands of hours to printer driver hell. If you've ever rage-Googled an HRESULT code at 5 PM on a Friday, you're one of us. Star the repo. Open an issue. Ship a PR. Let's make this thing so good that no tech ever has to manually install a printer driver again.
+          <span class="sfw">prinstall is an open-source project built by MSP techs, for MSP techs. Every feature comes from real pain in the field — printers that won't install, drivers that don't match, spoolers that crash at the worst possible moment. If you've been there, you can help make it better. Star the repo, open an issue, or ship a PR.</span><span class="nsfw">We're a community of MSP techs, sysadmins, and IT pros who've collectively lost thousands of hours to printer driver hell. If you've ever rage-Googled an HRESULT code at 5 PM on a Friday, you're one of us. Star the repo. Open an issue. Ship a PR. Let's make this thing so good that no tech ever has to manually install a printer driver again.</span>
         </p>
         <a class="btn btn-secondary" href="https://github.com/limehawk/prinstall">
-          Join the fight on GitHub
+          <span class="sfw">Contribute on GitHub</span><span class="nsfw">Join the fight on GitHub</span>
           <span class="arrow">→</span>
         </a>
       </div>
