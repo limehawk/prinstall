@@ -1,5 +1,7 @@
 use std::process::Command;
 
+use crate::core::ps_error;
+
 /// Result of a PowerShell command execution.
 #[derive(Debug, Clone)]
 pub struct PsResult {
@@ -33,7 +35,12 @@ pub fn run_ps(command: &str, verbose: bool) -> PsResult {
                     eprintln!("[PS stdout] {stdout}");
                 }
                 if !stderr.is_empty() {
-                    eprintln!("[PS stderr] {stderr}");
+                    // Route through ps_error::clean() so the verbose log
+                    // shows the same single-line human-readable message
+                    // the final PrinterOpResult gets, instead of dumping
+                    // the raw PowerShell decoration (CategoryInfo, At line,
+                    // FullyQualifiedErrorId, etc).
+                    eprintln!("[PS stderr] {}", ps_error::clean(&stderr));
                 }
             }
             PsResult {

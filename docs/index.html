@@ -913,7 +913,7 @@
 
     <section id="pipeline">
       <div class="container">
-        <h2>Four tiers, one command</h2>
+        <h2>Five tiers, one command</h2>
         <p class="subtitle">prinstall add walks the pipeline in priority order — only escalates when the previous tier comes up empty.</p>
         <div class="pipeline">
           <div class="tier">
@@ -924,15 +924,20 @@
           <div class="tier">
             <div class="tier-num">TIER 02</div>
             <h4>Manufacturer download</h4>
-            <p>Pull from the embedded URL manifest when the vendor publishes a stable direct link.</p>
+            <p>Pull from the embedded URL manifest — HP, Xerox, and Kyocera have stable direct links. More vendors coming.</p>
           </div>
           <div class="tier highlight">
             <div class="tier-num">TIER 03</div>
+            <h4>SDI Origin driver packs</h4>
+            <p>Search SDIO's printer driver pack index by hardware ID. Covers Brother, Canon, Epson, Ricoh, Lexmark, and every other vendor SDIO carries — the brands the Update Catalog often misses.</p>
+          </div>
+          <div class="tier">
+            <div class="tier-num">TIER 04</div>
             <h4>Update Catalog + INF HWID</h4>
             <p>Search by IPP CID, download a candidate CAB, parse the INF, match the synthesized hardware ID. Deterministic.</p>
           </div>
           <div class="tier">
-            <div class="tier-num">TIER 04</div>
+            <div class="tier-num">TIER 05</div>
             <h4>IPP Class Driver</h4>
             <p>The always-works safety net for any printer that speaks IPP Everywhere (Windows 8+).</p>
           </div>
@@ -947,36 +952,26 @@
         <div class="features">
           <div class="feature">
             <div class="icon">01</div>
-            <h3>Real vendor driver URLs</h3>
-            <p>Expand the embedded driver manifest beyond HP. Brother, Canon, Epson, Ricoh, Xerox, Lexmark. Most vendors don't publish stable direct download links, so this is slow manual curation work.</p>
-          </div>
-          <div class="feature">
-            <div class="icon">02</div>
-            <h3>SDI Origin integration</h3>
-            <p>Pull from the SDI (Snappy Driver Installer) Origin lists as an upstream source of truth for where each vendor hosts their driver packs. Sidesteps the per-vendor URL curation problem — if SDI knows, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall</code> knows.</p>
-          </div>
-          <div class="feature">
-            <div class="icon">03</div>
             <h3>prinstall health &lt;ip&gt;</h3>
             <p>SNMP Printer MIB query for toner level, drum life, paper tray status, and error state. One <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> per machine and the RMM knows which printers need attention before the ticket lands.</p>
           </div>
           <div class="feature">
-            <div class="icon">04</div>
+            <div class="icon">02</div>
             <h3>Printer defaults at install</h3>
             <p>Duplex, color/mono, paper size, and set-as-default via <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">Set-PrintConfiguration</code> during <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">add</code>, so the printer shows up ready-to-use instead of needing a second pass.</p>
           </div>
           <div class="feature">
-            <div class="icon">05</div>
+            <div class="icon">03</div>
             <h3>Batch install mode</h3>
             <p>One command, multiple IPs. Parallel driver matching across every printer on a site, JSON results per target, one invocation per site visit instead of one per printer.</p>
           </div>
           <div class="feature">
-            <div class="icon">06</div>
+            <div class="icon">04</div>
             <h3>Signed binary</h3>
             <p>SignPath.io code signing so Windows SmartScreen stops warning on download. MSP deployment gets a lot friendlier when the tech doesn't have to click "Run anyway" every time.</p>
           </div>
           <div class="feature">
-            <div class="icon">07</div>
+            <div class="icon">05</div>
             <h3>Interactive TUI rework</h3>
             <p>The dense two-panel lazy-style TUI is currently under construction. When it comes back, expect lazygit-style panels, real vim keybindings, and scan-as-you-type subnet filtering.</p>
           </div>
@@ -987,7 +982,7 @@
     <section id="install">
       <div class="container">
         <h2>Install</h2>
-        <p class="subtitle">Single 8 MB binary. Drop it on PATH and go.</p>
+        <p class="subtitle">Single 9 MB binary. Drop it on PATH and go.</p>
         <div class="install-block">
           <div class="install-step">
             <div class="install-step-num">1</div>

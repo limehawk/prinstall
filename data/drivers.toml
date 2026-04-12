@@ -1,6 +1,22 @@
 # Manufacturer driver registry
 # Maps manufacturers to their universal driver packages and download URLs.
 # V1 supports ZIP and CAB formats only.
+#
+# Vendors with verified direct-download URLs:
+#   - HP    (PCL6 + PS, evergreen URLs — stable across UPD updates)
+#   - Xerox (PCL6 + PS, version-in-path URLs — need to bump on GPD updates)
+#   - Kyocera KX Driver (evergreen URL via AEM dispatcher alias)
+#
+# Vendors currently lacking a direct URL (fall through to Catalog/SDI tiers):
+#   - Brother (no universal driver; per-model only)
+#   - Canon   (Generic Plus UFR II requires session-cookie flow)
+#   - Epson   (region-gated driver selector)
+#   - Lexmark (Universal v2 XL ships as a .exe InstallShield wrapper —
+#              downloader currently handles only .zip/.cab. Follow-up PR
+#              will add .exe extraction support and land this URL:
+#              https://downloads.lexmark.com/downloads/drivers/
+#                Lexmark_Universal_v2_UD1_PCL_XL_Emul_05202024.exe)
+#   - Ricoh   (PCL Universal requires form submission)
 
 [[manufacturers]]
 name = "HP"
@@ -57,8 +73,13 @@ name = "Xerox"
 prefixes = ["Xerox"]
 
 [[manufacturers.universal_drivers]]
-name = "Xerox Global Print Driver"
-url = ""
+name = "Xerox Global Print Driver PCL6"
+url = "https://download.support.xerox.com/pub/drivers/GLOBALPRINTDRIVER/drivers/win10x64/ar/UNIV_5.1076.3.0_PCL6_x64.zip"
+format = "zip"
+
+[[manufacturers.universal_drivers]]
+name = "Xerox Global Print Driver PS"
+url = "https://download.support.xerox.com/pub/drivers/VLC8000W/drivers/win10x64/ar/UNIV_5.1076.3.0_PS_x64.zip"
 format = "zip"
 
 [[manufacturers]]
@@ -75,6 +96,6 @@ name = "Kyocera"
 prefixes = ["Kyocera", "KYOCERA"]
 
 [[manufacturers.universal_drivers]]
-name = "Kyocera Classic Universal Driver"
-url = ""
+name = "Kyocera KX Driver"
+url = "https://www.kyoceradocumentsolutions.us/content/dam/download-center-americas-cf/us/drivers/drivers/KX_Print_Driver_zip.download.zip"
 format = "zip"

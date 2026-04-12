@@ -40,13 +40,14 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
         }
         cli::Commands::Id { ip } => cmd_id(ip, cli).await,
         cli::Commands::Drivers { ip, model } => cmd_drivers(ip, model.as_deref(), cli).await,
-        cli::Commands::Add { target, driver, name, model, usb } => {
-            cmd_add(target, driver.as_deref(), name.as_deref(), model.as_deref(), *usb, cli).await;
+        cli::Commands::Add { target, driver, name, model, usb, no_sdi, no_catalog, sdi_fetch } => {
+            cmd_add(target, driver.as_deref(), name.as_deref(), model.as_deref(), *usb, *no_sdi, *no_catalog, *sdi_fetch, cli).await;
         }
         cli::Commands::Remove { target, keep_driver, keep_port } => {
             cmd_remove(target, *keep_driver, *keep_port, cli).await;
         }
         cli::Commands::List => cmd_list(cli).await,
+        cli::Commands::Sdi(action) => cmd_sdi(action, cli).await,
     }
 }
 
@@ -85,6 +86,9 @@ async fn cmd_add(
     name_override: Option<&str>,
     model_override: Option<&str>,
     usb: bool,
+    no_sdi: bool,
+    no_catalog: bool,
+    sdi_fetch: bool,
     cli: &cli::Cli,
 ) {
     let result = commands::add::run(commands::add::AddArgs {
@@ -93,6 +97,9 @@ async fn cmd_add(
         name_override,
         model_override,
         usb,
+        no_sdi,
+        no_catalog,
+        sdi_fetch,
         community: &cli.community,
         verbose: cli.verbose,
     })
@@ -106,6 +113,16 @@ async fn cmd_add(
 
     if !result.success {
         std::process::exit(1);
+    }
+}
+
+async fn cmd_sdi(action: &cli::SdiAction, cli: &cli::Cli) {
+    match action {
+        cli::SdiAction::Status => commands::sdi::status(cli.verbose),
+        cli::SdiAction::Refresh => commands::sdi::refresh(cli.verbose).await,
+        cli::SdiAction::List => commands::sdi::list(cli.verbose),
+        cli::SdiAction::Prefetch => commands::sdi::prefetch(cli.verbose).await,
+        cli::SdiAction::Clean => commands::sdi::clean(cli.verbose),
     }
 }
 
