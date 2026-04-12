@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="assets/prinstall-icon.png" width="128" alt="prinstall" />
-</p>
-
 ```
                                                                                    
 ▄▄▄▄▄▄▄   ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄    ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄   ▄▄▄▄   ▄▄▄      ▄▄▄      
@@ -12,6 +8,9 @@
                                                                                    
                                                                                    
 ```
+<p>
+  <img src="assets/prinstall-icon.png" width="128" alt="prinstall" />
+</p>
 
 ### Discover. Match. Add. Remove.
 
