@@ -20,16 +20,21 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Build
-        run: cargo build --release --target x86_64-pc-windows-msvc
+      - name: Build (default — no SDI)
+        run: |
+          cargo build --release --target x86_64-pc-windows-msvc
+          Copy-Item target/x86_64-pc-windows-msvc/release/prinstall.exe prinstall.exe
+
+      - name: Build (SDI-enabled)
+        run: |
+          cargo build --release --target x86_64-pc-windows-msvc --features sdi
+          Copy-Item target/x86_64-pc-windows-msvc/release/prinstall.exe prinstall-sdi.exe
 
       - name: Run tests
         run: cargo test --release --target x86_64-pc-windows-msvc
 
       - name: Package
-        run: |
-          Copy-Item target/x86_64-pc-windows-msvc/release/prinstall.exe prinstall.exe
-          7z a prinstall-windows-amd64.zip prinstall.exe
+        run: 7z a prinstall-windows-amd64.zip prinstall.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -38,6 +43,7 @@ jobs:
           path: |
             prinstall-windows-amd64.zip
             prinstall.exe
+            prinstall-sdi.exe
 
   release:
     needs: build
@@ -53,4 +59,5 @@ jobs:
           files: |
             prinstall-windows-amd64.zip
             prinstall.exe
+            prinstall-sdi.exe
           generate_release_notes: true
