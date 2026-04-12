@@ -568,13 +568,11 @@
 
     /* Pipeline diagram */
     .pipeline {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
+      flex-direction: column;
       gap: 12px;
       margin: 0 auto;
-    }
-    @media (max-width: 760px) {
-      .pipeline { grid-template-columns: 1fr 1fr; }
+      max-width: 640px;
     }
     .tier {
       background: var(--bg-elevated);
@@ -606,7 +604,6 @@
     .tier.highlight {
       border-color: var(--accent);
       background: linear-gradient(180deg, var(--bg-elevated), var(--bg-subtle));
-      grid-column: span 2;
     }
     .tier.highlight::before {
       content: "★ opt-in feature";
@@ -852,8 +849,6 @@
       #roadmap .feature h3 { margin-top: 4px; font-size: 15px; }
       #roadmap .feature p { font-size: 13px; }
 
-      /* Pipeline collapses to a single column — 2-col is too cramped at ≤480px */
-      .pipeline { grid-template-columns: 1fr; }
       .tier { padding: 16px 14px; }
 
       /* Install steps — smaller number bubble, tighter code padding */
