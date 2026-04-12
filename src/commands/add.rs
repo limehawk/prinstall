@@ -85,7 +85,24 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     if let Some(existing_queue) = installer::powershell::find_printer_on_port(&port_name, verbose) {
         if args.force {
             if verbose {
-                eprintln!("[add] Printer already installed as '{existing_queue}' — --force set, proceeding with reinstall");
+                eprintln!("[add] Printer already installed as '{existing_queue}' — removing before reinstall");
+            }
+            let executor = RealExecutor::new(verbose);
+            let remove_result = crate::commands::remove::run(
+                &executor,
+                crate::commands::remove::RemoveArgs {
+                    target: &existing_queue,
+                    keep_driver: false,
+                    keep_port: true, // keep the port — we're about to reuse it
+                    verbose,
+                },
+            ).await;
+            if !remove_result.success {
+                return PrinterOpResult::err(format!(
+                    "Failed to remove existing printer '{}' before reinstall: {}",
+                    existing_queue,
+                    remove_result.error.unwrap_or_default()
+                ));
             }
         } else {
             return PrinterOpResult::err(format!(
