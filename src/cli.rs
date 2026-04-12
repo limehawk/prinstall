@@ -320,4 +320,6 @@ pub enum SdiAction {
     Prefetch,
     /// Drop cached packs past the configured size budget (LRU eviction)
     Clean,
+    /// Verify Authenticode signatures on .cat files in the extraction cache
+    Verify,
 }
