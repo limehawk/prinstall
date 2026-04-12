@@ -611,7 +611,7 @@
       grid-column: span 2;
     }
     .tier.highlight::before {
-      content: "★ new in 0.4.0";
+      content: "★ opt-in feature";
     }
     body[data-nsfw] .tier.highlight::before {
       content: "★ the big gun";
@@ -992,7 +992,7 @@
     <section>
       <div class="container">
         <h2><span class="sfw">Watch it work</span><span class="nsfw">Watch this printer get bodied</span></h2>
-        <p class="subtitle"><span class="sfw">prinstall add 192.168.1.50 --verbose  ·  real terminal output</span><span class="nsfw">one command  ·  no clicking through 9 wizard pages  ·  no "restart the spooler"</span></p>
+        <p class="subtitle"><span class="sfw">prinstall add 10.10.20.16  ·  real terminal output</span><span class="nsfw">one command  ·  no clicking through 9 wizard pages  ·  no "restart the spooler"</span></p>
         <div class="terminal">
           <div class="terminal-header">
             <span class="terminal-dot"></span>
@@ -1001,32 +1001,30 @@
             <span class="terminal-title">Windows PowerShell</span>
           </div>
           <div class="terminal-body">
-<div class="t-line"><span class="t-prompt">PS&gt;</span> <span class="t-cmd">prinstall</span> <span class="t-cmd">add</span> 192.168.1.50 <span class="t-flag">--verbose</span></div>
+<div class="t-line"><span class="t-prompt">PS&gt;</span> <span class="t-cmd">prinstall</span> <span class="t-cmd">add</span> 10.10.20.16</div>
 <div class="t-line"></div>
 <div class="t-line"><span class="t-section">━━ Discovery ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
 <div class="t-line">  <span class="t-dim">SNMP</span>  <span class="t-dim">→</span> <span class="t-accent">Brother MFC-L2750DW series</span></div>
 <div class="t-line">  <span class="t-dim">IPP</span>   <span class="t-dim">→</span> <span class="t-accent">Brother MFC-L2750DW series</span> <span class="t-dim">(CID confirmed)</span></div>
-<div class="t-line">  <span class="t-dim">DID</span>    <span class="t-dim">Brother MFC-L2750DW</span></div>
+<div class="t-line">  <span class="t-dim">DID</span>    <span class="t-dim">Brother MFC-L2750DW series</span></div>
 <div class="t-line"></div>
 <div class="t-line"><span class="t-section">━━ Driver Resolution ━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
-<div class="t-line">   <span class="t-fail">Local store</span>     <span class="t-fail">✗</span> <span class="t-fail">install failed</span></div>
-<div class="t-line">   <span class="t-fail">Catalog</span>         <span class="t-fail">✗</span> <span class="t-fail">no CID match in catalog</span></div>
-<div class="t-line">  <span class="t-accent">▸</span> <span class="t-star">SDI Origin</span>      <span class="t-star">★</span> <span class="t-star">Brother Laser Type1 Class Driver [cached]</span></div>
+<div class="t-line">   <span class="t-fail">Manufacturer</span>    <span class="t-fail">✗</span> <span class="t-fail">install failed</span></div>
+<div class="t-line">  <span class="t-accent">▸</span> <span class="t-star">Catalog</span>         <span class="t-star">★</span> <span class="t-star">Brother Laser Type1 Class Driver</span></div>
 <div class="t-line"></div>
 <div class="t-line"><span class="t-section">━━ Install ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
-<div class="t-line">  <span class="t-label">Port</span>   IP_192.168.1.50                     <span class="t-check">✓</span></div>
+<div class="t-line">  <span class="t-label">Port</span>   IP_10.10.20.16                      <span class="t-check">✓</span></div>
 <div class="t-line">  <span class="t-label">Driver</span> Brother Laser Type1 Class Driver    <span class="t-check">✓</span></div>
 <div class="t-line">  <span class="t-label">Queue</span>  Brother MFC-L2750DW series          <span class="t-check">✓</span></div>
 <div class="t-line"></div>
 <div class="t-line"><span class="t-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
-<div class="t-line">  <span class="t-check">✓</span> Installed in <span class="t-accent">3.2s</span> via <span class="t-accent">SDI [cached]</span></div>
+<div class="t-line">  <span class="t-check">✓</span> Installed in <span class="t-accent">10.5s</span> via <span class="t-accent">Microsoft Update Catalog</span></div>
 <div class="t-line"><span class="t-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
 <div class="t-line"></div>
 <div class="t-line"><span class="t-ok">Printer installed successfully!</span></div>
 <div class="t-line">  <span class="t-dim">Name:</span>   <span class="t-accent">Brother MFC-L2750DW series</span></div>
 <div class="t-line">  <span class="t-dim">Driver:</span> <span class="t-accent">Brother Laser Type1 Class Driver</span></div>
-<div class="t-line">  <span class="t-dim">Port:</span>   IP_192.168.1.50</div>
-<div class="t-line">  <span class="t-dim">SOURCE:</span> <span class="t-dim">Installed via SDI: 'Brother Laser Type1 Class Driver' from Brother [SdiCached].</span></div>
+<div class="t-line">  <span class="t-dim">Port:</span>   IP_10.10.20.16</div>
           </div>
         </div>
       </div>
@@ -1116,7 +1114,7 @@
     <section id="install">
       <div class="container">
         <h2><span class="sfw">Install</span><span class="nsfw">Get this thing</span></h2>
-        <p class="subtitle"><span class="sfw">Single 9 MB binary. Drop it on PATH and go.</span><span class="nsfw">9 MB. One file. No installer. No .NET runtime. No "please restart your computer." Just copy and run.</span></p>
+        <p class="subtitle"><span class="sfw">Single 8 MB binary. Drop it on PATH and go.</span><span class="nsfw">8 MB. One file. No installer. No .NET runtime. No "please restart your computer." Just copy and run.</span></p>
         <div class="install-block">
           <div class="install-step">
             <div class="install-step-num">1</div>
@@ -1241,7 +1239,7 @@
       // Per-line delay before revealing (ms). Tuned so the structured
       // sections feel like they're being built phase by phase.
       const delays = [
-        140,  // PS> prinstall add ... --verbose
+        140,  // PS> prinstall add 10.10.20.16
         400,  // (blank — scanning)
         180,  // ━━ Discovery header
         200,  // SNMP → model
@@ -1249,9 +1247,8 @@
         140,  // DID
         160,  // (blank)
         240,  // ━━ Driver Resolution header
-        280,  // Local store ✗
-        320,  // Catalog ✗ (dramatic pause)
-        500,  // ▸ SDI Origin ★ (the payoff)
+        320,  // Manufacturer ✗ (dramatic pause)
+        500,  // ▸ Catalog ★ (the payoff)
         160,  // (blank)
         200,  // ━━ Install header
         160,  // Port ✓
@@ -1259,14 +1256,13 @@
         160,  // Queue ✓
         120,  // (blank)
         140,  // ━━ closing rule
-        300,  // ✓ Installed in 3.2s (the money shot)
+        300,  // ✓ Installed in 10.5s (the money shot)
         140,  // ━━ closing rule
         200,  // (blank)
         160,  // Printer installed successfully!
         100,  // Name
         100,  // Driver
         100,  // Port
-        140,  // SOURCE
       ];
 
       const caret = document.createElement('span');

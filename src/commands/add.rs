@@ -61,8 +61,9 @@ pub async fn run(args: AddArgs<'_>) -> PrinterOpResult {
 /// Add-PrinterPort/Driver/Printer pipeline → IPP Class Driver fallback if
 /// the primary install fails and port 631 is open.
 ///
-/// When `--verbose` is set, builds a structured [`InstallReport`] and renders
-/// it as a single block at the end instead of streaming eprintln lines.
+/// Always renders a structured [`InstallReport`] to stderr showing the
+/// Discovery → Resolution → Install → Summary phases. Raw PS commands
+/// and implementation details only appear with `--verbose`.
 async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     let verbose = args.verbose;
     let target = args.target;
@@ -145,7 +146,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         report.source_annotation = Some(if driver_is_local { "local driver store".into() } else { "manufacturer".into() });
         report.success = true;
         report.elapsed = start.elapsed();
-        if verbose { report.render(); }
+        report.render();
         return primary_result;
     }
 
@@ -179,7 +180,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                         report.source_annotation = Some(format!("Microsoft Update Catalog"));
                         report.success = true;
                         report.elapsed = start.elapsed();
-                        if verbose { report.render(); }
+                        report.render();
                         return annotate_catalog_success(retry, &resolved);
                     }
                     report.resolution.add_tier("Catalog", TierStatus::Failed, "driver staged but install failed");
@@ -218,7 +219,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                         report.source_annotation = Some(format!("SDI {cache_tag}"));
                         report.success = true;
                         report.elapsed = start.elapsed();
-                        if verbose { report.render(); }
+                        report.render();
                         return result;
                     }
                     None => {
@@ -244,7 +245,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         report.success = false;
         report.error = Some("all tiers exhausted, no fallback available".into());
         report.elapsed = start.elapsed();
-        if verbose { report.render(); }
+        report.render();
         return primary_result;
     }
 
@@ -261,7 +262,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         report.error = Some("all tiers exhausted".into());
     }
     report.elapsed = start.elapsed();
-    if verbose { report.render(); }
+    report.render();
     ipp_result
 }
 
