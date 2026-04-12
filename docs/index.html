@@ -464,9 +464,8 @@
     /* Pipeline diagram */
     .pipeline {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: 1fr 1fr;
       gap: 12px;
-      max-width: 900px;
       margin: 0 auto;
     }
     @media (max-width: 760px) {
@@ -502,9 +501,10 @@
     .tier.highlight {
       border-color: var(--accent);
       background: linear-gradient(180deg, var(--bg-elevated), var(--bg-subtle));
+      grid-column: span 2;
     }
     .tier.highlight::before {
-      content: "★ new in 0.3.0";
+      content: "★ new in 0.4.0";
       position: absolute;
       top: -10px;
       left: 16px;
