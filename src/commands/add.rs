@@ -14,12 +14,13 @@
 //!    that this is a generic fallback and vendor-specific features (duplex,
 //!    trays, finishing) may not be available.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::core::executor::{PsExecutor, RealExecutor};
 use crate::core::ps_error;
 use crate::installer::powershell::escape_ps_string;
 use crate::models::{InstallDetail, PrinterOpResult};
+use crate::verbose::{InstallReport, TierStatus};
 use crate::{discovery, drivers, installer};
 
 /// Arguments for `prinstall add <target>`.
@@ -59,13 +60,14 @@ pub async fn run(args: AddArgs<'_>) -> PrinterOpResult {
 /// Network-printer install path: SNMP identify → driver match → three-step
 /// Add-PrinterPort/Driver/Printer pipeline → IPP Class Driver fallback if
 /// the primary install fails and port 631 is open.
+///
+/// When `--verbose` is set, builds a structured [`InstallReport`] and renders
+/// it as a single block at the end instead of streaming eprintln lines.
 async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     let verbose = args.verbose;
     let target = args.target;
-
-    if verbose {
-        eprintln!("[add] Network mode — checking reachability of {target}...");
-    }
+    let start = Instant::now();
+    let mut report = InstallReport::new(target);
 
     let addr: std::net::Ipv4Addr = match target.parse() {
         Ok(a) => a,
@@ -78,11 +80,15 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
 
     // ── Step 1: resolve the printer model via SNMP ────────────────────────
     let model = if let Some(m) = args.model_override {
+        report.discovery.snmp_model = Some(m.to_string());
         m.to_string()
     } else {
         match discovery::snmp::identify_printer(addr, args.community, verbose).await {
             Some(p) => match p.model {
-                Some(m) => m,
+                Some(m) => {
+                    report.discovery.snmp_model = Some(m.clone());
+                    m
+                }
                 None => {
                     return PrinterOpResult::err(format!(
                         "SNMP responded at {target} but no model string. Use --model '...' to specify manually."
@@ -98,17 +104,15 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     };
 
     // ── Step 2: IPP device ID (for the catalog resolver's CID query) ─────
-    // Best-effort — many printers speak IPP even when SNMP is flaky, so this
-    // is the most reliable path for the deterministic catalog match. If the
-    // printer doesn't advertise a CID, we still install; we just won't be
-    // able to escalate to Tier 3 on failure.
-    let device_id = discovery::ipp::query_ipp_attributes(addr, verbose)
-        .await
-        .device_id;
-    if verbose {
-        match &device_id {
-            Some(d) => eprintln!("[add] IPP device ID: {d}"),
-            None => eprintln!("[add] IPP device ID: (not advertised)"),
+    let ipp_attrs = discovery::ipp::query_ipp_attributes(addr, verbose).await;
+    let device_id = ipp_attrs.device_id;
+    report.discovery.ipp_model = ipp_attrs.make_and_model;
+    report.discovery.device_id = device_id.clone();
+
+    // Extract CID from the device ID if present
+    if let Some(ref did) = device_id {
+        if let Some(cid) = extract_cid(did) {
+            report.discovery.ipp_cid = Some(cid);
         }
     }
 
@@ -120,11 +124,8 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     };
     let printer_name = args.name_override.unwrap_or(&model).to_string();
 
-    if verbose {
-        eprintln!(
-            "[add] Installing: printer='{printer_name}', driver='{driver_name}', ip={target}"
-        );
-    }
+    // Track whether the auto-selected driver came from local store
+    let driver_is_local = local_drivers.iter().any(|d| d == &driver_name);
 
     // ── Step 4: stage the driver if not in local store ───────────────────
     stage_driver_if_needed(&driver_name, &model, &local_drivers, verbose).await;
@@ -134,44 +135,36 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         installer::install_printer(target, &driver_name, &printer_name, &model, verbose);
 
     if primary_result.success {
+        // Populate the report for the happy path
+        if driver_is_local {
+            report.resolution.add_tier("Local store", TierStatus::Matched, &driver_name);
+        } else {
+            report.resolution.add_tier("Manufacturer", TierStatus::Matched, &driver_name);
+        }
+        populate_install_steps(&mut report, target, &driver_name, &printer_name, true);
+        report.source_annotation = Some(if driver_is_local { "local driver store".into() } else { "manufacturer".into() });
+        report.success = true;
+        report.elapsed = start.elapsed();
+        if verbose { report.render(); }
         return primary_result;
     }
 
+    // Primary failed — record the tier as failed
+    if driver_is_local {
+        report.resolution.add_tier("Local store", TierStatus::Failed, "install failed");
+    } else {
+        report.resolution.add_tier("Manufacturer", TierStatus::Failed, "install failed");
+    }
+
     // ── Step 6: Catalog resolver (Tier 3 — Microsoft Update Catalog) ────
-    // Runs BEFORE SDI because the Catalog is faster (~10 sec for a 4 MB
-    // CAB download) than SDI's first-run solid-LZMA2 decompression (~5
-    // min). When both sources carry the same driver, Catalog wins on
-    // speed. SDI only fires when the Catalog comes up empty — its value
-    // is coverage (Brother, Canon, Epson, Ricoh drivers the Catalog
-    // doesn't reliably carry), not speed.
     if args.no_catalog {
-        if verbose {
-            eprintln!("[add] Catalog resolver disabled (--no-catalog). Skipping.");
-        }
+        report.resolution.add_tier("Catalog", TierStatus::Disabled, "--no-catalog");
     } else if let Some(ref dev_id) = device_id {
-        if verbose {
-            eprintln!(
-                "[add] Primary install failed. Trying catalog resolver with device ID..."
-            );
-        }
         match drivers::resolver::resolve_driver_for_device(dev_id, verbose).await {
             Ok(resolved) => {
-                if verbose {
-                    eprintln!(
-                        "[add] Catalog resolver matched '{}' from '{}' — staging INF and retrying install.",
-                        resolved.display_name, resolved.catalog_title
-                    );
-                }
                 let inf_str = resolved.inf_path.to_string_lossy().to_string();
                 let stage_result = installer::powershell::stage_driver_inf(&inf_str, verbose);
-                if !stage_result.success {
-                    if verbose {
-                        eprintln!(
-                            "[add] INF staging failed: {} — falling through to SDI resolver.",
-                            ps_error::clean(&stage_result.stderr)
-                        );
-                    }
-                } else {
+                if stage_result.success {
                     let retry = installer::install_printer(
                         target,
                         &resolved.display_name,
@@ -180,85 +173,120 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                         verbose,
                     );
                     if retry.success {
+                        report.resolution.add_tier("Catalog", TierStatus::Matched,
+                            &format!("{} (from {})", resolved.display_name, resolved.catalog_title));
+                        populate_install_steps(&mut report, target, &resolved.display_name, &printer_name, true);
+                        report.source_annotation = Some(format!("Microsoft Update Catalog"));
+                        report.success = true;
+                        report.elapsed = start.elapsed();
+                        if verbose { report.render(); }
                         return annotate_catalog_success(retry, &resolved);
                     }
-                    if verbose {
-                        eprintln!(
-                            "[add] Retry install with catalog driver failed — falling through to SDI resolver."
-                        );
-                    }
+                    report.resolution.add_tier("Catalog", TierStatus::Failed, "driver staged but install failed");
+                } else {
+                    report.resolution.add_tier("Catalog", TierStatus::Failed,
+                        &format!("staging failed: {}", ps_error::clean(&stage_result.stderr)));
                 }
             }
             Err(e) => {
-                if verbose {
-                    eprintln!("[add] Catalog resolver: {e}");
-                }
+                report.resolution.add_tier("Catalog", TierStatus::Failed, &e);
             }
         }
+    } else {
+        report.resolution.add_tier("Catalog", TierStatus::Skipped, "no device ID for CID query");
     }
 
     // ── Step 6.5: SDI resolver (Tier 4 — Snappy Driver Installer) ───────
-    // Runs AFTER the Catalog because SDI's first extraction from a solid
-    // LZMA2 pack takes minutes. Once the extraction cache is warm,
-    // subsequent SDI installs are instant — but the Catalog should get
-    // first crack at drivers it carries. SDI covers the gaps: vendors
-    // the Catalog misses entirely.
-    if !args.no_sdi {
-        if let Some(ref dev_id) = device_id {
-            if let Ok(mut cache) = drivers::sdi::cache::SdiCache::load() {
-                // Auto-register any .7z packs that exist on disk but aren't
-                // in metadata yet (e.g., manually copied by the tech).
-                let newly_registered = cache.auto_register_packs();
-                if newly_registered > 0 && verbose {
-                    eprintln!("[sdi] Auto-registered {newly_registered} pack(s) from sdi/drivers/");
-                }
-                let candidates = drivers::sdi::resolver::enumerate_candidates(dev_id, &cache);
-                if let Some(best) = pick_sdi_candidate(&candidates, args.sdi_fetch) {
-                    if verbose {
-                        eprintln!(
-                            "[sdi] SDI match found: '{}' ({:?})",
-                            best.driver_name,
-                            best.source
-                        );
-                    }
-                    match try_sdi_install(best, target, &printer_name, &model, verbose) {
-                        Some(result) => return result,
-                        None => {
-                            if verbose {
-                                eprintln!("[sdi] SDI install did not succeed — falling through to IPP fallback.");
-                            }
-                        }
-                    }
-                } else if !candidates.is_empty() && verbose {
-                    // We have matches but all are uncached and --sdi-fetch wasn't set
-                    eprintln!(
-                        "[sdi] SDI has {} match(es) but the pack is not cached.",
-                        candidates.len()
-                    );
-                    eprintln!(
-                        "[sdi] Run `prinstall sdi prefetch` to pre-cache, or re-run with --sdi-fetch."
-                    );
-                }
+    #[cfg(feature = "sdi")]
+    if args.no_sdi {
+        report.resolution.add_tier("SDI Origin", TierStatus::Disabled, "--no-sdi");
+    } else if let Some(ref dev_id) = device_id {
+        if let Ok(mut cache) = drivers::sdi::cache::SdiCache::load() {
+            let newly_registered = cache.auto_register_packs();
+            if newly_registered > 0 && verbose {
+                eprintln!("[sdi] Auto-registered {newly_registered} pack(s) from sdi/drivers/");
             }
+            let candidates = drivers::sdi::resolver::enumerate_candidates(dev_id, &cache);
+            if let Some(best) = pick_sdi_candidate(&candidates, args.sdi_fetch) {
+                let cached = best.source == drivers::sources::Source::SdiCached;
+                match try_sdi_install(best, target, &printer_name, &model, verbose) {
+                    Some(result) => {
+                        let cache_tag = if cached { "[cached]" } else { "[fetched]" };
+                        report.resolution.add_tier("SDI Origin", TierStatus::Matched,
+                            &format!("{} {cache_tag}", best.driver_name));
+                        populate_install_steps(&mut report, target, &best.driver_name, &printer_name, true);
+                        report.source_annotation = Some(format!("SDI {cache_tag}"));
+                        report.success = true;
+                        report.elapsed = start.elapsed();
+                        if verbose { report.render(); }
+                        return result;
+                    }
+                    None => {
+                        report.resolution.add_tier("SDI Origin", TierStatus::Failed, "extraction or install failed");
+                    }
+                }
+            } else if !candidates.is_empty() {
+                report.resolution.add_tier("SDI Origin", TierStatus::Skipped,
+                    "pack not cached (use --sdi-fetch)");
+            } else {
+                report.resolution.add_tier("SDI Origin", TierStatus::Failed, "no HWID match in indexes");
+            }
+        } else {
+            report.resolution.add_tier("SDI Origin", TierStatus::Skipped, "cache not initialized");
         }
+    } else {
+        report.resolution.add_tier("SDI Origin", TierStatus::Skipped, "no device ID");
     }
 
     // ── Step 7: IPP Class Driver fallback ────────────────────────────────
     if !ipp_reachable(target).await {
-        if verbose {
-            eprintln!(
-                "[add] Catalog resolver did not succeed and port 631 not reachable — no fallback available."
-            );
-        }
+        report.resolution.add_tier("IPP Class Driver", TierStatus::Failed, "port 631 not reachable");
+        report.success = false;
+        report.error = Some("all tiers exhausted, no fallback available".into());
+        report.elapsed = start.elapsed();
+        if verbose { report.render(); }
         return primary_result;
     }
-    if verbose {
-        eprintln!(
-            "[add] Falling back to Microsoft IPP Class Driver (port 631 open)."
-        );
-    }
+
     let executor = RealExecutor::new(verbose);
-    try_ipp_fallback(&executor, target, &driver_name, &model, verbose)
+    let ipp_result = try_ipp_fallback(&executor, target, &driver_name, &model, verbose);
+    if ipp_result.success {
+        report.resolution.add_tier("IPP Class Driver", TierStatus::Matched, "Microsoft IPP Class Driver");
+        populate_install_steps(&mut report, target, "Microsoft IPP Class Driver", &format!("{model} (IPP)"), true);
+        report.source_annotation = Some("IPP Class Driver (generic fallback)".into());
+        report.success = true;
+    } else {
+        report.resolution.add_tier("IPP Class Driver", TierStatus::Failed, "Add-Printer failed");
+        report.success = false;
+        report.error = Some("all tiers exhausted".into());
+    }
+    report.elapsed = start.elapsed();
+    if verbose { report.render(); }
+    ipp_result
+}
+
+/// Extract CID (Compatible ID) from a 1284 device ID string.
+fn extract_cid(device_id: &str) -> Option<String> {
+    for part in device_id.split(';') {
+        let part = part.trim();
+        if let Some(v) = part.strip_prefix("CID:").or_else(|| part.strip_prefix("COMPATIBLEID:")) {
+            return Some(v.trim().to_string());
+        }
+    }
+    None
+}
+
+/// Fill the install phase with port/driver/queue steps.
+fn populate_install_steps(
+    report: &mut InstallReport,
+    ip: &str,
+    driver_name: &str,
+    printer_name: &str,
+    all_ok: bool,
+) {
+    report.install.add_step("Port", &format!("IP_{ip}"), all_ok);
+    report.install.add_step("Driver", driver_name, all_ok);
+    report.install.add_step("Queue", printer_name, all_ok);
 }
 
 /// Attach a catalog-success note to an otherwise-successful install result
@@ -294,6 +322,7 @@ fn annotate_catalog_success(
 /// Pick the best SDI candidate from the enumeration. Prefers cached packs
 /// (free, no download). Only considers uncached packs if `allow_uncached`
 /// is true (`--sdi-fetch` flag).
+#[cfg(feature = "sdi")]
 fn pick_sdi_candidate<'a>(
     candidates: &'a [drivers::sources::SourceCandidate],
     allow_uncached: bool,
@@ -320,6 +349,7 @@ fn pick_sdi_candidate<'a>(
 /// result), `None` if the SDI path failed at any step (extraction,
 /// staging, or retry install) and the caller should fall through to the
 /// next tier.
+#[cfg(feature = "sdi")]
 fn try_sdi_install(
     candidate: &drivers::sources::SourceCandidate,
     target: &str,
@@ -434,6 +464,7 @@ fn try_sdi_install(
 /// Attach an SDI-success note to an otherwise-successful install result
 /// so the CLI output and JSON payload show that the SDI tier landed the
 /// driver. Mirrors the shape of [`annotate_catalog_success`].
+#[cfg(feature = "sdi")]
 fn annotate_sdi_success(
     mut result: PrinterOpResult,
     candidate: &drivers::sources::SourceCandidate,

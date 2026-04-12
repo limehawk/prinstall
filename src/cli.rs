@@ -208,6 +208,7 @@ pub enum Commands {
         /// Disable the SDI (Snappy Driver Installer Origin) driver tier
         /// for this run. Falls through directly to Microsoft Update
         /// Catalog / IPP fallback.
+        #[cfg(feature = "sdi")]
         #[arg(long)]
         no_sdi: bool,
 
@@ -220,6 +221,7 @@ pub enum Commands {
         /// Without this flag, uncached SDI packs are skipped with a
         /// visible warning. Use `prinstall sdi prefetch` to pre-cache
         /// instead if you prefer.
+        #[cfg(feature = "sdi")]
         #[arg(long)]
         sdi_fetch: bool,
     },
@@ -299,11 +301,13 @@ pub enum Commands {
     /// Epson, Ricoh, etc.). The SDI cache stores index files (.bin) and
     /// driver packs (.7z) fetched from the prinstall GitHub Releases
     /// mirror.
+    #[cfg(feature = "sdi")]
     #[command(subcommand)]
     Sdi(SdiAction),
 }
 
 /// Actions for the `prinstall sdi` subcommand.
+#[cfg(feature = "sdi")]
 #[derive(Debug, Clone, clap::Subcommand)]
 pub enum SdiAction {
     /// Show SDI cache status: indexes, cached packs, total size, mirror URL

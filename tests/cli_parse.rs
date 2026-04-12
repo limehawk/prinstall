@@ -52,7 +52,7 @@ mod cli_parse_test {
             "--model", "HP LaserJet Pro MFP M428fdw",
         ]);
         match cli.command {
-            Some(prinstall::cli::Commands::Add { target, driver, name, model, usb }) => {
+            Some(prinstall::cli::Commands::Add { target, driver, name, model, usb, .. }) => {
                 assert_eq!(target, "192.168.1.100");
                 assert_eq!(driver.unwrap(), "HP Universal Print Driver PCL6");
                 assert_eq!(name.unwrap(), "Front Desk Printer");
