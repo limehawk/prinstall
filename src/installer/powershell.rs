@@ -19,7 +19,7 @@ pub fn escape_ps_string(s: &str) -> String {
 /// Run a PowerShell command and return the result.
 pub fn run_ps(command: &str, verbose: bool) -> PsResult {
     if verbose {
-        eprintln!("[PS] {command}");
+        eprintln!("{} {command}", crate::output::vpfx("PS"));
     }
 
     let output = Command::new("powershell")
@@ -32,7 +32,7 @@ pub fn run_ps(command: &str, verbose: bool) -> PsResult {
             let stderr = String::from_utf8_lossy(&o.stderr).trim().to_string();
             if verbose {
                 if !stdout.is_empty() {
-                    eprintln!("[PS stdout] {stdout}");
+                    eprintln!("{} {stdout}", crate::output::vpfx("PS stdout"));
                 }
                 if !stderr.is_empty() {
                     // Route through ps_error::clean() so the verbose log
@@ -40,7 +40,7 @@ pub fn run_ps(command: &str, verbose: bool) -> PsResult {
                     // the final PrinterOpResult gets, instead of dumping
                     // the raw PowerShell decoration (CategoryInfo, At line,
                     // FullyQualifiedErrorId, etc).
-                    eprintln!("[PS stderr] {}", ps_error::clean(&stderr));
+                    eprintln!("{} {}", crate::output::vpfx("PS stderr"), ps_error::clean(&stderr));
                 }
             }
             PsResult {
@@ -72,7 +72,7 @@ pub fn create_port(ip: &str, verbose: bool) -> PsResult {
     let port_name = format!("IP_{ip}");
     if port_exists(&port_name, verbose) {
         if verbose {
-            eprintln!("[skip] Port {port_name} already exists");
+            eprintln!("{} Port {port_name} already exists", crate::output::vpfx("skip"));
         }
         return PsResult {
             success: true,
@@ -101,7 +101,7 @@ pub fn driver_installed(driver_name: &str, verbose: bool) -> bool {
 pub fn install_driver(driver_name: &str, verbose: bool) -> PsResult {
     if driver_installed(driver_name, verbose) {
         if verbose {
-            eprintln!("[skip] Driver '{driver_name}' already installed");
+            eprintln!("{} Driver '{}' already installed", crate::output::vpfx("skip"), crate::output::accent(driver_name));
         }
         return PsResult {
             success: true,
@@ -137,7 +137,7 @@ pub fn printer_exists(name: &str, verbose: bool) -> bool {
 pub fn add_printer(name: &str, driver_name: &str, port_name: &str, verbose: bool) -> PsResult {
     if printer_exists(name, verbose) {
         if verbose {
-            eprintln!("[skip] Printer '{name}' already exists");
+            eprintln!("{} Printer '{}' already exists", crate::output::vpfx("skip"), crate::output::accent(name));
         }
         return PsResult {
             success: true,

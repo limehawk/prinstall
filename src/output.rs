@@ -65,28 +65,62 @@ fn color_enabled() -> bool {
 // disabled. Semantic names (not color names) so we can retune the palette
 // later without touching every callsite.
 
-fn ok(s: &str) -> String {
+pub fn ok(s: &str) -> String {
     if color_enabled() { s.green().bold().to_string() } else { s.to_string() }
 }
 
-fn err_text(s: &str) -> String {
+pub fn err_text(s: &str) -> String {
     if color_enabled() { s.red().bold().to_string() } else { s.to_string() }
 }
 
-fn warn(s: &str) -> String {
+pub fn warn(s: &str) -> String {
     if color_enabled() { s.yellow().bold().to_string() } else { s.to_string() }
 }
 
-fn header(s: &str) -> String {
+pub fn header(s: &str) -> String {
     if color_enabled() { s.cyan().bold().to_string() } else { s.to_string() }
 }
 
-fn dim(s: &str) -> String {
+pub fn dim(s: &str) -> String {
     if color_enabled() { s.dark_grey().to_string() } else { s.to_string() }
 }
 
-fn label(s: &str) -> String {
+pub fn label(s: &str) -> String {
     if color_enabled() { s.cyan().to_string() } else { s.to_string() }
+}
+
+/// Accent color (orange) for highlighted values — printer names, driver
+/// names, matched HWIDs, anything the user's eye should land on first.
+pub fn accent(s: &str) -> String {
+    if color_enabled() {
+        s.with(crossterm::style::Color::Rgb { r: 255, g: 107, b: 53 })
+            .bold()
+            .to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Verbose-mode prefix tag. Maps a module name to its semantic color
+/// so every `eprintln!("{} ...", vpfx("sdi"))` line gets the right
+/// color without the callsite knowing the palette.
+pub fn vpfx(module: &str) -> String {
+    let tag = format!("[{module}]");
+    if !color_enabled() {
+        return tag;
+    }
+    match module {
+        "scan" => tag.cyan().to_string(),
+        "add" => tag.blue().bold().to_string(),
+        "sdi" => tag.with(crossterm::style::Color::Rgb { r: 255, g: 107, b: 53 }).bold().to_string(),
+        "resolver" => tag.yellow().to_string(),
+        "remove" => tag.magenta().to_string(),
+        "PS" | "PS stdout" => tag.dark_grey().to_string(),
+        "PS stderr" => tag.red().to_string(),
+        "skip" => tag.dark_grey().to_string(),
+        "download" => tag.cyan().to_string(),
+        _ => tag.dark_grey().to_string(),
+    }
 }
 
 fn badge_exact(s: &str) -> String {
