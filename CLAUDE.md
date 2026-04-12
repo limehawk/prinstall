@@ -63,9 +63,8 @@ website/docs iterations between cuts. See "Branching & release workflow" below.
   location if present. See `src/paths.rs` for the rationale.
 - **Embedded data** — `data/drivers.toml` (17 manufacturers) and
   `data/known_matches.toml` (curated exact matches) compiled in via
-  `include_str!()`. Note: most manufacturer entries in drivers.toml have empty
-  URL fields — HP is currently the only one with a stable direct download URL.
-  Brother/Canon/Epson/etc. fall through to IPP Class Driver fallback.
+  `include_str!()`. HP, Xerox, and Kyocera have stable direct download URLs.
+  Other vendors fall through to the Catalog resolver or IPP Class Driver fallback.
 - **Terminal colors** via crossterm's `Stylize` trait, semantic helpers in
   `output.rs`. Auto-detects via `NO_COLOR` env var, `--json` flag, and
   stdout-is-terminal. VT mode enablement kicked via
@@ -87,11 +86,13 @@ prinstall add <IP>                         Install a network printer
 prinstall add <QUEUE-NAME> --usb           Swap driver on an existing USB printer queue
 prinstall remove <IP|QUEUE-NAME>           Remove printer + orphaned driver + port
 prinstall list                             List locally installed printers
+prinstall sdi status|refresh|list|prefetch|clean|verify   (--features sdi only)
 ```
 
 Global flags: `--json`, `--verbose`, `--community <str>`, `--force`,
-`--subnet <cidr>`. Per-command flags: `--driver`, `--name`, `--model`, `--usb`
-on `add`; `--keep-driver`, `--keep-port` on `remove`.
+`--subnet <cidr>`. Per-command flags: `--driver`, `--name`, `--model`, `--usb`,
+`--no-catalog` on `add`; `--no-sdi`, `--sdi-fetch` on `add` (sdi feature only);
+`--keep-driver`, `--keep-port` on `remove`.
 
 ## Project Structure
 
@@ -106,10 +107,13 @@ src/
 ├── config.rs                Persistent AppConfig (TOML)
 ├── history.rs               Install history log
 ├── privilege.rs             Windows admin detection
+├── verbose.rs               Structured install report (Discovery → Resolution → Install → Summary)
 ├── commands/
-│   ├── add.rs               Network + USB install paths, IPP Class Driver fallback
+│   ├── add.rs               Network + USB install paths, tier cascade, IPP Class Driver fallback
 │   ├── remove.rs            Three-step cleanup with orphan detection + system-port whitelist
-│   └── drivers.rs           Driver matching + Windows Update probe (currently blocked on dockurr VMs)
+│   ├── drivers.rs           Driver matching + Windows Update probe
+│   ├── sdi.rs               SDI subcommand (status/refresh/list/prefetch/clean) [sdi feature]
+│   └── sdi_verify.rs        Authenticode .cat signature verification [sdi feature]
 ├── core/
 │   ├── executor.rs          PsExecutor trait, RealExecutor, MockExecutor, run_json<T>
 │   └── ps_error.rs          PowerShell stderr → clean single-line errors + HRESULT lookup
@@ -126,6 +130,14 @@ src/
 │   ├── known_matches.rs     Embedded known_matches.toml
 │   ├── downloader.rs        HTTP + ZIP/CAB extraction, staging under paths::staging_dir()
 │   ├── local_store.rs       Get-PrinterDriver enumeration
+│   ├── cab.rs               Pure-Rust CAB extraction (replaces expand.exe)
+│   ├── sources.rs           Unified Source enum + SourceCandidate + InstallHint types
+│   ├── sdi/                 SDI Origin integration [sdi feature]
+│   │   ├── index.rs         Clean-room SDW binary index parser
+│   │   ├── pack.rs          7z directory-prefix extraction via sevenz-rust2
+│   │   ├── cache.rs         On-disk cache manager with LRU prune
+│   │   ├── fetcher.rs       HTTP mirror fetcher with SHA256 + progress bars
+│   │   └── resolver.rs      SDI candidate enumeration from cached indexes
 │   └── mod.rs
 ├── installer/
 │   ├── powershell.rs        Cmdlet wrappers, escape_ps_string, printer_exists helper
@@ -136,8 +148,8 @@ src/
     ├── keys.rs, theme.rs
     └── views/               scan, drivers, install, help
 data/
-├── drivers.toml             Manufacturer registry — HP has real URLs, others empty
-└── known_matches.toml       Curated exact matches (3 HP entries currently)
+├── drivers.toml             Manufacturer registry — HP, Xerox, Kyocera have URLs
+└── known_matches.toml       Curated exact matches (HP + Xerox + Kyocera)
 assets/
 ├── prinstall-icon.svg       Vector source — full orange-tile design
 ├── prinstall-icon-glyph.svg Vector source — transparent glyph for small sizes
@@ -157,18 +169,26 @@ tests/
 ├── local_enum.rs            5 tests
 ├── port_scan.rs             5 tests
 ├── ipp.rs                   4 tests
-└── subnet_parse.rs          10 tests
-# Plus ~40 inline lib tests in src/commands/*.rs, src/core/*.rs, src/drivers/matcher.rs.
-# Total: 100+ tests, all run on Linux via MockExecutor (no Windows required for CI).
+├── subnet_parse.rs          13 tests
+├── cab_extraction.rs        6 tests
+├── sdi_index.rs             6 tests  [sdi feature]
+├── sdi_pack.rs              7 tests  [sdi feature]
+├── sdi_cache.rs             17 tests [sdi feature]
+└── sdi_fetcher.rs           10 tests [sdi feature]
+# Plus ~60 inline lib tests in src/commands/*.rs, src/core/*.rs, src/drivers/*.rs.
+# Total: 100 tests without SDI, 132+ with --features sdi.
+# All run on Linux via MockExecutor (no Windows required for CI).
 ```
 
 ## Development
 
 ```bash
 # Tests run on Linux — MockExecutor stubs all PowerShell calls
-cargo test
+cargo test                          # default build (no SDI)
+cargo test --features sdi           # with SDI modules
 cargo clippy -- -W clippy::all
-cargo build --release        # Linux native build (ratatui works, PS calls fail at runtime)
+cargo build --release               # default binary (~8 MB)
+cargo build --release --features sdi  # SDI-enabled binary (~9 MB)
 ```
 
 ### Cross-compile a Windows binary from Linux
@@ -182,77 +202,17 @@ docker run --rm -v "$PWD":/io -w /io messense/cargo-xwin:latest \
 Binary lands at `target/x86_64-pc-windows-msvc/release/prinstall.exe`.
 
 Release builds happen via GitHub Actions `windows-latest` runner on tag push
-(`.github/workflows/release.yml`). The docker workflow above is for dev loop only.
+(`.github/workflows/release.yml`). CI builds both `prinstall.exe` (default) and
+`prinstall-sdi.exe` (with SDI). The docker workflow above is for dev loop only.
 
 ### Changing the app icon
 
-The Windows app icon is embedded via a Windows `ICON` resource at build
-time. `build.rs` calls `embed_resource::compile("assets/prinstall.rc", ...)`
-on Windows targets only — Linux dev builds skip it so no ImageMagick or
-resource compiler is needed for `cargo check` / `cargo test`.
-
-There are **two** SVG sources because the full orange-tile design loses
-the printer glyph below ~32 px (most of the pixels are background, the
-printer is a tiny dark smudge in the middle). The ICO shipped in the exe
-uses a transparent glyph-only variant at 16 and 32 px, and the full tile
-design at 48 px and up. See `assets/icon-previews/` for renders of both
-variants at every standard size.
-
-The rasterization uses `rsvg-convert` (from `librsvg`, the same renderer
-Firefox and GNOME use for SVG). It does a direct vector-to-raster at each
-target size — no intermediate high-density raster that then gets
-downsampled, so the previews stay crisp at 16 and 32 px. Install via
-`pacman -S librsvg` if missing.
-
-To replace the icon:
-
-1. Edit `assets/prinstall-icon.svg` (the large tile) and/or
-   `assets/prinstall-icon-glyph.svg` (the small glyph). Keep them
-   visually aligned so the transition at the 32→48 px boundary doesn't
-   jar.
-2. Re-render the reference PNG previews at every size:
-   ```bash
-   for size in 16 32 48 64 96 128 256; do
-     rsvg-convert -w "$size" -h "$size" assets/prinstall-icon.svg       -o "assets/icon-previews/tile/${size}.png"
-     rsvg-convert -w "$size" -h "$size" assets/prinstall-icon-glyph.svg -o "assets/icon-previews/glyph/${size}.png"
-   done
-   ```
-3. Re-render the 2048×2048 PNG used by the README logo:
-   ```bash
-   rsvg-convert -w 2048 -h 2048 assets/prinstall-icon.svg -o assets/prinstall-icon.png
-   ```
-4. Compose the multi-image ICO from the previews. `magick` takes
-   multiple PNG inputs and packs each as one entry at its native size —
-   the glyph carries 16/32, the tile carries 48 through 256:
-   ```bash
-   magick \
-     assets/icon-previews/glyph/16.png  assets/icon-previews/glyph/32.png \
-     assets/icon-previews/tile/48.png   assets/icon-previews/tile/64.png \
-     assets/icon-previews/tile/96.png   assets/icon-previews/tile/128.png \
-     assets/icon-previews/tile/256.png \
-     assets/prinstall.ico
-   ```
-5. Rebuild — `build.rs` picks up the new `.ico` on the next Windows
-   build. If you changed the tile SVG's shape, also re-URL-encode the
-   inline SVG data URI in `docs/index.html`'s `<link rel="icon">` tag
-   and the inline `<svg class="logo-mark">` in the nav so the homepage
-   stays in sync with the new geometry.
-
-All icon-related files:
-
-- `assets/prinstall-icon.svg` — tile source (orange background + printer)
-- `assets/prinstall-icon-glyph.svg` — glyph source (transparent, for 16/32 in the ICO)
-- `assets/prinstall-icon.png` — rasterized 2048×2048 tile (for README logo)
-- `assets/prinstall.ico` — multi-image ICO (16/32 from glyph, 48+ from tile)
-- `assets/prinstall.rc` — Windows resource file (`1 ICON "prinstall.ico"`)
-- `assets/icon-previews/tile/` and `assets/icon-previews/glyph/` — PNG
-  renders of each source at 16/32/48/64/96/128/256 for reference and as
-  the direct inputs to the ICO build in step 4
-- `build.rs` — `embed_resource::compile("assets/prinstall.rc", ...)` inside
-  the `target_os == "windows"` branch, alongside the UAC manifest embed
-- `Cargo.toml` — `embed-resource = "3"` in `[build-dependencies]`
-- `README.md` — `<img src="assets/prinstall-icon.png">` at the top
-- `docs/index.html` — inline tile SVG data URI in the `<link rel="icon">` tag
+Two SVG sources: `assets/prinstall-icon.svg` (full tile, 48px+) and
+`assets/prinstall-icon-glyph.svg` (transparent glyph, 16/32px). The ICO
+uses the glyph at small sizes because the tile's printer detail is
+invisible below 32px. Render with `rsvg-convert`, compose ICO with
+`magick`. `build.rs` embeds via `embed_resource` on Windows targets only.
+See `assets/icon-previews/` for reference renders at all standard sizes.
 
 ## Testing infrastructure
 
@@ -280,7 +240,7 @@ All icon-related files:
 6. `.\prinstall.exe --version` / `.\prinstall.exe add <ip> --verbose` / etc.
 
 Version-bump `Cargo.toml` on every dev build so you can distinguish builds in
-the VM (currently `0.2.12-dev`).
+the VM (currently `0.4.0`).
 
 ## Branching & release workflow
 
@@ -352,18 +312,22 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 
 ## Current backlog
 
-- [ ] Real manufacturer driver URLs in `drivers.toml` — HP works, others have empty URLs
-- [ ] SDI driverpack integration — authoritative offline vendor driver database (~1GB)
-- [ ] MSCatalogLTS PowerShell module integration — programmatic WU catalog query
-      by printer model, returns downloadable .cab driver packages. Needs
-      investigation against a real printer on a real VM.
-- [ ] Windows Update install path that actually works — pending diagnostic probe
-      that tests rundll32 / prnmngr.vbs / WMI / MSCatalogLTS against a real
-      Brother printer
+**Shipped (v0.4.0):**
+- [x] SDI driverpack integration (behind `--features sdi` for supply chain review)
+- [x] Pure-Rust CAB extraction (replaced `expand.exe`)
+- [x] Xerox + Kyocera direct download URLs in `drivers.toml`
+- [x] Structured verbose output (rice report)
+- [x] `prinstall sdi verify` — Authenticode .cat signature verification
+- [x] Duplicate printer detection (`--force` to reinstall)
+
+**Open:**
+- [ ] Authenticode verification at install time — only offer SDI drivers whose
+      .cat passes signature check, then promote SDI to default (no feature flag)
+- [ ] Lexmark Universal Print Driver URL — needs .exe extraction support
+      (InstallShield wrapper, not zip/cab)
 - [ ] Printer defaults (duplex, color/mono, paper size, set-default) via
       `Set-PrintConfiguration`
 - [ ] `prinstall health <ip>` — toner/drum/tray status via SNMP Printer MIB
-- [ ] mDNS / WS-Discovery fallback for fully-silent printers
 - [ ] Batch install mode (multiple IPs in one shot)
-- [ ] User-editable subnet input inside the TUI (auto-detect already works)
 - [ ] SignPath.io code signing for SmartScreen trust
+- [ ] Interactive TUI rework (lazygit-style panels)
