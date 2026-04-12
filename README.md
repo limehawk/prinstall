@@ -45,16 +45,28 @@ MSP technicians burn hours on printer installs. Find the IP, hunt the driver, wr
 
 ## Install
 
+Each release ships two binaries:
+
+| Binary | Size | SDI | Use case |
+|---|---|---|---|
+| `prinstall.exe` | ~8 MB | No | Default — Tiers 1–3 + IPP fallback |
+| `prinstall-sdi.exe` | ~9 MB | Yes | Extended — adds Tier 4 SDI driver packs |
+
 **Windows (PowerShell one-liner):**
 
 ```powershell
+# Standard build (no SDI)
 iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe
+
+# SDI-enabled build
+iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-sdi.exe -OutFile prinstall.exe
 ```
 
 **From source:**
 
 ```bash
-cargo install --git https://github.com/limehawk/prinstall
+cargo install --git https://github.com/limehawk/prinstall                    # default
+cargo install --git https://github.com/limehawk/prinstall --features sdi     # with SDI
 ```
 
 ## Quick start
@@ -84,6 +96,33 @@ Every command takes `--json` for scripting and `--verbose` for the raw PS audit 
 Tier 3 is the default workhorse — it scrapes the Microsoft Update Catalog, downloads a candidate CAB, parses the INF, and confirms a `1284_CID_*` hardware-ID match **before** installing. No gambling on model names.
 
 Tier 4 (SDI) is compiled in only with `cargo build --features sdi`. It provides vendor-specific drivers for brands the Update Catalog doesn't reliably carry, using Snappy Driver Installer Origin's community-maintained driver packs.
+
+### SDI Origin integration (opt-in)
+
+The default `prinstall.exe` release binary does **not** include SDI support. The SDI tier uses third-party community-maintained driver packs from [Snappy Driver Installer Origin](https://www.glenn.delahoy.com/snappy-driver-installer-origin/) whose supply chain we haven't independently verified yet. It's behind a compile-time feature flag so you can make a conscious choice.
+
+**To build with SDI enabled:**
+
+```bash
+cargo build --release --features sdi
+```
+
+**What SDI adds when enabled:**
+
+- `prinstall sdi` subcommand — `status`, `refresh`, `list`, `prefetch`, `clean`
+- `--sdi-fetch` flag on `prinstall add` — allows auto-pick to trigger a first-run pack download (~1.5 GB)
+- `--no-sdi` flag on `prinstall add` — skip the SDI tier for a single run
+- Tier 4 in the driver pipeline — searches cached SDI index files by hardware ID, extracts the matching driver from the pack, stages the INF, and installs
+
+**How it works:**
+
+1. Run `prinstall sdi refresh` to download the SDI index files (~1 MB) from the configured mirror
+2. Run `prinstall sdi prefetch` to download the printer driver pack (~1.5 GB one-time download)
+3. Now `prinstall add <ip>` will search the SDI index when Tiers 1–3 come up empty. If the pack is cached, extraction + install takes seconds.
+
+The SDI pack is cached at `C:\ProgramData\prinstall\sdi\` and only needs to be downloaded once. Subsequent installs from the same pack are instant.
+
+**Why opt-in?** The SDI driver packs are built by a third-party community (SamLab). While the drivers inside are real vendor binaries with valid INF files, the pack build process isn't independently auditable. We plan to add Authenticode signature verification for `.cat` files before promoting SDI to a default feature. Until then, it's available for techs who want the coverage and understand the tradeoff.
 
 ## Docs
 
