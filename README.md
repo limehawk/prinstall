@@ -122,7 +122,13 @@ cargo build --release --features sdi
 
 The SDI pack is cached at `C:\ProgramData\prinstall\sdi\` and only needs to be downloaded once. Subsequent installs from the same pack are instant.
 
-**Why opt-in?** The SDI driver packs are built by a third-party community (SamLab). While the drivers inside are real vendor binaries with valid INF files, the pack build process isn't independently auditable. We plan to add Authenticode signature verification for `.cat` files before promoting SDI to a default feature. Until then, it's available for techs who want the coverage and understand the tradeoff.
+**Why opt-in? The supply chain question.**
+
+[SDIO](https://www.glenn.delahoy.com/snappy-driver-installer-origin/) is maintained by Glenn Delahoy (also the author of [Desktop Info](https://www.glenn.delahoy.com/desktop-info/)). Glenn's changelog references two separate pack sets: "SamLab Driver Packs" and "SDIO Driver Packs." Glenn builds his own SDIO packs from community submissions. The SamLab packs are built by a separate party ([SamLab](https://samlab.ws/)) — a Russian-language driver pack community that has been packaging vendor drivers since at least 2013.
+
+The printer pack we tested against (`DP_Printer_26000.7z`) contained SamLab's signature files (`Printer.nfo`, `www.SamLab.ws.url`) inside, indicating it was built by SamLab, not Glenn. Glenn distributes these packs via torrent alongside his own SDIO packs. The drivers inside are real vendor binaries with valid INF files — they work correctly. But the pack build process itself isn't independently auditable, and [community members have raised trust concerns](https://www.glenn.delahoy.com/community/snappy-driver-installer-origin/lets-talk-about-samlab/) that remain unaddressed.
+
+We plan to add Authenticode `.cat` signature verification before promoting SDI to a default feature — every legitimate vendor driver ships with a Microsoft-chained certificate, so we can verify the contents are untampered vendor binaries. Until then, SDI is available for techs who want the coverage and understand the tradeoff.
 
 ## Docs
 
