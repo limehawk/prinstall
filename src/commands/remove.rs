@@ -81,7 +81,7 @@ fn is_system_driver(name: &str) -> bool {
 /// another app manages. We whitelist rather than blacklist so the cleanup
 /// path never touches a port we didn't create.
 fn is_manageable_port(port_name: &str) -> bool {
-    port_name.starts_with("IP_")
+    port_name.starts_with("IP_") || port_name.starts_with("http://")
 }
 
 pub async fn run(executor: &dyn PsExecutor, args: RemoveArgs<'_>) -> PrinterOpResult {
@@ -800,6 +800,7 @@ mod tests {
     fn is_manageable_port_accepts_ip_ports() {
         assert!(is_manageable_port("IP_10.10.20.16"));
         assert!(is_manageable_port("IP_192.168.1.1"));
+        assert!(is_manageable_port("http://10.10.20.16:631/ipp/print"));
     }
 
     #[test]
