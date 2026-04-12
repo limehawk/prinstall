@@ -118,10 +118,12 @@ pub fn run(executor: &dyn PsExecutor, json: bool, verbose: bool) {
             if json {
                 println!("[]");
             } else {
-                println!(
-                    "\n{}",
-                    output::dim("No extracted drivers found. Run 'prinstall add <ip>' or 'prinstall sdi prefetch' first.")
-                );
+                eprintln!();
+                eprintln!("  {}  No extracted drivers found.", output::dim("○"));
+                eprintln!();
+                eprintln!("  Run {} to install a printer first, or", output::accent("prinstall add <ip>"));
+                eprintln!("  run {} to pre-cache the full pack.", output::accent("prinstall sdi prefetch"));
+                eprintln!();
             }
             return;
         }
@@ -130,7 +132,7 @@ pub fn run(executor: &dyn PsExecutor, json: bool, verbose: bool) {
             if json {
                 println!("[]");
             } else {
-                println!("\n{}", output::err_text(&e));
+                eprintln!("\n{}", output::err_text(&e));
             }
             return;
         }
@@ -145,11 +147,7 @@ pub fn run(executor: &dyn PsExecutor, json: bool, verbose: bool) {
             .unwrap_or("unknown");
 
         if !json {
-            println!(
-                "\nVerifying {} .cat files in {}/...\n",
-                output::accent(&cats.len().to_string()),
-                output::dim(&format!("sdi/extracted/{pack_name}"))
-            );
+            print_header(pack_name, cats.len());
         }
 
         let results = verify_cats(executor, cats, verbose);
@@ -159,7 +157,7 @@ pub fn run(executor: &dyn PsExecutor, json: bool, verbose: bool) {
             let report = build_report(pack_name, &stats);
             all_reports.push(report);
         } else {
-            print_table(pack_name, &stats);
+            print_dashboard(&stats);
         }
     }
 
@@ -389,66 +387,169 @@ fn aggregate_by_manufacturer(pack_dir: &Path, results: &[CatResult]) -> Vec<Manu
 
 // ── Output ──────────────────────────────────────────────────────────────────
 
-fn print_table(_pack_name: &str, stats: &[ManufacturerStats]) {
-    let name_w = stats.iter().map(|s| s.name.len()).max().unwrap_or(10).max(10);
+const DASH_WIDTH: usize = 56;
+
+fn print_header(pack_name: &str, cat_count: usize) {
+    eprintln!();
+    eprintln!("{}", output::header(&"━".repeat(DASH_WIDTH)));
+    eprintln!("  {}  {}", output::accent("SDI Driver Verification"), output::dim("Authenticode .cat check"));
+    eprintln!("{}", output::header(&"━".repeat(DASH_WIDTH)));
+    eprintln!();
+    eprintln!("  {}  {}", output::label("Pack:"), output::accent(pack_name));
+    eprintln!("  {}  {} .cat files found", output::label("Scan:"), output::accent(&cat_count.to_string()));
+    eprintln!();
+}
+
+fn print_dashboard(stats: &[ManufacturerStats]) {
+    // ── Per-manufacturer section ────────────────────────────────────
+    eprintln!("{}", output::header(&format!("━━ Manufacturers {}", "━".repeat(DASH_WIDTH - 18))));
+    eprintln!();
+
+    let name_w = stats.iter().map(|s| s.name.len()).max().unwrap_or(8).max(8);
+    let max_total = stats.iter().map(|s| s.total).max().unwrap_or(1).max(1);
+    let bar_max = 20; // max width of the progress bar
 
     for s in stats {
-        let valid_str = if s.valid == s.total {
-            output::ok(&format!("{} valid", s.valid))
+        // Status icon
+        let icon = if s.invalid > 0 {
+            output::err_text("✗")
+        } else if s.unsigned > 0 {
+            output::warn("○")
         } else {
-            format!("{} valid", s.valid)
-        };
-        let invalid_str = if s.invalid > 0 {
-            output::err_text(&format!("{} invalid", s.invalid))
-        } else {
-            output::dim(&format!("{} invalid", s.invalid))
-        };
-        let unsigned_str = if s.unsigned > 0 {
-            output::warn(&format!("{} unsigned", s.unsigned))
-        } else {
-            output::dim(&format!("{} unsigned", s.unsigned))
-        };
-        let signers_str = if s.signers.is_empty() {
-            output::dim("(no signer)")
-        } else {
-            output::dim(&format!("Signers: {}", s.signers.join(", ")))
+            output::ok("✓")
         };
 
-        println!(
-            "  {:<w$}  {:>3} drivers   {}   {}   {}   {}",
-            s.name,
-            s.total,
-            valid_str,
-            invalid_str,
-            unsigned_str,
-            signers_str,
-            w = name_w,
+        // Progress bar
+        let bar_filled = (s.valid * bar_max) / max_total;
+        let bar_empty = bar_max - bar_filled;
+        let bar = format!(
+            "{}{}",
+            output::ok(&"█".repeat(bar_filled)),
+            output::dim(&"░".repeat(bar_empty)),
         );
+
+        // Count
+        let count_str = format!("{}/{}", s.valid, s.total);
+
+        eprintln!(
+            "  {icon}  {name:<w$}  {bar}  {count}",
+            name = output::accent(&s.name),
+            bar = bar,
+            count = if s.valid == s.total {
+                output::ok(&count_str)
+            } else {
+                output::warn(&count_str)
+            },
+            w = name_w + ansi_len_overhead(&output::accent(&s.name), s.name.len()),
+        );
+
+        // Signer line (indented under the bar)
+        if !s.signers.is_empty() {
+            eprintln!(
+                "     {:<w$}  {}",
+                "",
+                output::dim(&format!("└─ {}", s.signers.join(", "))),
+                w = name_w,
+            );
+        }
+
+        // Invalid/unsigned detail
+        if s.invalid > 0 {
+            eprintln!(
+                "     {:<w$}  {}",
+                "",
+                output::err_text(&format!("└─ {} hash mismatch — driver files may be tampered", s.invalid)),
+                w = name_w,
+            );
+        }
+        if s.unsigned > 0 {
+            eprintln!(
+                "     {:<w$}  {}",
+                "",
+                output::warn(&format!("└─ {} unsigned — no vendor certificate", s.unsigned)),
+                w = name_w,
+            );
+        }
     }
 
-    // Totals
+    // ── Grand totals ────────────────────────────────────────────────
     let total: usize = stats.iter().map(|s| s.total).sum();
     let valid: usize = stats.iter().map(|s| s.valid).sum();
     let unsigned: usize = stats.iter().map(|s| s.unsigned).sum();
     let invalid: usize = stats.iter().map(|s| s.invalid).sum();
+    let mfr_count = stats.len();
 
-    println!("\n{}", output::header(&"━".repeat(46)));
-    println!(
-        "  {} total   {} valid   {} invalid   {} unsigned",
-        output::accent(&total.to_string()),
-        output::ok(&valid.to_string()),
-        if invalid > 0 { output::err_text(&invalid.to_string()) } else { output::dim(&invalid.to_string()) },
-        if unsigned > 0 { output::warn(&unsigned.to_string()) } else { output::dim(&unsigned.to_string()) },
-    );
-    println!("{}", output::header(&"━".repeat(46)));
+    // Unique signers across all manufacturers
+    let mut all_signers: Vec<String> = stats
+        .iter()
+        .flat_map(|s| s.signers.iter().cloned())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    all_signers.sort();
 
+    eprintln!();
+    eprintln!("{}", output::header(&format!("━━ Summary {}", "━".repeat(DASH_WIDTH - 12))));
+    eprintln!();
+
+    // Big verdict line
+    if invalid == 0 && unsigned == 0 {
+        eprintln!(
+            "  {}  All {} drivers across {} vendors verified",
+            output::ok("✓ PASS"),
+            output::accent(&total.to_string()),
+            output::accent(&mfr_count.to_string()),
+        );
+    } else if invalid > 0 {
+        eprintln!(
+            "  {}  {} of {} drivers have hash mismatches",
+            output::err_text("✗ FAIL"),
+            output::err_text(&invalid.to_string()),
+            total,
+        );
+    } else {
+        eprintln!(
+            "  {}  {} valid, {} unsigned (no vendor cert)",
+            output::warn("○ PARTIAL"),
+            output::ok(&valid.to_string()),
+            output::warn(&unsigned.to_string()),
+        );
+    }
+
+    eprintln!();
+
+    // Stats block
+    eprintln!("  {}   {}", output::label("Drivers:"), format!("{total} total, {valid} signed, {unsigned} unsigned, {invalid} tampered"));
+    eprintln!("  {}   {}", output::label("Vendors:"), output::dim(&mfr_count.to_string()));
+    if !all_signers.is_empty() {
+        eprintln!("  {}   {}", output::label("Signers:"), output::dim(&all_signers.join(", ")));
+    }
+
+    eprintln!();
+    eprintln!("{}", output::header(&"━".repeat(DASH_WIDTH)));
+
+    // Actionable guidance
     if invalid > 0 {
-        println!(
-            "\n  {} Hash mismatches detected. Run {} to re-download.",
+        eprintln!();
+        eprintln!(
+            "  {} Re-download with: {}",
             output::err_text("!"),
             output::accent("prinstall sdi clean && prinstall sdi prefetch"),
         );
+        eprintln!();
+    } else if total > 0 && invalid == 0 {
+        eprintln!();
+        eprintln!(
+            "  {} Every driver is signed by its vendor and chains to Microsoft's root CA.",
+            output::dim("ℹ"),
+        );
+        eprintln!();
     }
+}
+
+/// Calculate ANSI escape overhead for column alignment.
+fn ansi_len_overhead(styled: &str, visible_len: usize) -> usize {
+    styled.len().saturating_sub(visible_len)
 }
 
 fn build_report(pack_name: &str, stats: &[ManufacturerStats]) -> VerifyReport {
