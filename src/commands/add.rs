@@ -32,6 +32,9 @@ pub struct AddArgs<'a> {
     pub name_override: Option<&'a str>,
     pub model_override: Option<&'a str>,
     pub usb: bool,
+    pub no_sdi: bool,
+    pub no_catalog: bool,
+    pub sdi_fetch: bool,
     pub community: &'a str,
     pub verbose: bool,
 }
@@ -134,13 +137,67 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         return primary_result;
     }
 
+    // ── Step 5.5: SDI resolver (Tier 2.5 — Snappy Driver Installer) ─────
+    // Only attempt when (a) we have a device ID, (b) SDI is not disabled
+    // via --no-sdi or config.sdi.enabled, and (c) the SDI cache has
+    // indexed indexes to search.
+    //
+    // When an SDI match is found AND the pack is cached (or --sdi-fetch
+    // is set), we extract the driver's subdirectory from the cached .7z,
+    // stage the INF via pnputil, and retry the three-step install. If
+    // the pack isn't cached and --sdi-fetch isn't set, we log a visible
+    // warning and fall through to Tier 3 catalog.
+    if !args.no_sdi {
+        if let Some(ref dev_id) = device_id {
+            if let Ok(mut cache) = drivers::sdi::cache::SdiCache::load() {
+                // Auto-register any .7z packs that exist on disk but aren't
+                // in metadata yet (e.g., manually copied by the tech).
+                let newly_registered = cache.auto_register_packs();
+                if newly_registered > 0 && verbose {
+                    eprintln!("[sdi] Auto-registered {newly_registered} pack(s) from sdi/drivers/");
+                }
+                let candidates = drivers::sdi::resolver::enumerate_candidates(dev_id, &cache);
+                if let Some(best) = pick_sdi_candidate(&candidates, args.sdi_fetch) {
+                    if verbose {
+                        eprintln!(
+                            "[sdi] SDI match found: '{}' ({:?})",
+                            best.driver_name,
+                            best.source
+                        );
+                    }
+                    match try_sdi_install(best, target, &printer_name, &model, verbose) {
+                        Some(result) => return result,
+                        None => {
+                            if verbose {
+                                eprintln!("[sdi] SDI install did not succeed — falling through to catalog resolver.");
+                            }
+                        }
+                    }
+                } else if !candidates.is_empty() && verbose {
+                    // We have matches but all are uncached and --sdi-fetch wasn't set
+                    eprintln!(
+                        "[sdi] SDI has {} match(es) but the pack is not cached.",
+                        candidates.len()
+                    );
+                    eprintln!(
+                        "[sdi] Run `prinstall sdi prefetch` to pre-cache, or re-run with --sdi-fetch."
+                    );
+                }
+            }
+        }
+    }
+
     // ── Step 6: Catalog resolver (Tier 3 in the driver-picking pipeline) ─
     // Only attempt when we have an IPP device ID — the resolver needs the
     // CID to run a targeted catalog search. When the resolver finds a
     // verified-matching INF, we stage it and retry the three-step install
     // using the INF's display name (which becomes the registered driver
     // name in the Windows driver store).
-    if let Some(ref dev_id) = device_id {
+    if args.no_catalog {
+        if verbose {
+            eprintln!("[add] Catalog resolver disabled (--no-catalog). Skipping.");
+        }
+    } else if let Some(ref dev_id) = device_id {
         if verbose {
             eprintln!(
                 "[add] Primary install failed. Trying catalog resolver with device ID..."
@@ -230,6 +287,176 @@ fn annotate_catalog_success(
         ));
         // Re-wrap with the updated detail. Ignore serialization failures —
         // the install itself still succeeded so keep the original result.
+        if let Ok(value) = serde_json::to_value(&detail) {
+            result.detail = value;
+        }
+    }
+    result
+}
+
+/// Pick the best SDI candidate from the enumeration. Prefers cached packs
+/// (free, no download). Only considers uncached packs if `allow_uncached`
+/// is true (`--sdi-fetch` flag).
+fn pick_sdi_candidate<'a>(
+    candidates: &'a [drivers::sources::SourceCandidate],
+    allow_uncached: bool,
+) -> Option<&'a drivers::sources::SourceCandidate> {
+    // Prefer cached — effectively free, no network, no prompt.
+    if let Some(c) = candidates
+        .iter()
+        .find(|c| c.source == drivers::sources::Source::SdiCached)
+    {
+        return Some(c);
+    }
+    // Uncached only if explicitly allowed via --sdi-fetch.
+    if allow_uncached {
+        candidates
+            .iter()
+            .find(|c| c.source == drivers::sources::Source::SdiUncached)
+    } else {
+        None
+    }
+}
+
+/// Attempt to install a printer using a matched SDI candidate. Returns
+/// `Some(result)` on success (install completed with SDI-annotated
+/// result), `None` if the SDI path failed at any step (extraction,
+/// staging, or retry install) and the caller should fall through to the
+/// next tier.
+fn try_sdi_install(
+    candidate: &drivers::sources::SourceCandidate,
+    target: &str,
+    printer_name: &str,
+    model: &str,
+    verbose: bool,
+) -> Option<PrinterOpResult> {
+    let (pack_path, inf_dir_prefix, inf_filename) = match &candidate.install_hint {
+        drivers::sources::InstallHint::SdiCached {
+            pack_path,
+            inf_dir_prefix,
+            inf_filename,
+        } => (pack_path.clone(), inf_dir_prefix.clone(), inf_filename.clone()),
+        // SdiUncached would need fetcher calls here. Deferred until the
+        // SDI mirror is published — for now only cached packs work.
+        _ => {
+            if verbose {
+                eprintln!("[sdi] Skipping non-cached SDI candidate (pack fetch not yet implemented).");
+            }
+            return None;
+        }
+    };
+
+    // Extract the driver's subdirectory from the cached pack. Uses a
+    // PERSISTENT extraction cache under sdi/extracted/<pack_stem>/ so
+    // the slow solid-LZMA2 decompression only happens once per pack.
+    // Subsequent installs from the same pack (same or different driver)
+    // read directly from the extracted tree — sub-second, no 7z touch.
+    let pack_stem = pack_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown");
+    let extract_dir = crate::paths::sdi_dir().join("extracted").join(pack_stem);
+
+    // Check if this driver was already extracted in a previous run.
+    // The persistent extraction cache means the slow 7z decompression
+    // only happens once per pack — every subsequent install reads from
+    // the extracted tree directly.
+    let mut cached_inf = extract_dir.clone();
+    for seg in inf_dir_prefix.split('/').filter(|s| !s.is_empty()) {
+        cached_inf.push(seg);
+    }
+    cached_inf.push(&inf_filename);
+
+    let extracted_inf = if cached_inf.is_file() {
+        if verbose {
+            eprintln!(
+                "[sdi] Using cached extraction: {}",
+                cached_inf.display()
+            );
+        }
+        cached_inf
+    } else {
+        if verbose {
+            eprintln!(
+                "[sdi] Extracting {}{} from {} (first run — this takes a few minutes for solid LZMA2 packs)",
+                inf_dir_prefix,
+                inf_filename,
+                pack_path.display()
+            );
+        }
+        match drivers::sdi::pack::extract_driver_directory(
+            &pack_path,
+            &inf_dir_prefix,
+            &inf_filename,
+            &extract_dir,
+        ) {
+            Ok(p) => p,
+            Err(e) => {
+                if verbose {
+                    eprintln!("[sdi] Extraction failed: {e}");
+                }
+                return None;
+            }
+        }
+    };
+
+    // Stage the extracted INF + siblings via pnputil /add-driver
+    let inf_str = extracted_inf.to_string_lossy().to_string();
+    if verbose {
+        eprintln!("[sdi] Staging INF: {inf_str}");
+    }
+    let stage = installer::powershell::stage_driver_inf(&inf_str, verbose);
+    if !stage.success {
+        if verbose {
+            eprintln!(
+                "[sdi] INF staging failed: {} — falling through.",
+                ps_error::clean(&stage.stderr)
+            );
+        }
+        return None;
+    }
+
+    // Retry the three-step install with the SDI-resolved driver name.
+    let retry = installer::install_printer(
+        target,
+        &candidate.driver_name,
+        printer_name,
+        model,
+        verbose,
+    );
+    if retry.success {
+        Some(annotate_sdi_success(retry, candidate))
+    } else {
+        if verbose {
+            eprintln!("[sdi] Retry install with SDI driver failed — falling through.");
+        }
+        None
+    }
+}
+
+/// Attach an SDI-success note to an otherwise-successful install result
+/// so the CLI output and JSON payload show that the SDI tier landed the
+/// driver. Mirrors the shape of [`annotate_catalog_success`].
+fn annotate_sdi_success(
+    mut result: PrinterOpResult,
+    candidate: &drivers::sources::SourceCandidate,
+) -> PrinterOpResult {
+    if let Some(mut detail) = result.detail_as::<InstallDetail>() {
+        let ver = candidate
+            .driver_version
+            .as_deref()
+            .map(|v| format!(" (DriverVer {v})"))
+            .unwrap_or_default();
+        let provider = candidate
+            .provider
+            .as_deref()
+            .unwrap_or("unknown");
+        detail.warning = Some(format!(
+            "Installed via SDI: '{}' from {} [{:?}]{ver}.",
+            candidate.driver_name,
+            provider,
+            candidate.source,
+        ));
         if let Ok(value) = serde_json::to_value(&detail) {
             result.detail = value;
         }
