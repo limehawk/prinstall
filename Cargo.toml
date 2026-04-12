@@ -22,7 +22,7 @@ zip = "8"
 cab = "0.6"
 sevenz-rust2 = { version = "0.20", default-features = false, features = ["compress"] }
 lzma-rs = "0.3"
-sha2 = "0.10"
+sha2 = "0.11"
 indicatif = "0.18"
 scraper = "0.26"
 regex = "1"
