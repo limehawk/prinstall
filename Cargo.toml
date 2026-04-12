@@ -23,7 +23,7 @@ cab = "0.6"
 sevenz-rust2 = { version = "0.20", default-features = false, features = ["compress"] }
 lzma-rs = "0.3"
 sha2 = "0.10"
-indicatif = "0.17"
+indicatif = "0.18"
 scraper = "0.26"
 regex = "1"
 mdns-sd = "0.19"
