@@ -1,6 +1,6 @@
 //! Persistent application configuration.
 //!
-//! Stored as TOML at `paths::config_path()` (`%APPDATA%\prinstall\config.toml`
+//! Stored as TOML at `paths::config_path()` (`%PROGRAMDATA%\prinstall\config.toml`
 //! on Windows). Absent-file and malformed-file both degrade gracefully to
 //! defaults — prinstall never fails to start because of a bad config.
 
