@@ -149,7 +149,13 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     // warning and fall through to Tier 3 catalog.
     if !args.no_sdi {
         if let Some(ref dev_id) = device_id {
-            if let Ok(cache) = drivers::sdi::cache::SdiCache::load() {
+            if let Ok(mut cache) = drivers::sdi::cache::SdiCache::load() {
+                // Auto-register any .7z packs that exist on disk but aren't
+                // in metadata yet (e.g., manually copied by the tech).
+                let newly_registered = cache.auto_register_packs();
+                if newly_registered > 0 && verbose {
+                    eprintln!("[sdi] Auto-registered {newly_registered} pack(s) from sdi/drivers/");
+                }
                 let candidates = drivers::sdi::resolver::enumerate_candidates(dev_id, &cache);
                 if let Some(best) = pick_sdi_candidate(&candidates, args.sdi_fetch) {
                     if verbose {
@@ -340,33 +346,57 @@ fn try_sdi_install(
         }
     };
 
-    // Extract the driver's subdirectory from the cached pack to a temp
-    // staging area. Uses the same staging_dir() root as the catalog
-    // resolver so cleanup patterns are consistent.
-    let extract_id = chrono::Utc::now().timestamp_millis();
-    let extract_dir = crate::paths::staging_dir().join(format!("sdi-{extract_id}"));
+    // Extract the driver's subdirectory from the cached pack. Uses a
+    // PERSISTENT extraction cache under sdi/extracted/<pack_stem>/ so
+    // the slow solid-LZMA2 decompression only happens once per pack.
+    // Subsequent installs from the same pack (same or different driver)
+    // read directly from the extracted tree — sub-second, no 7z touch.
+    let pack_stem = pack_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown");
+    let extract_dir = crate::paths::sdi_dir().join("extracted").join(pack_stem);
 
-    if verbose {
-        eprintln!(
-            "[sdi] Extracting {}{} from {}",
-            inf_dir_prefix,
-            inf_filename,
-            pack_path.display()
-        );
+    // Check if this driver was already extracted in a previous run.
+    // The persistent extraction cache means the slow 7z decompression
+    // only happens once per pack — every subsequent install reads from
+    // the extracted tree directly.
+    let mut cached_inf = extract_dir.clone();
+    for seg in inf_dir_prefix.split('/').filter(|s| !s.is_empty()) {
+        cached_inf.push(seg);
     }
+    cached_inf.push(&inf_filename);
 
-    let extracted_inf = match drivers::sdi::pack::extract_driver_directory(
-        &pack_path,
-        &inf_dir_prefix,
-        &inf_filename,
-        &extract_dir,
-    ) {
-        Ok(p) => p,
-        Err(e) => {
-            if verbose {
-                eprintln!("[sdi] Extraction failed: {e}");
+    let extracted_inf = if cached_inf.is_file() {
+        if verbose {
+            eprintln!(
+                "[sdi] Using cached extraction: {}",
+                cached_inf.display()
+            );
+        }
+        cached_inf
+    } else {
+        if verbose {
+            eprintln!(
+                "[sdi] Extracting {}{} from {} (first run — this takes a few minutes for solid LZMA2 packs)",
+                inf_dir_prefix,
+                inf_filename,
+                pack_path.display()
+            );
+        }
+        match drivers::sdi::pack::extract_driver_directory(
+            &pack_path,
+            &inf_dir_prefix,
+            &inf_filename,
+            &extract_dir,
+        ) {
+            Ok(p) => p,
+            Err(e) => {
+                if verbose {
+                    eprintln!("[sdi] Extraction failed: {e}");
+                }
+                return None;
             }
-            return None;
         }
     };
 

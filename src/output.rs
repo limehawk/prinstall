@@ -562,8 +562,17 @@ pub fn format_install_result(result: &PrinterOpResult) -> String {
     if !detail.port_name.is_empty() {
         out.push_str(&format!("  {} {}\n", label("Port:  "), detail.port_name));
     }
-    if let Some(ref warning) = detail.warning {
-        out.push_str(&format!("\n  {} {warning}\n", warn("WARNING:")));
+    if let Some(ref note) = detail.warning {
+        // "Installed via SDI" and "Installed via Microsoft Update Catalog"
+        // are informational breadcrumbs — the install succeeded with a
+        // real vendor driver. Only the IPP Class Driver fallback deserves
+        // an actual WARNING label (it's a degraded experience).
+        let prefix = if note.contains("IPP Class Driver") {
+            warn("WARNING:")
+        } else {
+            dim("SOURCE:")
+        };
+        out.push_str(&format!("\n  {prefix} {note}\n"));
     }
     out
 }
