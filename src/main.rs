@@ -133,6 +133,10 @@ async fn cmd_sdi(action: &cli::SdiAction, cli: &cli::Cli) {
         cli::SdiAction::List => commands::sdi::list(cli.verbose),
         cli::SdiAction::Prefetch => commands::sdi::prefetch(cli.verbose).await,
         cli::SdiAction::Clean => commands::sdi::clean(cli.verbose),
+        cli::SdiAction::Verify => {
+            let executor = RealExecutor::new(cli.verbose);
+            commands::sdi_verify::run(&executor, cli.json, cli.verbose);
+        }
     }
 }
 

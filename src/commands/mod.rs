@@ -8,3 +8,5 @@ pub mod drivers;
 pub mod remove;
 #[cfg(feature = "sdi")]
 pub mod sdi;
+#[cfg(feature = "sdi")]
+pub mod sdi_verify;
