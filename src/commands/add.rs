@@ -33,6 +33,7 @@ pub struct AddArgs<'a> {
     pub name_override: Option<&'a str>,
     pub model_override: Option<&'a str>,
     pub usb: bool,
+    pub force: bool,
     pub no_sdi: bool,
     pub no_catalog: bool,
     pub sdi_fetch: bool,
@@ -78,6 +79,20 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
             ));
         }
     };
+
+    // ── Early check: printer already installed at this IP? ──────────────
+    let port_name = format!("IP_{target}");
+    if let Some(existing_queue) = installer::powershell::find_printer_on_port(&port_name, verbose) {
+        if args.force {
+            if verbose {
+                eprintln!("[add] Printer already installed as '{existing_queue}' — --force set, proceeding with reinstall");
+            }
+        } else {
+            return PrinterOpResult::err(format!(
+                "Printer already installed at {target} as '{existing_queue}'. Use --force to reinstall."
+            ));
+        }
+    }
 
     // ── Step 1: resolve the printer model via SNMP ────────────────────────
     let model = if let Some(m) = args.model_override {
@@ -186,7 +201,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                     report.resolution.add_tier("Catalog", TierStatus::Failed, "driver staged but install failed");
                 } else {
                     report.resolution.add_tier("Catalog", TierStatus::Failed,
-                        &format!("staging failed: {}", ps_error::clean(&stage_result.stderr)));
+                        &format!("staging failed: {}", stage_result.error_summary()));
                 }
             }
             Err(e) => {
@@ -438,7 +453,7 @@ fn try_sdi_install(
         if verbose {
             eprintln!(
                 "[sdi] INF staging failed: {} — falling through.",
-                ps_error::clean(&stage.stderr)
+                stage.error_summary()
             );
         }
         return None;
@@ -607,7 +622,7 @@ async fn stage_driver_if_needed(
                     eprintln!(
                         "[add] Warning: failed to stage {}: {}",
                         inf.display(),
-                        ps_error::clean(&stage_result.stderr)
+                        stage_result.error_summary()
                     );
                 }
             }

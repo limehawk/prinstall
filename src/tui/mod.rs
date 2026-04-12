@@ -81,9 +81,13 @@ impl App {
     pub fn new(community: String, subnet_override: Option<String>) -> Self {
         let (msg_tx, msg_rx) = mpsc::unbounded_channel();
 
-        let subnet = subnet_override
+        let raw_subnet = subnet_override
             .or_else(|| discovery::subnet::auto_detect_subnet(false))
             .unwrap_or_else(|| "192.168.1.0/24".to_string());
+
+        // Normalize so host bits are masked off: `10.10.20.1/24` → `10.10.20.0/24`
+        let subnet = discovery::subnet::normalize_cidr(&raw_subnet)
+            .unwrap_or(raw_subnet);
 
         let mut printer_list_state = ListState::default();
         printer_list_state.select(Some(0));
