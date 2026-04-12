@@ -35,11 +35,13 @@ MSP technicians burn hours on printer installs. Find the IP, hunt the driver, wr
 ## Features
 
 - **Multi-method discovery** — TCP port probe, IPP, SNMP, mDNS/Bonjour, and `Get-Printer` in one parallel pipeline
-- **Deterministic driver resolution** — scrapes the Update Catalog, parses the INF, matches the synthesized HWID
+- **Deterministic driver resolution** — scrapes the Microsoft Update Catalog, downloads the CAB, parses the INF, and matches the synthesized HWID before installing
+- **Structured output** — every `prinstall add` shows a phased report (Discovery → Driver Resolution → Install → Summary) with tier status and timing. `--verbose` adds raw PS commands for debugging
 - **Network + USB** — one binary, both install paths, idempotent
 - **Clean remove** — queue, driver, and port teardown with spooler-lag retries
 - **Readable errors** — PowerShell stderr parsed and HRESULT-decoded before you see it
-- **Scriptable CLI, lazy-style TUI** — `--json` for RMM automation, two-panel ratatui when you're on a real terminal
+- **Scriptable CLI** — `--json` on every command for RMM automation, semantic coloring that respects `NO_COLOR`
+- **SDI driver packs** *(opt-in)* — build with `--features sdi` to add Snappy Driver Installer Origin integration for Brother, Canon, Epson, Ricoh, and other vendors the Update Catalog doesn't carry
 
 ## Install
 
@@ -65,22 +67,23 @@ prinstall add 192.168.1.50            # install it
 prinstall remove 192.168.1.50         # rip it out cleanly
 ```
 
-Every command takes `--json` for scripting and `--verbose` for the full audit trail.
+Every command takes `--json` for scripting and `--verbose` for the raw PS audit trail.
 
-## The four-tier driver resolver
+## The driver pipeline
 
 `prinstall add` walks the pipeline in priority order and only escalates when the previous tier comes up empty:
 
 ```
   TIER 1   Local driver store         Reuse what's already installed
-  TIER 2   Manufacturer download      Pull from the embedded URL manifest
-  TIER 3   Update Catalog + HWID      Search by IPP CID, parse INF, match hardware ID
-  TIER 4   IPP Class Driver           The always-works safety net (Windows 8+)
+  TIER 2   Manufacturer download      HP, Xerox, Kyocera — stable direct URLs
+  TIER 3   Update Catalog + HWID      Search by IPP CID, download CAB, parse INF, match HWID
+  TIER 4   SDI Origin (opt-in)        Community driver packs — Brother, Canon, Epson, Ricoh
+  TIER 5   IPP Class Driver           The always-works safety net (Windows 8+)
 ```
 
-Tier 3 is the clever bit — it downloads a candidate driver package, parses the INF, and confirms a `1284_CID_*` hardware-ID match **before** installing. No gambling on model names.
+Tier 3 is the default workhorse — it scrapes the Microsoft Update Catalog, downloads a candidate CAB, parses the INF, and confirms a `1284_CID_*` hardware-ID match **before** installing. No gambling on model names.
 
-Full writeup: [Driver Resolution on the wiki](https://github.com/limehawk/prinstall/wiki/Driver-Resolution).
+Tier 4 (SDI) is compiled in only with `cargo build --features sdi`. It provides vendor-specific drivers for brands the Update Catalog doesn't reliably carry, using Snappy Driver Installer Origin's community-maintained driver packs.
 
 ## Docs
 
@@ -101,6 +104,6 @@ MIT. Built by [limehawk](https://limehawk.io).
 
 <div align="center">
 
-*Built in Rust  ·  Born in an RMM shell  ·  Designed for techs who just want the printer to work*
+*Built in Rust  ·  8 MB binary  ·  Designed for techs who just want the printer to work*
 
 </div>
