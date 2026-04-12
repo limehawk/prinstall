@@ -105,6 +105,7 @@ async fn cmd_add(
         name_override,
         model_override,
         usb,
+        force: cli.force,
         no_sdi,
         no_catalog,
         sdi_fetch,
@@ -158,7 +159,7 @@ async fn cmd_scan(
         }
         (String::from("(mdns)"), Vec::new())
     } else {
-        let cidr = match subnet {
+        let raw_cidr = match subnet {
             Some(s) => s,
             None => {
                 if cli.verbose {
@@ -182,6 +183,16 @@ async fn cmd_scan(
             }
         };
 
+        // Normalize so `10.10.20.1/24` becomes `10.10.20.0/24` — the
+        // host bits are masked off by the prefix length.
+        let cidr = match discovery::subnet::normalize_cidr(&raw_cidr) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        };
+
         if let Err(e) = discovery::subnet::validate_subnet_size(&cidr, cli.force) {
             eprintln!("Error: {e}");
             std::process::exit(1);
@@ -202,7 +213,7 @@ async fn cmd_scan(
         (cidr, hosts)
     };
 
-    let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(100));
+    let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(500));
 
     let printers = discovery::scan_subnet(
         hosts,

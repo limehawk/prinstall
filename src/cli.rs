@@ -92,7 +92,7 @@ pub enum Commands {
         #[arg(long)]
         method: Option<String>,
 
-        /// Per-host timeout in milliseconds [default: 100]
+        /// Per-host timeout in milliseconds [default: 500]
         #[arg(long)]
         timeout: Option<u64>,
     },

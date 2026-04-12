@@ -70,4 +70,27 @@ mod subnet_parse_test {
         use prinstall::discovery::subnet::parse_auto_detect_output;
         assert_eq!(parse_auto_detect_output(""), None);
     }
+
+    #[test]
+    fn host_ip_produces_same_range_as_network_ip() {
+        let from_network = prinstall::discovery::subnet::parse_cidr("10.10.20.0/24").unwrap();
+        let from_host = prinstall::discovery::subnet::parse_cidr("10.10.20.1/24").unwrap();
+        assert_eq!(from_network, from_host);
+    }
+
+    #[test]
+    fn host_ip_in_middle_produces_same_range() {
+        let from_network = prinstall::discovery::subnet::parse_cidr("10.10.20.0/24").unwrap();
+        let from_mid = prinstall::discovery::subnet::parse_cidr("10.10.20.16/24").unwrap();
+        assert_eq!(from_network, from_mid);
+    }
+
+    #[test]
+    fn normalize_masks_host_bits() {
+        use prinstall::discovery::subnet::normalize_cidr;
+        assert_eq!(normalize_cidr("10.10.20.1/24").unwrap(), "10.10.20.0/24");
+        assert_eq!(normalize_cidr("10.10.20.0/24").unwrap(), "10.10.20.0/24");
+        assert_eq!(normalize_cidr("10.10.20.16/24").unwrap(), "10.10.20.0/24");
+        assert_eq!(normalize_cidr("192.168.1.100/28").unwrap(), "192.168.1.96/28");
+    }
 }

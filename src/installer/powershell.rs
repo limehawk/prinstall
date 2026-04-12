@@ -10,6 +10,31 @@ pub struct PsResult {
     pub stderr: String,
 }
 
+impl PsResult {
+    /// Extract a human-readable error message from this result.
+    ///
+    /// Tries stderr first (via `ps_error::clean()`), then falls back to the
+    /// first non-empty line of stdout (some tools like `pnputil` write errors
+    /// there), then a generic fallback so callers never get an empty string.
+    pub fn error_summary(&self) -> String {
+        let cleaned = ps_error::clean(&self.stderr);
+        if !cleaned.is_empty() {
+            return cleaned;
+        }
+        // pnputil and other non-PS tools may report errors on stdout.
+        let first_stdout_line = self
+            .stdout
+            .lines()
+            .find(|l| !l.trim().is_empty())
+            .unwrap_or("")
+            .trim();
+        if !first_stdout_line.is_empty() {
+            return first_stdout_line.to_string();
+        }
+        "unknown error (no output captured)".to_string()
+    }
+}
+
 /// Escape a string for safe use inside PowerShell single quotes.
 /// Single quotes in PS are escaped by doubling them: ' → ''
 pub fn escape_ps_string(s: &str) -> String {
@@ -120,6 +145,25 @@ pub fn stage_driver_inf(inf_path: &str, verbose: bool) -> PsResult {
         escape_ps_string(inf_path)
     );
     run_ps(&cmd, verbose)
+}
+
+/// Find the printer queue name assigned to a given port (e.g. `IP_192.168.1.50`).
+/// Returns `Some(queue_name)` if a printer is bound to that port, `None` otherwise.
+pub fn find_printer_on_port(port_name: &str, verbose: bool) -> Option<String> {
+    let cmd = format!(
+        "Get-Printer | Where-Object {{ $_.PortName -eq '{}' }} | Select-Object -ExpandProperty Name -First 1",
+        escape_ps_string(port_name)
+    );
+    let result = run_ps(&cmd, verbose);
+    if !result.success {
+        return None;
+    }
+    let name = result.stdout.trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    }
 }
 
 /// Check if a printer queue with the given name already exists.
