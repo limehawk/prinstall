@@ -204,6 +204,24 @@ pub enum Commands {
         /// swap driver via Set-Printer instead of Add-Printer
         #[arg(long)]
         usb: bool,
+
+        /// Disable the SDI (Snappy Driver Installer Origin) driver tier
+        /// for this run. Falls through directly to Microsoft Update
+        /// Catalog / IPP fallback.
+        #[arg(long)]
+        no_sdi: bool,
+
+        /// Disable the Microsoft Update Catalog driver tier for this
+        /// run. Skips the catalog.update.microsoft.com HTTP scraper.
+        #[arg(long)]
+        no_catalog: bool,
+
+        /// Allow auto-pick to trigger a first-run SDI pack download.
+        /// Without this flag, uncached SDI packs are skipped with a
+        /// visible warning. Use `prinstall sdi prefetch` to pre-cache
+        /// instead if you prefer.
+        #[arg(long)]
+        sdi_fetch: bool,
     },
 
     /// Remove a printer queue, with optional cleanup of driver and port
@@ -273,4 +291,29 @@ pub enum Commands {
             No admin privileges required. Safe to run from any shell."
     )]
     List,
+
+    /// Manage the SDI (Snappy Driver Installer Origin) driver cache
+    ///
+    /// SDI provides vendor-specific printer drivers for brands the
+    /// Microsoft Update Catalog doesn't reliably carry (Brother, Canon,
+    /// Epson, Ricoh, etc.). The SDI cache stores index files (.bin) and
+    /// driver packs (.7z) fetched from the prinstall GitHub Releases
+    /// mirror.
+    #[command(subcommand)]
+    Sdi(SdiAction),
+}
+
+/// Actions for the `prinstall sdi` subcommand.
+#[derive(Debug, Clone, clap::Subcommand)]
+pub enum SdiAction {
+    /// Show SDI cache status: indexes, cached packs, total size, mirror URL
+    Status,
+    /// Refresh SDI indexes from the configured mirror
+    Refresh,
+    /// List cached indexes and driver packs with sizes
+    List,
+    /// Download all driver packs from the mirror (pre-stage for offline use)
+    Prefetch,
+    /// Drop cached packs past the configured size budget (LRU eviction)
+    Clean,
 }

@@ -6,3 +6,4 @@
 pub mod add;
 pub mod drivers;
 pub mod remove;
+pub mod sdi;

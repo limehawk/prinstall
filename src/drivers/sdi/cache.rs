@@ -386,6 +386,54 @@ impl SdiCache {
             .fold(0u64, |acc, n| acc.saturating_add(n))
     }
 
+    /// Scan `sdi/drivers/` for `.7z` files that are on disk but not yet
+    /// registered in metadata. Registers each one (computing its SHA256
+    /// and size) so that [`SdiCache::has_pack`] returns `true` for
+    /// manually-placed packs.
+    ///
+    /// Designed to be called at SDI-tier startup so a tech who copies a
+    /// pack into the cache directory via Explorer or `Copy-Item` doesn't
+    /// also have to run a special "register" subcommand.
+    ///
+    /// Returns the count of newly-registered packs. Already-registered
+    /// packs are left untouched. Registration failures for individual
+    /// files are logged and skipped — a corrupt or locked pack shouldn't
+    /// prevent the rest from being registered.
+    pub fn auto_register_packs(&mut self) -> usize {
+        let drivers_dir = self.root.join("drivers");
+        let entries = match fs::read_dir(&drivers_dir) {
+            Ok(e) => e,
+            Err(_) => return 0,
+        };
+
+        let mut count = 0;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let name = match path.file_name().and_then(|n| n.to_str()) {
+                Some(n) if n.ends_with(".7z") => n.to_string(),
+                _ => continue,
+            };
+            if self.metadata.packs.contains_key(&name) {
+                continue; // already registered
+            }
+            match self.register_pack(&name, &path) {
+                Ok(()) => {
+                    count += 1;
+                }
+                Err(e) => {
+                    eprintln!(
+                        "warning: failed to auto-register SDI pack {}: {e}",
+                        path.display()
+                    );
+                }
+            }
+        }
+        count
+    }
+
     /// Return the absolute cache root — primarily useful in tests that
     /// want to poke the filesystem directly.
     #[cfg(test)]
