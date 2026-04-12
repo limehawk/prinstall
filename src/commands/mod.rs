@@ -6,4 +6,5 @@
 pub mod add;
 pub mod drivers;
 pub mod remove;
+#[cfg(feature = "sdi")]
 pub mod sdi;

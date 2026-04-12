@@ -375,8 +375,8 @@ mod tests {
         // rely on exact-match wins over contains-match. The Remove-Printer
         // uses contains. Get-Printer info uses contains.
 
-        let before_json = r#"["Microsoft Print to PDF","Fax"]"#;
-        let after_json =
+        let _before_json = r#"["Microsoft Print to PDF","Fax"]"#;
+        let _after_json =
             r#"["Microsoft Print to PDF","Fax","Brother MFC-L2750DW series"]"#;
 
         // Use a stateful approach: register before-json first, then update

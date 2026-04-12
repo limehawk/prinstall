@@ -11,3 +11,4 @@ pub mod output;
 pub mod paths;
 pub mod privilege;
 pub mod tui;
+pub mod verbose;

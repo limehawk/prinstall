@@ -448,6 +448,113 @@
     .t-tag { color: var(--yellow); }
     .t-ok { color: var(--green); font-weight: 600; }
     .t-accent { color: var(--accent); font-weight: 600; }
+    .t-section { color: var(--cyan); font-weight: 600; }
+    .t-check { color: var(--green); }
+    .t-fail { color: var(--text-subtle); }
+    .t-star { color: var(--accent); font-weight: 600; }
+    .t-label { color: var(--cyan); }
+
+    /* NSFW mode toggle */
+    .nsfw-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-subtle);
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.15s;
+    }
+    .nsfw-toggle:hover { color: var(--text-dim); }
+    .nsfw-toggle .toggle-track {
+      width: 28px;
+      height: 16px;
+      background: var(--border-bright);
+      border-radius: 8px;
+      position: relative;
+      transition: background 0.2s;
+    }
+    .nsfw-toggle .toggle-knob {
+      width: 12px;
+      height: 12px;
+      background: var(--text-subtle);
+      border-radius: 50%;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s, background 0.2s;
+    }
+    body[data-nsfw] .nsfw-toggle .toggle-track { background: var(--red); }
+    body[data-nsfw] .nsfw-toggle .toggle-knob {
+      transform: translateX(12px);
+      background: var(--text);
+    }
+    body[data-nsfw] .nsfw-toggle { color: var(--red); }
+
+    /* Copy swapping */
+    .nsfw { display: none; }
+    .sfw { display: inline; }
+    body[data-nsfw] .nsfw { display: inline; }
+    body[data-nsfw] .sfw { display: none; }
+    /* Block-level variants */
+    .nsfw-block { display: none; }
+    .sfw-block { display: block; }
+    body[data-nsfw] .nsfw-block { display: block; }
+    body[data-nsfw] .sfw-block { display: none; }
+    .nsfw-flex { display: none; }
+    .sfw-flex { display: flex; }
+    body[data-nsfw] .nsfw-flex { display: flex; }
+    body[data-nsfw] .sfw-flex { display: none; }
+    /* Grid variants for feature sections */
+    .nsfw-grid { display: none; }
+    .sfw-grid { display: grid; }
+    body[data-nsfw] .nsfw-grid { display: grid; }
+    body[data-nsfw] .sfw-grid { display: none; }
+
+    /* NSFW community callout — only visible in NSFW mode */
+    .nsfw-callout {
+      display: none;
+      text-align: center;
+      padding: 64px 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    body[data-nsfw] .nsfw-callout { display: block; }
+    .nsfw-callout h2 {
+      font-size: clamp(28px, 4vw, 48px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+    .nsfw-callout .callout-body {
+      font-size: clamp(14px, 1.4vw, 17px);
+      color: var(--text-dim);
+      max-width: 580px;
+      margin: 0 auto 32px;
+      line-height: 1.6;
+    }
+    .nsfw-callout .btn {
+      border-color: var(--red);
+      color: var(--text);
+    }
+    .nsfw-callout .btn:hover {
+      background: rgba(255, 85, 85, 0.1);
+    }
+
+    /* NSFW theme — swap the entire accent palette to angry red */
+    body[data-nsfw] {
+      --accent: #ff5555;
+      --accent-bright: #ff7777;
+      --accent-dim: rgba(255, 85, 85, 0.12);
+    }
+    body[data-nsfw] .hero .hero-title .accent {
+      text-shadow: 0 0 40px rgba(255, 85, 85, 0.45);
+    }
+    /* Background glow goes red too */
+    body[data-nsfw]::after {
+      background: radial-gradient(ellipse at center, var(--accent-dim) 0%, transparent 70%);
+    }
     .t-line { display: block; white-space: pre; min-height: 1.65em; }
     .t-line.is-pending { opacity: 0; }
     .t-caret {
@@ -505,6 +612,9 @@
     }
     .tier.highlight::before {
       content: "★ new in 0.4.0";
+    }
+    body[data-nsfw] .tier.highlight::before {
+      content: "★ the big gun";
       position: absolute;
       top: -10px;
       left: 16px;
@@ -796,6 +906,10 @@
         <a href="#roadmap">Roadmap</a>
         <a href="#install">Install</a>
         <a href="https://github.com/limehawk/prinstall">GitHub</a>
+        <label class="nsfw-toggle" title="Toggle NSFW mode">
+          <div class="toggle-track"><div class="toggle-knob"></div></div>
+          <span class="sfw">NSFW</span><span class="nsfw">NSFW</span>
+        </label>
       </div>
     </div>
   </nav>
@@ -804,11 +918,11 @@
     <section class="hero">
       <div class="container">
         <h1 class="hero-title">
-          <span class="line-1">Adding printers on Windows sucks.</span>
-          <span class="line-2"><span class="brand">prinstall</span> <span class="accent">fixes it.</span></span>
+          <span class="line-1"><span class="sfw">Adding printers on Windows sucks.</span><span class="nsfw"><span class="brand">prinstall.</span></span></span>
+          <span class="line-2"><span class="sfw"><span class="brand">prinstall</span> <span class="accent">fixes it.</span></span><span class="nsfw"><span class="accent">because fuck printers.</span></span></span>
         </h1>
         <p class="hero-body">
-          One command. The right vendor driver, pulled from the Microsoft Update Catalog. Installed.
+          <span class="sfw">One command. The right vendor driver, pulled from the Microsoft Update Catalog. Installed.</span><span class="nsfw">Why does adding a printer in 2026 still feel like defusing a bomb? Wrong driver. Missing port. HRESULT 0x80070705. Restart the spooler. Google the error. Download a 200 MB "setup utility." Run it. It doesn't work. Cry. We wrote a tool so you never have to do that again.</span>
         </p>
         <div class="cta">
           <a class="btn btn-primary" href="https://github.com/limehawk/prinstall/releases/latest">
@@ -821,49 +935,55 @@
             <span class="count-badge">★ <span data-github-stars>—</span></span>
           </a>
         </div>
-        <div class="meta">
+        <div class="meta sfw-flex">
           <span>built in Rust</span>
           <span>8 MB binary</span>
           <span>scriptable</span>
           <span>MIT licensed</span>
+        </div>
+        <div class="meta nsfw-flex">
+          <span>zero dependencies</span>
+          <span>no installer</span>
+          <span>no GUI wizard</span>
+          <span>no bullshit</span>
         </div>
       </div>
     </section>
 
     <section id="features">
       <div class="container">
-        <h2>What it does</h2>
-        <p class="subtitle">Built for MSP technicians running it locally or through RMM remote shells.</p>
+        <h2><span class="sfw">What it does</span><span class="nsfw">What this bad boy does</span></h2>
+        <p class="subtitle"><span class="sfw">Built for MSP technicians running it locally or through RMM remote shells.</span><span class="nsfw">Built for techs who are absolutely done wrestling with printer drivers at 4:47 PM on a Friday.</span></p>
         <div class="features">
           <div class="feature">
             <div class="icon">01</div>
-            <h3>Multi-method discovery</h3>
-            <p>TCP port probe, IPP, SNMP, and local Get-Printer all in one parallel pipeline. Works even on printers that have SNMP disabled.</p>
+            <h3><span class="sfw">Multi-method discovery</span><span class="nsfw">It finds your printers</span></h3>
+            <p><span class="sfw">TCP port probe, IPP, SNMP, and local Get-Printer all in one parallel pipeline. Works even on printers that have SNMP disabled.</span><span class="nsfw">Scans your whole subnet in seconds. SNMP, IPP, port probes — throws everything at the wall. That printer hiding in the corner with SNMP disabled? Found it. Sit down.</span></p>
           </div>
           <div class="feature">
             <div class="icon">02</div>
-            <h3>Deterministic driver matching</h3>
-            <p>Scrapes the Microsoft Update Catalog, downloads the candidate driver, parses the INF, and confirms a <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">1284_CID_*</code> hardware-ID match before installing. No guessing.</p>
+            <h3><span class="sfw">Deterministic driver matching</span><span class="nsfw">The right damn driver</span></h3>
+            <p><span class="sfw">Scrapes the Microsoft Update Catalog, downloads the candidate driver, parses the INF, and confirms a <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">1284_CID_*</code> hardware-ID match before installing. No guessing.</span><span class="nsfw">Not "Generic / Text Only." Not "HP Universal 6 years old." The actual vendor driver, matched by hardware ID, verified before install. We don't guess. We don't pray. We know.</span></p>
           </div>
           <div class="feature">
             <div class="icon">03</div>
-            <h3>Network + USB printers</h3>
-            <p>One binary handles both install paths. USB printers hot-swap their driver via Set-Printer without re-creating the queue.</p>
+            <h3><span class="sfw">Network + USB printers</span><span class="nsfw">USB printers too</span></h3>
+            <p><span class="sfw">One binary handles both install paths. USB printers hot-swap their driver via Set-Printer without re-creating the queue.</span><span class="nsfw">Yeah, the USB printer that Karen plugged in and Windows decided to install with "Generic / Text Only"? One command. Driver swapped. Karen prints. You leave on time.</span></p>
           </div>
           <div class="feature">
             <div class="icon">04</div>
-            <h3>Clean remove</h3>
-            <p>Queue → driver → port cleanup with spooler-lag retry and driver-store package removal. No orphaned ports, no dead drivers cluttering Print Server Properties.</p>
+            <h3><span class="sfw">Clean remove</span><span class="nsfw">Scorched earth removal</span></h3>
+            <p><span class="sfw">Queue → driver → port cleanup with spooler-lag retry and driver-store package removal. No orphaned ports, no dead drivers cluttering Print Server Properties.</span><span class="nsfw">Queue? Gone. Driver? Gone. Port? Gone. That ghost printer from 2019 that still shows up in Print Server Properties? Obliterated. The print spooler can finally breathe.</span></p>
           </div>
           <div class="feature">
             <div class="icon">05</div>
-            <h3>Scriptable CLI</h3>
-            <p>Pipe <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> to jq for RMM automation. Plain text output for humans, structured JSON for scripts, semantic coloring that respects <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">NO_COLOR</code>.</p>
+            <h3><span class="sfw">Scriptable CLI</span><span class="nsfw">Script it and forget it</span></h3>
+            <p><span class="sfw">Pipe <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> to jq for RMM automation. Plain text output for humans, structured JSON for scripts, semantic coloring that respects <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">NO_COLOR</code>.</span><span class="nsfw">Pipe it into your RMM. Deploy to 200 machines at 2 AM. Wake up to zero printer tickets. That's the dream. That's the whole point. Go back to sleep.</span></p>
           </div>
           <div class="feature">
             <div class="icon">06</div>
-            <h3>Readable errors</h3>
-            <p>PowerShell stderr is parsed and HRESULT-decoded before you see it. No more drowning in CategoryInfo and FullyQualifiedErrorId noise.</p>
+            <h3><span class="sfw">Readable errors</span><span class="nsfw">Errors that don't make you cry</span></h3>
+            <p><span class="sfw">PowerShell stderr is parsed and HRESULT-decoded before you see it. No more drowning in CategoryInfo and FullyQualifiedErrorId noise.</span><span class="nsfw">Remember <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">HRESULT 0x80070705</code>? We decode that garbage into actual English. Because Microsoft sure as hell wasn't going to.</span></p>
           </div>
         </div>
       </div>
@@ -871,8 +991,8 @@
 
     <section>
       <div class="container">
-        <h2>Watch it work</h2>
-        <p class="subtitle">prinstall add 192.168.1.50 --verbose  ·  real terminal output</p>
+        <h2><span class="sfw">Watch it work</span><span class="nsfw">Watch this printer get bodied</span></h2>
+        <p class="subtitle"><span class="sfw">prinstall add 192.168.1.50 --verbose  ·  real terminal output</span><span class="nsfw">one command  ·  no clicking through 9 wizard pages  ·  no "restart the spooler"</span></p>
         <div class="terminal">
           <div class="terminal-header">
             <span class="terminal-dot"></span>
@@ -882,33 +1002,31 @@
           </div>
           <div class="terminal-body">
 <div class="t-line"><span class="t-prompt">PS&gt;</span> <span class="t-cmd">prinstall</span> <span class="t-cmd">add</span> 192.168.1.50 <span class="t-flag">--verbose</span></div>
-<div class="t-line"><span class="t-dim">[add]</span> Network mode — checking reachability of 192.168.1.50...</div>
-<div class="t-line"><span class="t-dim">[scan]</span> 192.168.1.50: SNMP → model <span class="t-accent">"Brother MFC-L2750DW series"</span></div>
-<div class="t-line"><span class="t-dim">[scan]</span> 192.168.1.50: trying IPP at http://192.168.1.50:631/ipp/print</div>
-<div class="t-line"><span class="t-dim">[scan]</span> 192.168.1.50: IPP → <span class="t-accent">"Brother MFC-L2750DW series"</span></div>
-<div class="t-line"><span class="t-dim">[scan]</span> 192.168.1.50: IPP device-id → "MFG:Brother;...;CID:<span class="t-accent">Brother Laser Type1</span>;..."</div>
-<div class="t-line"><span class="t-dim">[PS]</span> Get-PrinterDriver | Select-Object -ExpandProperty Name</div>
-<div class="t-line"><span class="t-dim">[PS stdout]</span> Microsoft IPP Class Driver</div>
-<div class="t-line"><span class="t-dim">[add]</span> Auto-selected driver: Brother Universal Printer</div>
-<div class="t-line"><span class="t-dim">[add]</span> Installing: printer=<span class="t-accent">'Brother MFC-L2750DW series'</span>, driver='Brother Universal Printer', ip=192.168.1.50</div>
-<div class="t-line"><span class="t-dim">[PS]</span> Add-PrinterDriver -Name 'Brother Universal Printer'</div>
-<div class="t-line"><span style="color: var(--red);">[PS stderr] Add-PrinterDriver: The specified driver does not exist in the driver store. [HRESULT 0x80070705]</span></div>
 <div class="t-line"></div>
-<div class="t-line"><span class="t-accent">[sdi]</span> <span class="t-accent">SDI match found</span>: <span class="t-accent">'Brother Laser Type1 Class Driver'</span> (<span class="t-tag">SdiCached</span>)</div>
-<div class="t-line"><span class="t-accent">[sdi]</span> Using cached extraction: ...sdi\extracted\DP_Printer_26000\Brother\Allx64\FORCED\-Class\prnbrcl1.inf</div>
-<div class="t-line"><span class="t-accent">[sdi]</span> Staging INF: ...Brother\Allx64\FORCED\-Class\prnbrcl1.inf</div>
-<div class="t-line"><span class="t-dim">[PS]</span> pnputil /add-driver '...\prnbrcl1.inf' /install</div>
-<div class="t-line"><span class="t-dim">[PS stdout]</span> Driver package added successfully. Published Name: oem4.inf</div>
-<div class="t-line"><span class="t-dim">[PS]</span> Add-PrinterPort -Name 'IP_192.168.1.50' -PrinterHostAddress '192.168.1.50'</div>
-<div class="t-line"><span class="t-dim">[PS]</span> Add-PrinterDriver -Name <span class="t-accent">'Brother Laser Type1 Class Driver'</span></div>
-<div class="t-line"><span class="t-dim">[PS]</span> Add-Printer -Name <span class="t-accent">'Brother MFC-L2750DW series'</span> -DriverName <span class="t-accent">'Brother Laser Type1 Class Driver'</span> -PortName 'IP_192.168.1.50'</div>
+<div class="t-line"><span class="t-section">━━ Discovery ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
+<div class="t-line">  <span class="t-dim">SNMP</span>  <span class="t-dim">→</span> <span class="t-accent">Brother MFC-L2750DW series</span></div>
+<div class="t-line">  <span class="t-dim">IPP</span>   <span class="t-dim">→</span> <span class="t-accent">Brother MFC-L2750DW series</span> <span class="t-dim">(CID confirmed)</span></div>
+<div class="t-line">  <span class="t-dim">DID</span>    <span class="t-dim">Brother MFC-L2750DW</span></div>
+<div class="t-line"></div>
+<div class="t-line"><span class="t-section">━━ Driver Resolution ━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
+<div class="t-line">   <span class="t-fail">Local store</span>     <span class="t-fail">✗</span> <span class="t-fail">install failed</span></div>
+<div class="t-line">   <span class="t-fail">Catalog</span>         <span class="t-fail">✗</span> <span class="t-fail">no CID match in catalog</span></div>
+<div class="t-line">  <span class="t-accent">▸</span> <span class="t-star">SDI Origin</span>      <span class="t-star">★</span> <span class="t-star">Brother Laser Type1 Class Driver [cached]</span></div>
+<div class="t-line"></div>
+<div class="t-line"><span class="t-section">━━ Install ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
+<div class="t-line">  <span class="t-label">Port</span>   IP_192.168.1.50                     <span class="t-check">✓</span></div>
+<div class="t-line">  <span class="t-label">Driver</span> Brother Laser Type1 Class Driver    <span class="t-check">✓</span></div>
+<div class="t-line">  <span class="t-label">Queue</span>  Brother MFC-L2750DW series          <span class="t-check">✓</span></div>
+<div class="t-line"></div>
+<div class="t-line"><span class="t-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
+<div class="t-line">  <span class="t-check">✓</span> Installed in <span class="t-accent">3.2s</span> via <span class="t-accent">SDI [cached]</span></div>
+<div class="t-line"><span class="t-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
 <div class="t-line"></div>
 <div class="t-line"><span class="t-ok">Printer installed successfully!</span></div>
 <div class="t-line">  <span class="t-dim">Name:</span>   <span class="t-accent">Brother MFC-L2750DW series</span></div>
 <div class="t-line">  <span class="t-dim">Driver:</span> <span class="t-accent">Brother Laser Type1 Class Driver</span></div>
 <div class="t-line">  <span class="t-dim">Port:</span>   IP_192.168.1.50</div>
-<div class="t-line"></div>
-<div class="t-line">  <span class="t-dim">SOURCE: Installed via SDI: 'Brother Laser Type1 Class Driver' from Brother [SdiCached].</span></div>
+<div class="t-line">  <span class="t-dim">SOURCE:</span> <span class="t-dim">Installed via SDI: 'Brother Laser Type1 Class Driver' from Brother [SdiCached].</span></div>
           </div>
         </div>
       </div>
@@ -916,33 +1034,33 @@
 
     <section id="pipeline">
       <div class="container">
-        <h2>Five tiers, one command</h2>
-        <p class="subtitle">prinstall add walks the pipeline in priority order — only escalates when the previous tier comes up empty.</p>
+        <h2><span class="sfw">Five tiers, one command</span><span class="nsfw">Five ways to find your driver, because printers are assholes</span></h2>
+        <p class="subtitle"><span class="sfw">prinstall add walks the pipeline in priority order — only escalates when the previous tier comes up empty.</span><span class="nsfw">If one source fails, it tries the next. Then the next. Then the next. It will NOT give up before you do.</span></p>
         <div class="pipeline">
           <div class="tier">
             <div class="tier-num">TIER 01</div>
-            <h4>Local driver store</h4>
-            <p>Reuse what's already installed. No network, no side effects. Instant.</p>
+            <h4><span class="sfw">Local driver store</span><span class="nsfw">Already on your box?</span></h4>
+            <p><span class="sfw">Reuse what's already installed. No network, no side effects. Instant.</span><span class="nsfw">If Windows already has the driver from a previous install, we just use it. Zero downloads, zero drama. Why would you re-download something that's sitting right there?</span></p>
           </div>
           <div class="tier">
             <div class="tier-num">TIER 02</div>
-            <h4>Manufacturer download</h4>
-            <p>Pull from the embedded URL manifest — HP, Xerox, and Kyocera have stable direct links. More vendors coming.</p>
-          </div>
-          <div class="tier highlight">
-            <div class="tier-num">TIER 03</div>
-            <h4>SDI Origin driver packs</h4>
-            <p>Search SDIO's printer driver pack index by hardware ID. Covers Brother, Canon, Epson, Ricoh, Lexmark, and every other vendor SDIO carries — the brands the Update Catalog often misses.</p>
+            <h4><span class="sfw">Manufacturer download</span><span class="nsfw">Straight from the source</span></h4>
+            <p><span class="sfw">Pull from the embedded URL manifest — HP, Xerox, and Kyocera have stable direct links. More vendors coming.</span><span class="nsfw">HP, Xerox, Kyocera — their download URLs are hardcoded because someone had to memorize the paths these vendors bury 14 clicks deep on their godforsaken support sites.</span></p>
           </div>
           <div class="tier">
+            <div class="tier-num">TIER 03</div>
+            <h4><span class="sfw">Update Catalog + INF HWID</span><span class="nsfw">Microsoft's secret driver stash</span></h4>
+            <p><span class="sfw">Search by IPP CID, download a candidate CAB, parse the INF, match the synthesized hardware ID. Deterministic.</span><span class="nsfw">Microsoft has a whole catalog of drivers they don't tell you about. We scrape it, crack open the CAB, match the hardware ID, and stage the INF. Microsoft couldn't make this easy, so we did.</span></p>
+          </div>
+          <div class="tier highlight">
             <div class="tier-num">TIER 04</div>
-            <h4>Update Catalog + INF HWID</h4>
-            <p>Search by IPP CID, download a candidate CAB, parse the INF, match the synthesized hardware ID. Deterministic.</p>
+            <h4><span class="sfw">SDI Origin driver packs</span><span class="nsfw">The nuclear option</span></h4>
+            <p><span class="sfw">Search SDIO's printer driver pack index by hardware ID. Covers Brother, Canon, Epson, Ricoh, Lexmark, and every other vendor SDIO carries — the brands the Update Catalog often misses.</span><span class="nsfw">A community-maintained archive of every printer driver known to humanity. Brother, Canon, Epson, Ricoh — the vendors that make you download a 200 MB "setup utility" just to get a damn INF file. We bypass all of it.</span></p>
           </div>
           <div class="tier">
             <div class="tier-num">TIER 05</div>
-            <h4>IPP Class Driver</h4>
-            <p>The always-works safety net for any printer that speaks IPP Everywhere (Windows 8+).</p>
+            <h4><span class="sfw">IPP Class Driver</span><span class="nsfw">The "fuck it, just print" fallback</span></h4>
+            <p><span class="sfw">The always-works safety net for any printer that speaks IPP Everywhere (Windows 8+).</span><span class="nsfw">If literally nothing else works, Microsoft's built-in IPP driver will at least let you print. No duplex, no trays, no fancy stuff — but the paper comes out. Sometimes that's all you need at 5 PM on a Friday.</span></p>
           </div>
         </div>
       </div>
@@ -950,42 +1068,55 @@
 
     <section id="roadmap">
       <div class="container">
-        <h2>Roadmap</h2>
-        <p class="subtitle">What's next — loosely ordered, priority shifts based on what MSPs actually hit in the field.</p>
+        <h2><span class="sfw">Roadmap</span><span class="nsfw">More ways to destroy printer pain</span></h2>
+        <p class="subtitle"><span class="sfw">What's next — loosely ordered, priority shifts based on what MSPs actually hit in the field.</span><span class="nsfw">We're not done. Every feature below is another nail in the coffin of printer-related suffering.</span></p>
         <div class="features">
           <div class="feature">
             <div class="icon">01</div>
-            <h3>prinstall health &lt;ip&gt;</h3>
-            <p>SNMP Printer MIB query for toner level, drum life, paper tray status, and error state. One <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> per machine and the RMM knows which printers need attention before the ticket lands.</p>
+            <h3><span class="sfw">prinstall health &lt;ip&gt;</span><span class="nsfw">Is this printer dying?</span></h3>
+            <p><span class="sfw">SNMP Printer MIB query for toner level, drum life, paper tray status, and error state. One <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> per machine and the RMM knows which printers need attention before the ticket lands.</span><span class="nsfw">Toner at 3%? Drum about to die? Paper jam in tray 2 for the last 6 hours? Know about it BEFORE the user calls you screaming. Pipe it into your RMM and stop playing printer paramedic.</span></p>
           </div>
           <div class="feature">
             <div class="icon">02</div>
-            <h3>Printer defaults at install</h3>
-            <p>Duplex, color/mono, paper size, and set-as-default via <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">Set-PrintConfiguration</code> during <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">add</code>, so the printer shows up ready-to-use instead of needing a second pass.</p>
+            <h3><span class="sfw">Printer defaults at install</span><span class="nsfw">Set it up right the first time</span></h3>
+            <p><span class="sfw">Duplex, color/mono, paper size, and set-as-default via <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">Set-PrintConfiguration</code> during <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">add</code>, so the printer shows up ready-to-use instead of needing a second pass.</span><span class="nsfw">Duplex on. Color off. Letter paper. Set as default. Done at install time. Because nothing says "I hate my job" like getting a callback because the printer defaults to A4 single-sided.</span></p>
           </div>
           <div class="feature">
             <div class="icon">03</div>
-            <h3>Batch install mode</h3>
-            <p>One command, multiple IPs. Parallel driver matching across every printer on a site, JSON results per target, one invocation per site visit instead of one per printer.</p>
+            <h3><span class="sfw">Batch install mode</span><span class="nsfw">Nuke an entire office at once</span></h3>
+            <p><span class="sfw">One command, multiple IPs. Parallel driver matching across every printer on a site, JSON results per target, one invocation per site visit instead of one per printer.</span><span class="nsfw">12 printers across 3 floors? One command. All of them. In parallel. Walk in, run it, walk out. That's not a site visit, that's a drive-by.</span></p>
           </div>
           <div class="feature">
             <div class="icon">04</div>
-            <h3>Signed binary</h3>
-            <p>SignPath.io code signing so Windows SmartScreen stops warning on download. MSP deployment gets a lot friendlier when the tech doesn't have to click "Run anyway" every time.</p>
+            <h3><span class="sfw">Signed binary</span><span class="nsfw">SmartScreen can shut up</span></h3>
+            <p><span class="sfw">SignPath.io code signing so Windows SmartScreen stops warning on download. MSP deployment gets a lot friendlier when the tech doesn't have to click "Run anyway" every time.</span><span class="nsfw">"Windows protected your PC" — yeah, from the thing that fixes printers. Thanks, Microsoft. Code signing is coming so SmartScreen stops being a hall monitor about it.</span></p>
           </div>
           <div class="feature">
             <div class="icon">05</div>
-            <h3>Interactive TUI rework</h3>
-            <p>The dense two-panel lazy-style TUI is currently under construction. When it comes back, expect lazygit-style panels, real vim keybindings, and scan-as-you-type subnet filtering.</p>
+            <h3><span class="sfw">Interactive TUI rework</span><span class="nsfw">Full terminal UI</span></h3>
+            <p><span class="sfw">The dense two-panel lazy-style TUI is currently under construction. When it comes back, expect lazygit-style panels, real vim keybindings, and scan-as-you-type subnet filtering.</span><span class="nsfw">A full terminal UI where you scan, browse, and install without ever touching a mouse or a wizard. Keyboard-driven, no clicking through tabs, no "Next > Next > Finish" energy.</span></p>
           </div>
         </div>
       </div>
     </section>
 
+    <section class="nsfw-callout">
+      <div class="container">
+        <h2>why <span style="font-family: var(--mono);">prinstall</span>?<br><span style="color: var(--red);">because FUCK printers.</span></h2>
+        <p class="callout-body">
+          We're a community of MSP techs, sysadmins, and IT pros who've collectively lost thousands of hours to printer driver hell. If you've ever rage-Googled an HRESULT code at 5 PM on a Friday, you're one of us. Star the repo. Open an issue. Ship a PR. Let's make this thing so good that no tech ever has to manually install a printer driver again.
+        </p>
+        <a class="btn btn-secondary" href="https://github.com/limehawk/prinstall">
+          Join the fight on GitHub
+          <span class="arrow">→</span>
+        </a>
+      </div>
+    </section>
+
     <section id="install">
       <div class="container">
-        <h2>Install</h2>
-        <p class="subtitle">Single 9 MB binary. Drop it on PATH and go.</p>
+        <h2><span class="sfw">Install</span><span class="nsfw">Get this thing</span></h2>
+        <p class="subtitle"><span class="sfw">Single 9 MB binary. Drop it on PATH and go.</span><span class="nsfw">9 MB. One file. No installer. No .NET runtime. No "please restart your computer." Just copy and run.</span></p>
         <div class="install-block">
           <div class="install-step">
             <div class="install-step-num">1</div>
@@ -1045,11 +1176,32 @@
         <a href="https://github.com/limehawk/prinstall/blob/main/README.md">Docs</a>
         <a href="https://github.com/limehawk/prinstall/issues">Issues</a>
       </div>
-      <p>MIT licensed  ·  built by <a href="https://limehawk.io" style="color: var(--text-dim); text-decoration: underline;">limehawk</a>  ·  designed for techs who just want the printer to work</p>
+      <p><span class="sfw">MIT licensed  ·  built by <a href="https://limehawk.io" style="color: var(--text-dim); text-decoration: underline;">limehawk</a>  ·  designed for techs who just want the printer to work</span><span class="nsfw">MIT licensed  ·  built by <a href="https://limehawk.io" style="color: var(--text-dim); text-decoration: underline;">limehawk</a>  ·  because fuck printers, that's why</span></p>
     </div>
   </footer>
 
   <script>
+    // NSFW mode toggle
+    (() => {
+      const toggle = document.querySelector('.nsfw-toggle');
+      if (!toggle) return;
+      const key = 'prinstall-nsfw';
+      // Restore from localStorage
+      if (localStorage.getItem(key) === '1') {
+        document.body.setAttribute('data-nsfw', '');
+      }
+      toggle.addEventListener('click', () => {
+        const on = document.body.hasAttribute('data-nsfw');
+        if (on) {
+          document.body.removeAttribute('data-nsfw');
+          localStorage.removeItem(key);
+        } else {
+          document.body.setAttribute('data-nsfw', '');
+          localStorage.setItem(key, '1');
+        }
+      });
+    })();
+
     // Populate the hero GitHub stars count with the live value from the
     // GitHub REST API. One unauthenticated GET on page load, cached by the
     // browser per the API's own Cache-Control headers. Silent fail — the
@@ -1086,34 +1238,35 @@
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (reduceMotion) return;
 
-      // Per-line delay before revealing (ms). Tuned so the "work" lines
-      // (download, expand, HRESULT fail) feel slower than the fast ones.
+      // Per-line delay before revealing (ms). Tuned so the structured
+      // sections feel like they're being built phase by phase.
       const delays = [
         140,  // PS> prinstall add ... --verbose
-        300,  // (blank — work happens)
-        260,  // [add] SNMP
-        200,  // [add] IPP device ID
-        140,  // [add] Auto-selected driver
-        260,  // [add] Download failed
-        220,  // [PS ] Add-PrinterDriver
-        440,  // [PS ] HRESULT error (dramatic pause)
-        300,  // [add] Primary install failed
-        200,  // [resolver] Searching catalog
-        180,  // [resolver] Catalog returned 5
-        160,  // [resolver] HWID candidates
-        140,  // [resolver] #1 Brother
-        520,  // [resolver] GET catalog url (download feel)
-        380,  // [resolver] expand
-        280,  // [resolver] ★ MATCH
-        360,  // [PS ] pnputil
-        440,  // [PS ] Add-Printer
-        240,  // (blank)
-        160,  // ✓ installed
+        400,  // (blank — scanning)
+        180,  // ━━ Discovery header
+        200,  // SNMP → model
+        180,  // IPP → model
+        140,  // DID
+        160,  // (blank)
+        240,  // ━━ Driver Resolution header
+        280,  // Local store ✗
+        320,  // Catalog ✗ (dramatic pause)
+        500,  // ▸ SDI Origin ★ (the payoff)
+        160,  // (blank)
+        200,  // ━━ Install header
+        160,  // Port ✓
+        160,  // Driver ✓
+        160,  // Queue ✓
+        120,  // (blank)
+        140,  // ━━ closing rule
+        300,  // ✓ Installed in 3.2s (the money shot)
+        140,  // ━━ closing rule
+        200,  // (blank)
+        160,  // Printer installed successfully!
         100,  // Name
         100,  // Driver
         100,  // Port
-        120,  // (blank)
-        180,  // Installed via
+        140,  // SOURCE
       ];
 
       const caret = document.createElement('span');

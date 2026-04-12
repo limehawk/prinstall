@@ -40,13 +40,21 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
         }
         cli::Commands::Id { ip } => cmd_id(ip, cli).await,
         cli::Commands::Drivers { ip, model } => cmd_drivers(ip, model.as_deref(), cli).await,
-        cli::Commands::Add { target, driver, name, model, usb, no_sdi, no_catalog, sdi_fetch } => {
-            cmd_add(target, driver.as_deref(), name.as_deref(), model.as_deref(), *usb, *no_sdi, *no_catalog, *sdi_fetch, cli).await;
+        cli::Commands::Add { target, driver, name, model, usb, no_catalog, .. } => {
+            #[cfg(feature = "sdi")]
+            let (no_sdi, sdi_fetch) = match cmd {
+                cli::Commands::Add { no_sdi, sdi_fetch, .. } => (*no_sdi, *sdi_fetch),
+                _ => unreachable!(),
+            };
+            #[cfg(not(feature = "sdi"))]
+            let (no_sdi, sdi_fetch) = (true, false);
+            cmd_add(target, driver.as_deref(), name.as_deref(), model.as_deref(), *usb, no_sdi, *no_catalog, sdi_fetch, cli).await;
         }
         cli::Commands::Remove { target, keep_driver, keep_port } => {
             cmd_remove(target, *keep_driver, *keep_port, cli).await;
         }
         cli::Commands::List => cmd_list(cli).await,
+        #[cfg(feature = "sdi")]
         cli::Commands::Sdi(action) => cmd_sdi(action, cli).await,
     }
 }
@@ -116,6 +124,7 @@ async fn cmd_add(
     }
 }
 
+#[cfg(feature = "sdi")]
 async fn cmd_sdi(action: &cli::SdiAction, cli: &cli::Cli) {
     match action {
         cli::SdiAction::Status => commands::sdi::status(cli.verbose),

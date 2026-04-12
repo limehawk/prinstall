@@ -6,6 +6,10 @@ description = "Discover network printers, match drivers, and install them on Win
 license = "MIT"
 readme = "README.md"
 
+[features]
+default = []
+sdi = ["dep:sevenz-rust2", "dep:lzma-rs", "dep:sha2", "dep:indicatif"]
+
 [dependencies]
 ratatui = "0.30"
 crossterm = "0.29"
@@ -20,10 +24,10 @@ fuzzy-matcher = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 zip = "8"
 cab = "0.6"
-sevenz-rust2 = { version = "0.20", default-features = false, features = ["compress"] }
-lzma-rs = "0.3"
-sha2 = "0.10"
-indicatif = "0.17"
+sevenz-rust2 = { version = "0.20", default-features = false, features = ["compress"], optional = true }
+lzma-rs = { version = "0.3", optional = true }
+sha2 = { version = "0.10", optional = true }
+indicatif = { version = "0.17", optional = true }
 scraper = "0.26"
 regex = "1"
 mdns-sd = "0.19"
