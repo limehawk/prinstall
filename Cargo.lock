@@ -1984,7 +1984,7 @@ dependencies = [
 
 [[package]]
 name = "prinstall"
-version = "0.3.8-dev"
+version = "0.4.0"
 dependencies = [
  "cab",
  "chrono",
