@@ -882,21 +882,33 @@
           </div>
           <div class="terminal-body">
 <div class="t-line"><span class="t-prompt">PS&gt;</span> <span class="t-cmd">prinstall</span> <span class="t-cmd">add</span> 192.168.1.50 <span class="t-flag">--verbose</span></div>
+<div class="t-line"><span class="t-dim">[add]</span> Network mode — checking reachability of 192.168.1.50...</div>
+<div class="t-line"><span class="t-dim">[scan]</span> 192.168.1.50: SNMP → model <span class="t-accent">"Brother MFC-L2750DW series"</span></div>
+<div class="t-line"><span class="t-dim">[scan]</span> 192.168.1.50: trying IPP at http://192.168.1.50:631/ipp/print</div>
+<div class="t-line"><span class="t-dim">[scan]</span> 192.168.1.50: IPP → <span class="t-accent">"Brother MFC-L2750DW series"</span></div>
+<div class="t-line"><span class="t-dim">[scan]</span> 192.168.1.50: IPP device-id → "MFG:Brother;...;CID:<span class="t-accent">Brother Laser Type1</span>;..."</div>
+<div class="t-line"><span class="t-dim">[PS]</span> Get-PrinterDriver | Select-Object -ExpandProperty Name</div>
+<div class="t-line"><span class="t-dim">[PS stdout]</span> Microsoft IPP Class Driver</div>
+<div class="t-line"><span class="t-dim">[add]</span> Auto-selected driver: Brother Universal Printer</div>
+<div class="t-line"><span class="t-dim">[add]</span> Installing: printer=<span class="t-accent">'Brother MFC-L2750DW series'</span>, driver='Brother Universal Printer', ip=192.168.1.50</div>
+<div class="t-line"><span class="t-dim">[PS]</span> Add-PrinterDriver -Name 'Brother Universal Printer'</div>
+<div class="t-line"><span style="color: var(--red);">[PS stderr] Add-PrinterDriver: The specified driver does not exist in the driver store. [HRESULT 0x80070705]</span></div>
 <div class="t-line"></div>
-<div class="t-line"><span class="t-dim">[scan]</span> SNMP → model <span class="t-accent">"Brother MFC-L2750DW series"</span></div>
-<div class="t-line"><span class="t-dim">[scan]</span> IPP device-id → MFG:Brother;CID:<span class="t-accent">Brother Laser Type1</span>;...</div>
-<div class="t-line"><span class="t-dim">[sdi]</span> <span class="t-accent">SDI match found</span>: 'Brother Laser Type1 Class Driver' (<span class="t-tag">SdiCached</span>)</div>
-<div class="t-line"><span class="t-dim">[sdi]</span> Using cached extraction</div>
-<div class="t-line"><span class="t-dim">[sdi]</span> Staging INF: ...sdi\extracted\brother\allx64\forced\-class\prnbrcl1.inf</div>
-<div class="t-line"><span class="t-dim">[PS ]</span> pnputil /add-driver '...\prnbrcl1.inf' /install</div>
-<div class="t-line"><span class="t-dim">[PS ]</span> Add-Printer -Name 'Brother MFC-L2750DW series' -DriverName ...</div>
+<div class="t-line"><span class="t-accent">[sdi]</span> <span class="t-accent">SDI match found</span>: <span class="t-accent">'Brother Laser Type1 Class Driver'</span> (<span class="t-tag">SdiCached</span>)</div>
+<div class="t-line"><span class="t-accent">[sdi]</span> Using cached extraction: ...sdi\extracted\DP_Printer_26000\Brother\Allx64\FORCED\-Class\prnbrcl1.inf</div>
+<div class="t-line"><span class="t-accent">[sdi]</span> Staging INF: ...Brother\Allx64\FORCED\-Class\prnbrcl1.inf</div>
+<div class="t-line"><span class="t-dim">[PS]</span> pnputil /add-driver '...\prnbrcl1.inf' /install</div>
+<div class="t-line"><span class="t-dim">[PS stdout]</span> Driver package added successfully. Published Name: oem4.inf</div>
+<div class="t-line"><span class="t-dim">[PS]</span> Add-PrinterPort -Name 'IP_192.168.1.50' -PrinterHostAddress '192.168.1.50'</div>
+<div class="t-line"><span class="t-dim">[PS]</span> Add-PrinterDriver -Name <span class="t-accent">'Brother Laser Type1 Class Driver'</span></div>
+<div class="t-line"><span class="t-dim">[PS]</span> Add-Printer -Name <span class="t-accent">'Brother MFC-L2750DW series'</span> -DriverName <span class="t-accent">'Brother Laser Type1 Class Driver'</span> -PortName 'IP_192.168.1.50'</div>
 <div class="t-line"></div>
-<div class="t-line"><span class="t-ok">✓ Printer installed successfully!</span></div>
-<div class="t-line">  <span class="t-dim">Name  :</span> Brother MFC-L2750DW series</div>
+<div class="t-line"><span class="t-ok">Printer installed successfully!</span></div>
+<div class="t-line">  <span class="t-dim">Name:</span>   <span class="t-accent">Brother MFC-L2750DW series</span></div>
 <div class="t-line">  <span class="t-dim">Driver:</span> <span class="t-accent">Brother Laser Type1 Class Driver</span></div>
-<div class="t-line">  <span class="t-dim">Port  :</span> IP_192.168.1.50</div>
+<div class="t-line">  <span class="t-dim">Port:</span>   IP_192.168.1.50</div>
 <div class="t-line"></div>
-<div class="t-line">  <span class="t-dim">SOURCE: Installed via SDI — Brother Laser Type1 Class Driver [cached].</span></div>
+<div class="t-line">  <span class="t-dim">SOURCE: Installed via SDI: 'Brother Laser Type1 Class Driver' from Brother [SdiCached].</span></div>
           </div>
         </div>
       </div>
