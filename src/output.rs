@@ -650,3 +650,114 @@ pub fn format_remove_result(result: &PrinterOpResult) -> String {
     }
     out
 }
+
+/// Render a full ScanResult as plain text with Network + USB sections.
+/// Orphan USB devices (no queue, has_error = true) get a `hint:` line
+/// with the exact `prinstall add --usb` command to install them.
+pub fn format_scan_result_plain(result: &ScanResult) -> String {
+    let mut out = String::new();
+
+    out.push_str("Network printers\n");
+    out.push_str("----------------\n");
+    if result.network.is_empty() {
+        out.push_str("  (none discovered)\n");
+    } else {
+        for p in &result.network {
+            out.push_str(&format!(
+                "  {:<15}  {}\n",
+                p.display_ip(),
+                p.model.as_deref().unwrap_or("(unknown model)")
+            ));
+        }
+    }
+    out.push('\n');
+
+    out.push_str("USB-attached printers\n");
+    out.push_str("---------------------\n");
+    if result.usb.is_empty() {
+        out.push_str("  (none detected)\n");
+        return out;
+    }
+    for dev in &result.usb {
+        out.push_str(&format_usb_device_line(dev));
+    }
+    out
+}
+
+fn format_usb_device_line(dev: &UsbDevice) -> String {
+    let name = dev.friendly_name.as_deref().unwrap_or("(unknown device)");
+    let state = match (&dev.queue_name, dev.has_error) {
+        (Some(q), _) => format!("queue: {q}"),
+        (None, true) => "NO QUEUE (driver missing)".to_string(),
+        (None, false) => "NO QUEUE".to_string(),
+    };
+    let mut line = format!("  {name}  [{state}]\n");
+    if dev.queue_name.is_none() {
+        line.push_str(&format!(
+            "    hint: run 'prinstall add --usb \"{name}\"' to install\n"
+        ));
+    }
+    line
+}
+
+/// Render a ScanResult as pretty JSON.
+pub fn format_scan_result_json(result: &ScanResult) -> String {
+    serde_json::to_string_pretty(result).unwrap_or_else(|_| "{}".into())
+}
+
+#[cfg(test)]
+mod scan_result_print_tests {
+    use super::*;
+    use crate::models::{ScanResult, UsbDevice};
+
+    fn sample_result() -> ScanResult {
+        ScanResult {
+            network: vec![],
+            usb: vec![
+                UsbDevice {
+                    hardware_id: "USB\\VID_03F0&PID_1D17\\ABC".into(),
+                    friendly_name: Some("HP LaserJet 1320".into()),
+                    queue_name: None,
+                    has_error: true,
+                },
+                UsbDevice {
+                    hardware_id: "USB\\VID_04B8&PID_0005\\DEF".into(),
+                    friendly_name: Some("Brother MFC".into()),
+                    queue_name: Some("Brother MFC".into()),
+                    has_error: false,
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn plain_output_has_usb_section_header() {
+        let out = format_scan_result_plain(&sample_result());
+        assert!(out.contains("USB-attached printers"));
+    }
+
+    #[test]
+    fn plain_output_shows_orphan_install_hint() {
+        let out = format_scan_result_plain(&sample_result());
+        assert!(out.contains("hint:"));
+        assert!(out.contains("prinstall add"));
+        assert!(out.contains("--usb"));
+        assert!(out.contains("HP LaserJet 1320"));
+    }
+
+    #[test]
+    fn plain_output_omits_hint_when_queue_exists() {
+        let result = ScanResult {
+            network: vec![],
+            usb: vec![UsbDevice {
+                hardware_id: "USB\\VID_04B8&PID_0005\\DEF".into(),
+                friendly_name: Some("Brother MFC".into()),
+                queue_name: Some("Brother MFC".into()),
+                has_error: false,
+            }],
+        };
+        let out = format_scan_result_plain(&result);
+        assert!(!out.contains("hint:"));
+    }
+}
+
