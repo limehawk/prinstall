@@ -8,7 +8,8 @@ pub mod usb;
 
 use std::net::Ipv4Addr;
 use std::time::Duration;
-use crate::models::{DiscoveryMethod, Printer, PrinterSource};
+use crate::core::executor::PsExecutor;
+use crate::models::{DiscoveryMethod, Printer, PrinterSource, ScanResult};
 
 const DEFAULT_CONCURRENCY: usize = 128;
 
@@ -236,4 +237,52 @@ pub async fn full_discovery(
 
     network.extend(unique_local);
     network
+}
+
+/// Full scan that combines a network subnet sweep with USB PnP enumeration
+/// and returns both sections separately. Callers render them as two
+/// distinct lists so an orphan USB printer (no queue) is obvious.
+pub async fn full_scan_result(
+    hosts: Vec<Ipv4Addr>,
+    community: &str,
+    method: &ScanMethod,
+    timeout: Duration,
+    exec: &dyn PsExecutor,
+    verbose: bool,
+) -> ScanResult {
+    let network = scan_subnet(hosts, community, method, timeout, verbose).await;
+    let usb = usb::enumerate(exec, verbose).await;
+    ScanResult { network, usb }
+}
+
+#[cfg(test)]
+mod full_scan_tests {
+    use super::*;
+    use crate::core::executor::MockExecutor;
+    use crate::installer::powershell::PsResult;
+
+    fn ok(stdout: &str) -> PsResult {
+        PsResult {
+            success: true,
+            stdout: stdout.to_string(),
+            stderr: String::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn full_scan_result_includes_usb_section() {
+        let mock = MockExecutor::new()
+            .stub_contains("Get-PnpDevice", ok("[]"))
+            .stub_contains("Get-Printer", ok("[]"));
+        let result = full_scan_result(
+            vec![],
+            "public",
+            &ScanMethod::All,
+            std::time::Duration::from_millis(50),
+            &mock,
+            false,
+        ).await;
+        assert!(result.network.is_empty());
+        assert!(result.usb.is_empty());
+    }
 }
