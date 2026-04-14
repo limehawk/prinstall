@@ -505,10 +505,17 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
         } else {
             format!("{} {}", best.title, dim("(Catalog)"))
         };
-        let evidence = vec![format!(
-            "latest: {} \u{00B7} {} \u{00B7} {}",
-            best.version, best.size, best.last_updated
-        )];
+        let version_trim = best.version.trim();
+        let version_usable = !version_trim.is_empty()
+            && !version_trim.eq_ignore_ascii_case("n/a");
+        let evidence = vec![if version_usable {
+            format!(
+                "latest: {} \u{00B7} {} \u{00B7} {}",
+                version_trim, best.size, best.last_updated
+            )
+        } else {
+            format!("{} \u{00B7} {}", best.size, best.last_updated)
+        }];
         out.push(TreeCandidate {
             icon: TreeIcon::Ranked,
             name,
