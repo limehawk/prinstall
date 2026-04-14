@@ -1066,7 +1066,19 @@ pub fn format_scan_result_plain(result: &ScanResult) -> String {
     let mut out = String::new();
 
     if result.network.is_empty() && result.usb.is_empty() {
-        out.push_str("(no printers discovered)\n");
+        out.push_str("(no printers discovered)\n\n");
+        out.push_str(&dim("If this is unexpected, try:"));
+        out.push('\n');
+        out.push_str(&dim("  · prinstall scan --community <string>     (non-default SNMP community)"));
+        out.push('\n');
+        out.push_str(&dim("  · prinstall scan --method port            (TCP-only, skip SNMP)"));
+        out.push('\n');
+        out.push_str(&dim("  · prinstall scan --method mdns            (mDNS multicast browse)"));
+        out.push('\n');
+        out.push_str(&dim("  · prinstall scan --timeout 1500           (slower networks)"));
+        out.push('\n');
+        out.push_str(&dim("  · Check printer power, SNMP enabled in printer web UI"));
+        out.push('\n');
         return out;
     }
 
@@ -1304,6 +1316,21 @@ mod scan_result_print_tests {
         assert!(out.contains("(no printers discovered)"));
         assert!(!out.contains("Network"));
         assert!(!out.contains("USB"));
+    }
+
+    #[test]
+    fn plain_output_both_empty_shows_troubleshooting_guidance() {
+        let result = ScanResult {
+            network: vec![],
+            usb: vec![],
+        };
+        let out = format_scan_result_plain(&result);
+        assert!(out.contains("If this is unexpected"));
+        assert!(out.contains("--community"));
+        assert!(out.contains("--method port"));
+        assert!(out.contains("--method mdns"));
+        assert!(out.contains("--timeout"));
+        assert!(out.contains("SNMP enabled"));
     }
 
     #[test]

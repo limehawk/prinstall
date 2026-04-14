@@ -180,10 +180,13 @@ async fn cmd_scan(
                 }
                 match discovery::subnet::auto_detect_subnet(cli.verbose) {
                     Some(detected) => {
+                        // Verbose mode narrates to stderr as usual. In the
+                        // non-verbose path we stay silent: RMM wrappers like
+                        // SuperOps treat any stderr output as a script error,
+                        // and script users always pass an explicit subnet
+                        // anyway. The scan proceeds either way.
                         if cli.verbose {
                             eprintln!("[scan] Auto-detected subnet: {detected}");
-                        } else {
-                            eprintln!("Auto-detected subnet: {detected}");
                         }
                         detected
                     }
