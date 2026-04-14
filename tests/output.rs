@@ -924,4 +924,19 @@ mod output_test {
             "expected normalized catalog date 'date: 2009-04-21':\n{text}"
         );
     }
+
+    #[test]
+    fn empty_scan_result_shows_troubleshooting_guidance() {
+        let result = ScanResult {
+            network: vec![],
+            usb: vec![],
+        };
+        let out = output::format_scan_result_plain(&result);
+        assert!(out.contains("(no printers discovered)"));
+        assert!(out.contains("If this is unexpected"));
+        assert!(out.contains("--community"));
+        assert!(out.contains("--method port"));
+        assert!(out.contains("--method mdns"));
+        assert!(out.contains("--timeout"));
+    }
 }
