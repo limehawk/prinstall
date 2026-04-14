@@ -37,6 +37,11 @@ pub struct AddArgs<'a> {
     pub no_sdi: bool,
     pub no_catalog: bool,
     pub sdi_fetch: bool,
+    /// Universal escape hatch: skip Authenticode .cat signature verification
+    /// across every tier (manufacturer, catalog, SDI). Tiers that install under
+    /// this flag are tagged `[UNVERIFIED]` in the install report so the audit
+    /// trail makes it obvious the gate was bypassed.
+    pub no_verify: bool,
     pub community: &'a str,
     pub verbose: bool,
 }
@@ -161,32 +166,90 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     let driver_is_local = local_drivers.iter().any(|d| d == &driver_name);
 
     // ── Step 4: stage the driver if not in local store ───────────────────
-    stage_driver_if_needed(&driver_name, &model, &local_drivers, verbose).await;
+    let stage_outcome =
+        stage_driver_if_needed(&driver_name, &model, &local_drivers, args.no_verify, verbose)
+            .await;
+
+    // If the manufacturer pack failed Authenticode verification, skip the
+    // primary install entirely and fall through to the catalog tier. The
+    // Manufacturer tier is recorded as Failed with the verification reason
+    // so the audit trail makes the rejection visible.
+    let manufacturer_verify_failed =
+        matches!(stage_outcome, StageOutcome::VerificationFailed { .. });
+    if let StageOutcome::VerificationFailed { ref reason } = stage_outcome {
+        report
+            .resolution
+            .add_tier("Manufacturer", TierStatus::Failed, reason);
+    }
 
     // ── Step 5: three-step install ───────────────────────────────────────
-    let primary_result =
-        installer::install_printer(target, &driver_name, &printer_name, &model, verbose);
+    // Skipped when Authenticode verification rejected the pack — a bogus
+    // INF won't install reliably and we don't want the primary pipeline
+    // to try it. PrinterOpResult::err gives us a placeholder failure to
+    // fall through with.
+    let primary_result = if manufacturer_verify_failed {
+        PrinterOpResult::err("manufacturer pack rejected by verification gate".to_string())
+    } else {
+        installer::install_printer(target, &driver_name, &printer_name, &model, verbose)
+    };
 
     if primary_result.success {
         // Populate the report for the happy path
         if driver_is_local {
-            report.resolution.add_tier("Local store", TierStatus::Matched, &driver_name);
+            report
+                .resolution
+                .add_tier("Local store", TierStatus::Matched, &driver_name);
+            report.source_annotation = Some("local driver store".into());
         } else {
-            report.resolution.add_tier("Manufacturer", TierStatus::Matched, &driver_name);
+            match &stage_outcome {
+                StageOutcome::StagedVerified { signer } => {
+                    let signer_tag = signer.as_deref().unwrap_or("unknown signer");
+                    report.resolution.add_tier(
+                        "Manufacturer",
+                        TierStatus::Verified,
+                        &format!("{driver_name} [verified: {signer_tag}]"),
+                    );
+                    report.source_annotation = Some("manufacturer [verified]".into());
+                }
+                StageOutcome::StagedUnverified => {
+                    report.resolution.add_tier(
+                        "Manufacturer",
+                        TierStatus::Matched,
+                        &format!("{driver_name} [UNVERIFIED]"),
+                    );
+                    report.source_annotation = Some("manufacturer [unverified]".into());
+                }
+                // AlreadyStaged / NoManifestEntry / DownloadFailed / StageFailed —
+                // the driver was found in the local store or the manufacturer tier
+                // didn't substantively contribute. Surface as a plain Matched.
+                _ => {
+                    report
+                        .resolution
+                        .add_tier("Manufacturer", TierStatus::Matched, &driver_name);
+                    report.source_annotation = Some("manufacturer".into());
+                }
+            }
         }
         populate_install_steps(&mut report, target, &driver_name, &printer_name, true);
-        report.source_annotation = Some(if driver_is_local { "local driver store".into() } else { "manufacturer".into() });
         report.success = true;
         report.elapsed = start.elapsed();
         report.render();
         return primary_result;
     }
 
-    // Primary failed — record the tier as failed
-    if driver_is_local {
-        report.resolution.add_tier("Local store", TierStatus::Failed, "install failed");
-    } else {
-        report.resolution.add_tier("Manufacturer", TierStatus::Failed, "install failed");
+    // Primary failed (or was skipped due to verification failure). Record
+    // the tier as failed unless we already recorded the verification
+    // rejection above.
+    if !manufacturer_verify_failed {
+        if driver_is_local {
+            report
+                .resolution
+                .add_tier("Local store", TierStatus::Failed, "install failed");
+        } else {
+            report
+                .resolution
+                .add_tier("Manufacturer", TierStatus::Failed, "install failed");
+        }
     }
 
     // ── Step 6: Catalog resolver (Tier 3 — Microsoft Update Catalog) ────
@@ -218,8 +281,23 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                     .map(|p| p.to_path_buf())
                     .unwrap_or_else(|| resolved.inf_path.clone());
 
-                if catalog_pack_safe_to_install(&cab_dir, verbose, &mut report) {
-                    let signer_tag = catalog_signer_tag(&cab_dir, verbose);
+                // --no-verify short-circuits the gate; tag the result as
+                // UNVERIFIED so the audit trail makes the bypass obvious.
+                let gate_ok = if args.no_verify {
+                    if verbose {
+                        eprintln!("[catalog] --no-verify passed, skipping Authenticode check");
+                    }
+                    true
+                } else {
+                    catalog_pack_safe_to_install(&cab_dir, verbose, &mut report)
+                };
+
+                if gate_ok {
+                    let signer_tag = if args.no_verify {
+                        None
+                    } else {
+                        catalog_signer_tag(&cab_dir, verbose)
+                    };
                     let inf_str = resolved.inf_path.to_string_lossy().to_string();
                     let stage_result = installer::powershell::stage_driver_inf(&inf_str, verbose);
                     if stage_result.success {
@@ -231,10 +309,24 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                             verbose,
                         );
                         if retry.success {
-                            let (status, detail) = catalog_success_tier(&resolved, signer_tag.as_deref());
+                            let (status, detail) = if args.no_verify {
+                                (
+                                    TierStatus::Matched,
+                                    format!(
+                                        "{} (from {}) [UNVERIFIED]",
+                                        resolved.display_name, resolved.catalog_title
+                                    ),
+                                )
+                            } else {
+                                catalog_success_tier(&resolved, signer_tag.as_deref())
+                            };
                             report.resolution.add_tier("Catalog", status, &detail);
                             populate_install_steps(&mut report, target, &resolved.display_name, &printer_name, true);
-                            report.source_annotation = Some(catalog_source_annotation(signer_tag.as_deref()));
+                            report.source_annotation = Some(if args.no_verify {
+                                "Microsoft Update Catalog [unverified]".to_string()
+                            } else {
+                                catalog_source_annotation(signer_tag.as_deref())
+                            });
                             report.success = true;
                             report.elapsed = start.elapsed();
                             report.render();
@@ -288,20 +380,13 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                     Some((extract_dir, extracted_inf)) => {
                         if cached {
                             // Phase 2 — Authenticode verification gate.
-                            let verify_executor = RealExecutor::new(verbose);
-                            let outcome = crate::commands::sdi_verify::verify_pack_directory(
-                                &verify_executor,
-                                &extract_dir,
-                                verbose,
-                            );
-
-                            if outcome.is_safe_to_install() {
-                                // Verified — proceed with install.
-                                let signer = if let crate::commands::sdi_verify::PackVerifyOutcome::Verified { signers, .. } = &outcome {
-                                    signers.first().cloned()
-                                } else {
-                                    None
-                                };
+                            // --no-verify short-circuits the gate; the tier is
+                            // marked UNVERIFIED so the bypass shows up in the
+                            // audit trail.
+                            if args.no_verify {
+                                if verbose {
+                                    eprintln!("[sdi] --no-verify passed, skipping Authenticode check");
+                                }
                                 match stage_and_install_sdi(
                                     best,
                                     &extracted_inf,
@@ -311,14 +396,13 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                                     verbose,
                                 ) {
                                     Some(result) => {
-                                        let signer_tag = signer.as_deref().unwrap_or("unknown signer");
                                         report.resolution.add_tier(
                                             "SDI Origin",
-                                            TierStatus::Verified,
-                                            &format!("{} [verified: {signer_tag}]", best.driver_name),
+                                            TierStatus::Matched,
+                                            &format!("{} [UNVERIFIED]", best.driver_name),
                                         );
                                         populate_install_steps(&mut report, target, &best.driver_name, &printer_name, true);
-                                        report.source_annotation = Some("SDI [verified]".into());
+                                        report.source_annotation = Some("SDI [unverified]".into());
                                         report.success = true;
                                         report.elapsed = start.elapsed();
                                         report.render();
@@ -333,23 +417,69 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                                     }
                                 }
                             } else {
-                                // Verification failed — skip and fall through.
-                                let reason = match &outcome {
-                                    crate::commands::sdi_verify::PackVerifyOutcome::Unsigned { unsigned, total } => {
-                                        format!("verification failed: {unsigned}/{total} cats unsigned")
+                                let verify_executor = RealExecutor::new(verbose);
+                                let outcome = crate::commands::sdi_verify::verify_pack_directory(
+                                    &verify_executor,
+                                    &extract_dir,
+                                    verbose,
+                                );
+
+                                if outcome.is_safe_to_install() {
+                                    // Verified — proceed with install.
+                                    let signer = if let crate::commands::sdi_verify::PackVerifyOutcome::Verified { signers, .. } = &outcome {
+                                        signers.first().cloned()
+                                    } else {
+                                        None
+                                    };
+                                    match stage_and_install_sdi(
+                                        best,
+                                        &extracted_inf,
+                                        target,
+                                        &printer_name,
+                                        &model,
+                                        verbose,
+                                    ) {
+                                        Some(result) => {
+                                            let signer_tag = signer.as_deref().unwrap_or("unknown signer");
+                                            report.resolution.add_tier(
+                                                "SDI Origin",
+                                                TierStatus::Verified,
+                                                &format!("{} [verified: {signer_tag}]", best.driver_name),
+                                            );
+                                            populate_install_steps(&mut report, target, &best.driver_name, &printer_name, true);
+                                            report.source_annotation = Some("SDI [verified]".into());
+                                            report.success = true;
+                                            report.elapsed = start.elapsed();
+                                            report.render();
+                                            return result;
+                                        }
+                                        None => {
+                                            report.resolution.add_tier(
+                                                "SDI Origin",
+                                                TierStatus::Failed,
+                                                "staging or install failed",
+                                            );
+                                        }
                                     }
-                                    crate::commands::sdi_verify::PackVerifyOutcome::Invalid { first_reason, .. } => {
-                                        format!("verification failed: {first_reason}")
-                                    }
-                                    crate::commands::sdi_verify::PackVerifyOutcome::NoCatalogs => {
-                                        "verification failed: no .cat catalogs in pack".to_string()
-                                    }
-                                    crate::commands::sdi_verify::PackVerifyOutcome::Verified { .. } => {
-                                        // unreachable given is_safe_to_install == false
-                                        "verification failed".to_string()
-                                    }
-                                };
-                                report.resolution.add_tier("SDI Origin", TierStatus::Failed, &reason);
+                                } else {
+                                    // Verification failed — skip and fall through.
+                                    let reason = match &outcome {
+                                        crate::commands::sdi_verify::PackVerifyOutcome::Unsigned { unsigned, total } => {
+                                            format!("verification failed: {unsigned}/{total} cats unsigned")
+                                        }
+                                        crate::commands::sdi_verify::PackVerifyOutcome::Invalid { first_reason, .. } => {
+                                            format!("verification failed: {first_reason}")
+                                        }
+                                        crate::commands::sdi_verify::PackVerifyOutcome::NoCatalogs => {
+                                            "verification failed: no .cat catalogs in pack".to_string()
+                                        }
+                                        crate::commands::sdi_verify::PackVerifyOutcome::Verified { .. } => {
+                                            // unreachable given is_safe_to_install == false
+                                            "verification failed".to_string()
+                                        }
+                                    };
+                                    report.resolution.add_tier("SDI Origin", TierStatus::Failed, &reason);
+                                }
                             }
                         } else {
                             // Uncached + --sdi-fetch path. Install WITHOUT verification
@@ -824,7 +954,15 @@ async fn run_usb_swap_driver(args: AddArgs<'_>) -> PrinterOpResult {
     }
 
     // ── Stage the driver if not in local store ───────────────────────────
-    stage_driver_if_needed(&driver_name, &model, &local_drivers, verbose).await;
+    // USB has no tier-cascade to fall through to, so a verification failure
+    // is fatal here — surface it clearly instead of silently swapping to
+    // whatever (possibly stale) driver is already in the store.
+    let stage_outcome =
+        stage_driver_if_needed(&driver_name, &model, &local_drivers, args.no_verify, verbose)
+            .await;
+    if let StageOutcome::VerificationFailed { reason } = stage_outcome {
+        return PrinterOpResult::err(format!("Manufacturer verification failed: {reason}"));
+    }
 
     // ── Call Set-Printer -DriverName ─────────────────────────────────────
     installer::update_printer_driver(target, &driver_name, &model, verbose)
@@ -859,7 +997,13 @@ async fn run_usb_stage_and_install(
     }
 
     // Stage the driver package (matches the network-path behavior).
-    stage_driver_if_needed(&driver_name, &model, &local_drivers, verbose).await;
+    // USB has no tier-cascade, so a verification failure is fatal.
+    let stage_outcome =
+        stage_driver_if_needed(&driver_name, &model, &local_drivers, args.no_verify, verbose)
+            .await;
+    if let StageOutcome::VerificationFailed { reason } = stage_outcome {
+        return PrinterOpResult::err(format!("Manufacturer verification failed: {reason}"));
+    }
 
     // pnputil /add-driver + /scan-devices to make PnP pick it up.
     let executor = RealExecutor::new(verbose);
@@ -969,8 +1113,49 @@ fn resolve_driver(
     }
 }
 
+/// Outcome of the manufacturer-tier driver staging step.
+/// Returned by [`stage_driver_if_needed`] so `run_network` can decide
+/// whether to proceed with the primary install or fall through to
+/// the next tier.
+///
+/// The `reason` fields on `DownloadFailed` and `StageFailed` are carried for
+/// `Debug` output / future logging; the current caller only branches on the
+/// variant so the reads are suppressed rather than removed.
+#[derive(Debug)]
+pub(crate) enum StageOutcome {
+    /// Driver was already present in the local store — no work done.
+    AlreadyStaged,
+    /// No manifest entry matched this model/driver-name combination.
+    /// Caller proceeds with primary install anyway; driver was not sourced
+    /// from the manufacturer tier.
+    NoManifestEntry,
+    /// Package downloaded, verified, and staged. Signer extracted from
+    /// the .cat catalog chain.
+    StagedVerified { signer: Option<String> },
+    /// Package downloaded and staged without verification (user passed
+    /// `--no-verify`). Surfaced as an UNVERIFIED audit marker.
+    StagedUnverified,
+    /// Package downloaded, verification failed. Nothing was staged.
+    /// Caller must skip the primary install and fall through to catalog.
+    VerificationFailed { reason: String },
+    /// Download errored (network failure, bad URL). Caller proceeds with
+    /// primary install; treated as best-effort warning today.
+    DownloadFailed {
+        #[allow(dead_code)]
+        reason: String,
+    },
+    /// Download succeeded but `stage_driver_inf` errored. Rare.
+    StageFailed {
+        #[allow(dead_code)]
+        reason: String,
+    },
+}
+
 /// Look up the driver in the manifest and attempt to download + stage it.
-/// Non-fatal — warnings are logged but the install proceeds regardless.
+///
+/// Returns a [`StageOutcome`] so the caller can distinguish a verification
+/// failure (skip primary install and fall through to catalog) from other
+/// non-fatal outcomes (proceed with the primary install).
 ///
 /// `local_drivers` is the already-fetched `Get-PrinterDriver` list from the
 /// caller — avoids a second PowerShell round-trip.
@@ -978,10 +1163,11 @@ async fn stage_driver_if_needed(
     driver_name: &str,
     model: &str,
     local_drivers: &[String],
+    no_verify: bool,
     verbose: bool,
-) {
+) -> StageOutcome {
     if local_drivers.iter().any(|d| d == driver_name) {
-        return;
+        return StageOutcome::AlreadyStaged;
     }
 
     if verbose {
@@ -990,39 +1176,123 @@ async fn stage_driver_if_needed(
 
     let manifest = drivers::manifest::Manifest::load_embedded();
     let Some(mfr) = manifest.find_manufacturer(model) else {
-        return;
+        return StageOutcome::NoManifestEntry;
     };
     let Some(ud) = mfr.universal_drivers.iter().find(|u| u.name == driver_name) else {
-        return;
+        return StageOutcome::NoManifestEntry;
     };
 
-    match drivers::downloader::download_and_stage(ud, verbose).await {
-        Ok(extract_dir) => {
-            let infs = drivers::downloader::find_inf_files(&extract_dir);
-            for inf in &infs {
-                if verbose {
-                    eprintln!("[add] Staging driver: {}", inf.display());
-                }
-                let stage_result = installer::powershell::stage_driver_inf(
-                    inf.to_str().unwrap_or_default(),
-                    verbose,
-                );
-                if !stage_result.success {
-                    eprintln!(
-                        "[add] Warning: failed to stage {}: {}",
-                        inf.display(),
-                        stage_result.error_summary()
-                    );
-                }
-            }
-        }
+    let extract_dir = match drivers::downloader::download_and_stage(ud, verbose).await {
+        Ok(dir) => dir,
         Err(e) => {
             if verbose {
                 eprintln!("[add] Download failed: {e}");
-                eprintln!("[add] Proceeding anyway — will fall back to IPP if available.");
+                eprintln!("[add] Proceeding anyway — will fall back to catalog/IPP if available.");
+            }
+            return StageOutcome::DownloadFailed { reason: e };
+        }
+    };
+
+    // Authenticode verification gate (unless --no-verify).
+    let signer = if no_verify {
+        if verbose {
+            eprintln!("[stage] --no-verify passed, skipping Authenticode check");
+        }
+        None
+    } else {
+        match run_manufacturer_verify(&extract_dir, verbose) {
+            Ok(s) => s,
+            Err(reason) => return StageOutcome::VerificationFailed { reason },
+        }
+    };
+
+    let infs = drivers::downloader::find_inf_files(&extract_dir);
+    if infs.is_empty() {
+        return StageOutcome::StageFailed {
+            reason: format!("no INF files found in {}", extract_dir.display()),
+        };
+    }
+
+    let mut any_stage_ok = false;
+    let mut first_err: Option<String> = None;
+    for inf in &infs {
+        if verbose {
+            eprintln!("[add] Staging driver: {}", inf.display());
+        }
+        let stage_result = installer::powershell::stage_driver_inf(
+            inf.to_str().unwrap_or_default(),
+            verbose,
+        );
+        if stage_result.success {
+            any_stage_ok = true;
+        } else {
+            let summary = stage_result.error_summary();
+            eprintln!(
+                "[add] Warning: failed to stage {}: {}",
+                inf.display(),
+                summary
+            );
+            if first_err.is_none() {
+                first_err = Some(summary);
             }
         }
     }
+
+    if !any_stage_ok {
+        return StageOutcome::StageFailed {
+            reason: first_err.unwrap_or_else(|| "stage_driver_inf failed for all INFs".to_string()),
+        };
+    }
+
+    if no_verify {
+        StageOutcome::StagedUnverified
+    } else {
+        StageOutcome::StagedVerified { signer }
+    }
+}
+
+/// Run `verify_pack_directory` on a freshly-extracted manufacturer pack.
+///
+/// Returns `Ok(Some(signer))` when verification passes and we pulled a signer
+/// CN out, `Ok(None)` in the lean no-SDI build (where the module isn't
+/// compiled in — we let the install proceed unverified, matching the
+/// pre-v0.4.3 behavior), or `Err(reason)` when the pack failed the gate.
+#[cfg(feature = "sdi")]
+fn run_manufacturer_verify(
+    extract_dir: &std::path::Path,
+    verbose: bool,
+) -> Result<Option<String>, String> {
+    let verify_executor = RealExecutor::new(verbose);
+    let outcome = crate::commands::sdi_verify::verify_pack_directory(
+        &verify_executor,
+        extract_dir,
+        verbose,
+    );
+    match outcome {
+        crate::commands::sdi_verify::PackVerifyOutcome::Verified { signers, .. } => {
+            Ok(signers.into_iter().next())
+        }
+        crate::commands::sdi_verify::PackVerifyOutcome::Unsigned { unsigned, total } => {
+            Err(format!("verification failed: {unsigned}/{total} cats unsigned"))
+        }
+        crate::commands::sdi_verify::PackVerifyOutcome::Invalid { first_reason, .. } => {
+            Err(format!("verification failed: {first_reason}"))
+        }
+        crate::commands::sdi_verify::PackVerifyOutcome::NoCatalogs => Err(
+            "no .cat catalogs in pack — vendor hasn't included them; use --no-verify to override"
+                .to_string(),
+        ),
+    }
+}
+
+#[cfg(not(feature = "sdi"))]
+fn run_manufacturer_verify(
+    _extract_dir: &std::path::Path,
+    _verbose: bool,
+) -> Result<Option<String>, String> {
+    // No verify gate in the lean build — preserve pre-v0.4.3 behavior by
+    // succeeding with no signer information.
+    Ok(None)
 }
 
 /// Check whether port 631 (IPP) is open on the target. Short timeout — this is
@@ -1224,6 +1494,60 @@ mod tests {
             catalog_source_annotation(None),
             "Microsoft Update Catalog"
         );
+    }
+
+    // ── StageOutcome variant shape (Task 27 — --no-verify + manufacturer gate)
+
+    #[test]
+    fn stage_outcome_staged_verified_proceeds() {
+        // A verified staging result should NOT trigger the fall-through branch.
+        let out = StageOutcome::StagedVerified {
+            signer: Some("CN=HP Inc.".into()),
+        };
+        assert!(!matches!(out, StageOutcome::VerificationFailed { .. }));
+        if let StageOutcome::StagedVerified { signer } = out {
+            assert_eq!(signer.as_deref(), Some("CN=HP Inc."));
+        } else {
+            panic!("expected StagedVerified");
+        }
+    }
+
+    #[test]
+    fn stage_outcome_verification_failed_skips_install() {
+        // VerificationFailed is the signal `run_network` uses to skip the
+        // primary install — a matches! on the variant is what the real call
+        // site does.
+        let out = StageOutcome::VerificationFailed {
+            reason: "no .cat catalogs in pack".into(),
+        };
+        assert!(matches!(out, StageOutcome::VerificationFailed { .. }));
+        if let StageOutcome::VerificationFailed { reason } = out {
+            assert!(reason.contains(".cat"));
+        } else {
+            panic!("expected VerificationFailed");
+        }
+    }
+
+    #[test]
+    fn stage_outcome_staged_unverified_proceeds_with_marker() {
+        // StagedUnverified is the --no-verify success path. The report
+        // caller should treat it as non-failing and emit the UNVERIFIED
+        // audit marker.
+        let out = StageOutcome::StagedUnverified;
+        assert!(!matches!(out, StageOutcome::VerificationFailed { .. }));
+        assert!(matches!(out, StageOutcome::StagedUnverified));
+    }
+
+    #[test]
+    fn stage_outcome_already_staged_does_not_skip_install() {
+        let out = StageOutcome::AlreadyStaged;
+        assert!(!matches!(out, StageOutcome::VerificationFailed { .. }));
+    }
+
+    #[test]
+    fn stage_outcome_no_manifest_entry_does_not_skip_install() {
+        let out = StageOutcome::NoManifestEntry;
+        assert!(!matches!(out, StageOutcome::VerificationFailed { .. }));
     }
 }
 

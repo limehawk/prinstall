@@ -233,6 +233,11 @@ pub enum Commands {
         #[cfg(feature = "sdi")]
         #[arg(long)]
         sdi_fetch: bool,
+
+        /// Skip Authenticode .cat signature verification on downloaded driver packs.
+        /// Use only when a vendor pack legitimately ships without a catalog file.
+        #[arg(long)]
+        no_verify: bool,
     },
 
     /// Remove a printer queue, with optional cleanup of driver and port

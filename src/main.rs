@@ -40,7 +40,7 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
         }
         cli::Commands::Id { ip } => cmd_id(ip, cli).await,
         cli::Commands::Drivers { ip, model } => cmd_drivers(ip, model.as_deref(), cli).await,
-        cli::Commands::Add { target, driver, name, model, usb, no_catalog, .. } => {
+        cli::Commands::Add { target, driver, name, model, usb, no_catalog, no_verify, .. } => {
             #[cfg(feature = "sdi")]
             let (no_sdi, sdi_fetch) = match cmd {
                 cli::Commands::Add { no_sdi, sdi_fetch, .. } => (*no_sdi, *sdi_fetch),
@@ -48,7 +48,7 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
             };
             #[cfg(not(feature = "sdi"))]
             let (no_sdi, sdi_fetch) = (true, false);
-            cmd_add(target, driver.as_deref(), name.as_deref(), model.as_deref(), *usb, no_sdi, *no_catalog, sdi_fetch, cli).await;
+            cmd_add(target, driver.as_deref(), name.as_deref(), model.as_deref(), *usb, no_sdi, *no_catalog, sdi_fetch, *no_verify, cli).await;
         }
         cli::Commands::Remove { target, keep_driver, keep_port } => {
             cmd_remove(target, *keep_driver, *keep_port, cli).await;
@@ -97,6 +97,7 @@ async fn cmd_add(
     no_sdi: bool,
     no_catalog: bool,
     sdi_fetch: bool,
+    no_verify: bool,
     cli: &cli::Cli,
 ) {
     let result = commands::add::run(commands::add::AddArgs {
@@ -109,6 +110,7 @@ async fn cmd_add(
         no_sdi,
         no_catalog,
         sdi_fetch,
+        no_verify,
         community: &cli.community,
         verbose: cli.verbose,
     })
