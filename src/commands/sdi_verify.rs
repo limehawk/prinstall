@@ -109,7 +109,109 @@ pub struct ManufacturerReport {
     pub signers: Vec<String>,
 }
 
+/// Summary of verification status for an entire driver pack.
+///
+/// Reduces a list of per-cat `CatResult`s to a single outcome. The SDI
+/// install gate and the `drivers` command both use `is_safe_to_install`
+/// to decide whether to offer / install a pack.
+#[derive(Debug, Clone)]
+pub enum PackVerifyOutcome {
+    /// Every `.cat` in the pack has a valid Authenticode signature.
+    Verified {
+        valid: usize,
+        signers: Vec<String>,
+    },
+    /// At least one `.cat` is missing a signature. Install must skip.
+    Unsigned {
+        unsigned: usize,
+        total: usize,
+    },
+    /// At least one `.cat` has a bad signature (hash mismatch, not trusted).
+    Invalid {
+        invalid: usize,
+        total: usize,
+        first_reason: String,
+    },
+    /// Pack has no `.cat` files at all — treat as untrustworthy.
+    NoCatalogs,
+}
+
+impl PackVerifyOutcome {
+    /// Reduce per-cat results to a pack-level outcome.
+    /// Priority: Invalid > Unsigned > Verified > NoCatalogs.
+    pub fn from_cat_results(results: &[CatResult]) -> Self {
+        if results.is_empty() {
+            return Self::NoCatalogs;
+        }
+        let total = results.len();
+
+        let invalid_count = results
+            .iter()
+            .filter(|r| {
+                matches!(
+                    r.status,
+                    SigStatus::HashMismatch
+                        | SigStatus::NotTrusted
+                        | SigStatus::UnknownError
+                        | SigStatus::Other(_)
+                )
+            })
+            .count();
+        if invalid_count > 0 {
+            let first_reason = results
+                .iter()
+                .find(|r| {
+                    !matches!(r.status, SigStatus::Valid | SigStatus::NotSigned)
+                })
+                .map(|r| format!("{:?}", r.status))
+                .unwrap_or_else(|| "unknown".to_string());
+            return Self::Invalid {
+                invalid: invalid_count,
+                total,
+                first_reason,
+            };
+        }
+
+        let unsigned_count = results.iter().filter(|r| r.status.is_unsigned()).count();
+        if unsigned_count > 0 {
+            return Self::Unsigned {
+                unsigned: unsigned_count,
+                total,
+            };
+        }
+
+        let valid = results.iter().filter(|r| r.status.is_valid()).count();
+        let mut signers: Vec<String> = results
+            .iter()
+            .filter_map(|r| r.signer.clone())
+            .collect();
+        signers.sort();
+        signers.dedup();
+        Self::Verified { valid, signers }
+    }
+
+    /// True when the pack is safe to install (verified signature).
+    pub fn is_safe_to_install(&self) -> bool {
+        matches!(self, Self::Verified { .. })
+    }
+}
+
 // ── Entry point ─────────────────────────────────────────────────────────────
+
+/// Walk a pack directory for `.cat` files and verify each.
+/// Wraps `verify_cats` + `from_cat_results` for the common install-gate path.
+pub fn verify_pack_directory(
+    executor: &dyn PsExecutor,
+    pack_dir: &Path,
+    verbose: bool,
+) -> PackVerifyOutcome {
+    let cats = find_cat_files(pack_dir);
+    if cats.is_empty() {
+        return PackVerifyOutcome::NoCatalogs;
+    }
+    let results = verify_cats(executor, &cats, verbose);
+    PackVerifyOutcome::from_cat_results(&results)
+}
 
 /// Run the `prinstall sdi verify` command.
 pub fn run(executor: &dyn PsExecutor, json: bool, verbose: bool) {
@@ -691,5 +793,114 @@ mod tests {
         let canon = stats.iter().find(|s| s.name == "Canon").unwrap();
         assert_eq!(canon.total, 1);
         assert_eq!(canon.unsigned, 1);
+    }
+}
+
+#[cfg(test)]
+mod pack_verify_tests {
+    use super::*;
+
+    #[test]
+    fn outcome_valid_when_all_cats_valid() {
+        let results = vec![
+            CatResult {
+                path: PathBuf::from("a.cat"),
+                status: SigStatus::Valid,
+                signer: Some("CN=Vendor".into()),
+                issuer_ca: Some("CN=MS Root".into()),
+            },
+            CatResult {
+                path: PathBuf::from("b.cat"),
+                status: SigStatus::Valid,
+                signer: Some("CN=Vendor".into()),
+                issuer_ca: Some("CN=MS Root".into()),
+            },
+        ];
+        let outcome = PackVerifyOutcome::from_cat_results(&results);
+        match outcome {
+            PackVerifyOutcome::Verified { valid, signers } => {
+                assert_eq!(valid, 2);
+                assert_eq!(signers, vec!["CN=Vendor".to_string()]);
+            }
+            other => panic!("expected Verified, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn outcome_unsigned_when_any_cat_unsigned() {
+        let results = vec![
+            CatResult {
+                path: PathBuf::from("a.cat"),
+                status: SigStatus::Valid,
+                signer: Some("CN=Vendor".into()),
+                issuer_ca: None,
+            },
+            CatResult {
+                path: PathBuf::from("b.cat"),
+                status: SigStatus::NotSigned,
+                signer: None,
+                issuer_ca: None,
+            },
+        ];
+        let outcome = PackVerifyOutcome::from_cat_results(&results);
+        match outcome {
+            PackVerifyOutcome::Unsigned { unsigned, total } => {
+                assert_eq!(unsigned, 1);
+                assert_eq!(total, 2);
+            }
+            other => panic!("expected Unsigned, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn outcome_invalid_when_hash_mismatch() {
+        let results = vec![CatResult {
+            path: PathBuf::from("a.cat"),
+            status: SigStatus::HashMismatch,
+            signer: None,
+            issuer_ca: None,
+        }];
+        let outcome = PackVerifyOutcome::from_cat_results(&results);
+        match outcome {
+            PackVerifyOutcome::Invalid {
+                invalid,
+                total,
+                first_reason,
+            } => {
+                assert_eq!(invalid, 1);
+                assert_eq!(total, 1);
+                assert!(first_reason.contains("HashMismatch"));
+            }
+            other => panic!("expected Invalid, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn outcome_no_catalogs_for_empty_input() {
+        let results: Vec<CatResult> = vec![];
+        let outcome = PackVerifyOutcome::from_cat_results(&results);
+        assert!(matches!(outcome, PackVerifyOutcome::NoCatalogs));
+    }
+
+    #[test]
+    fn is_safe_to_install_only_true_for_verified() {
+        let v = PackVerifyOutcome::Verified {
+            valid: 1,
+            signers: vec![],
+        };
+        let u = PackVerifyOutcome::Unsigned {
+            unsigned: 1,
+            total: 1,
+        };
+        let i = PackVerifyOutcome::Invalid {
+            invalid: 1,
+            total: 1,
+            first_reason: "x".into(),
+        };
+        let n = PackVerifyOutcome::NoCatalogs;
+        assert!(v.is_safe_to_install());
+        assert!(!u.is_safe_to_install());
+        assert!(!i.is_safe_to_install());
+        assert!(!n.is_safe_to_install());
     }
 }

@@ -223,3 +223,171 @@ pub fn list_local_drivers(verbose: bool) -> Vec<String> {
         .filter(|l| !l.is_empty())
         .collect()
 }
+
+// ── Trait-executor wrappers (pnputil + USB port lookup) ──────────────────────
+
+/// Simple success/error result returned by pnputil wrappers.
+pub struct PnpResult {
+    pub success: bool,
+    pub error: Option<String>,
+    pub stdout: String,
+}
+
+/// Stage all INFs under a directory into the Windows driver store.
+/// `/install` makes the package available for PnP immediately;
+/// `/subdirs` walks nested directories since driver packages are often
+/// delivered with INFs scattered across arch/locale subfolders.
+pub async fn pnputil_add_driver(
+    exec: &dyn crate::core::executor::PsExecutor,
+    inf_dir: &str,
+    verbose: bool,
+) -> PnpResult {
+    let escaped = escape_ps_string(inf_dir);
+    let cmd = format!(
+        "& pnputil /add-driver '{escaped}\\*.inf' /install /subdirs 2>&1 | Out-String"
+    );
+    if verbose {
+        eprintln!("[pnputil] add-driver from {inf_dir}");
+    }
+    let result = exec.run(&cmd);
+    if result.success {
+        PnpResult {
+            success: true,
+            error: None,
+            stdout: result.stdout,
+        }
+    } else {
+        PnpResult {
+            success: false,
+            error: Some(result.error_summary()),
+            stdout: result.stdout,
+        }
+    }
+}
+
+/// Trigger a PnP rescan so staged drivers get picked up for present
+/// devices. Fire-and-forget — no state to return beyond success/failure.
+pub async fn pnputil_scan_devices(
+    exec: &dyn crate::core::executor::PsExecutor,
+    verbose: bool,
+) -> PnpResult {
+    let cmd = "& pnputil /scan-devices 2>&1 | Out-String";
+    if verbose {
+        eprintln!("[pnputil] scan-devices");
+    }
+    let result = exec.run(cmd);
+    if result.success {
+        PnpResult {
+            success: true,
+            error: None,
+            stdout: result.stdout,
+        }
+    } else {
+        PnpResult {
+            success: false,
+            error: Some(result.error_summary()),
+            stdout: result.stdout,
+        }
+    }
+}
+
+/// Look up the USB print port associated with a device by fuzzy-matching
+/// its friendly name against the port's Description field. Returns
+/// e.g. "USB001" or None if no match.
+pub async fn find_usb_port_for_device(
+    exec: &dyn crate::core::executor::PsExecutor,
+    friendly_name: &str,
+    verbose: bool,
+) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct Row {
+        #[serde(rename = "Name")]
+        name: String,
+        #[serde(rename = "Description")]
+        description: Option<String>,
+    }
+    let cmd = "Get-PrinterPort | Where-Object { $_.Name -like 'USB*' } | \
+               Select-Object Name, Description | ConvertTo-Json -InputObject @($_)";
+    let rows: Vec<Row> =
+        crate::core::executor::run_json(exec, cmd).unwrap_or_default();
+    if verbose {
+        eprintln!("[usb] {} USB ports available", rows.len());
+    }
+    let needle = friendly_name.to_ascii_lowercase();
+    rows.into_iter()
+        .find(|r| {
+            r.description
+                .as_deref()
+                .map(|d| d.to_ascii_lowercase().contains(&needle))
+                .unwrap_or(false)
+        })
+        .map(|r| r.name)
+}
+
+#[cfg(test)]
+mod pnputil_tests {
+    use super::*;
+    use crate::core::executor::MockExecutor;
+
+    fn ok(stdout: &str) -> PsResult {
+        PsResult {
+            success: true,
+            stdout: stdout.to_string(),
+            stderr: String::new(),
+        }
+    }
+
+    fn fail(stderr: &str) -> PsResult {
+        PsResult {
+            success: false,
+            stdout: String::new(),
+            stderr: stderr.to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn pnputil_add_driver_succeeds() {
+        let mock = MockExecutor::new().stub_contains(
+            "pnputil",
+            ok("Adding driver package: oem42.inf\nDriver package added successfully."),
+        );
+        let result = pnputil_add_driver(&mock, "C:\\staging\\HP", false).await;
+        assert!(result.success, "expected success, got: {:?}", result.error);
+    }
+
+    #[tokio::test]
+    async fn pnputil_add_driver_reports_failure() {
+        let mock = MockExecutor::new()
+            .stub_contains("pnputil", fail("Failed to add driver package"));
+        let result = pnputil_add_driver(&mock, "C:\\staging\\HP", false).await;
+        assert!(!result.success);
+        assert!(result.error.is_some());
+    }
+
+    #[tokio::test]
+    async fn pnputil_scan_devices_succeeds() {
+        let mock = MockExecutor::new().stub_contains("/scan-devices", ok(""));
+        let result = pnputil_scan_devices(&mock, false).await;
+        assert!(result.success);
+    }
+
+    #[tokio::test]
+    async fn find_usb_port_matches_by_description() {
+        let mock = MockExecutor::new().stub_contains(
+            "Get-PrinterPort",
+            ok(r#"[{"Name":"USB001","Description":"HP LaserJet 1320"}]"#),
+        );
+        let port = find_usb_port_for_device(&mock, "HP LaserJet 1320", false).await;
+        assert_eq!(port.as_deref(), Some("USB001"));
+    }
+
+    #[tokio::test]
+    async fn find_usb_port_returns_none_when_no_match() {
+        let mock = MockExecutor::new().stub_contains(
+            "Get-PrinterPort",
+            ok(r#"[{"Name":"USB001","Description":"Brother MFC"}]"#),
+        );
+        let port = find_usb_port_for_device(&mock, "HP LaserJet 1320", false).await;
+        assert!(port.is_none());
+    }
+}

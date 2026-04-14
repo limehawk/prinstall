@@ -1,13 +1,13 @@
 [package]
 name = "prinstall"
-version = "0.4.0"
+version = "0.4.2"
 edition = "2024"
 description = "Discover network printers, match drivers, and install them on Windows"
 license = "MIT"
 readme = "README.md"
 
 [features]
-default = []
+default = ["sdi"]
 sdi = ["dep:sevenz-rust2", "dep:lzma-rs", "dep:sha2", "dep:indicatif"]
 
 [dependencies]

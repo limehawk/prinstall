@@ -67,6 +67,33 @@ impl Printer {
     }
 }
 
+/// A USB-attached printer as seen by Windows PnP. Captured whether or not
+/// Windows was able to auto-install a driver for it — yellow-bang orphans
+/// are what drives the `add --usb <model>` install flow.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsbDevice {
+    /// Full PnP instance ID, e.g. `USB\VID_03F0&PID_1D17\ABC123`.
+    pub hardware_id: String,
+    /// Friendly name as reported by PnP. Absent for some orphaned devices.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub friendly_name: Option<String>,
+    /// Matching print queue name if one exists. `None` means Windows saw
+    /// the device but never finished creating a queue — the install target
+    /// for the stage-and-scan flow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue_name: Option<String>,
+    /// True when PnP reports an error state (yellow bang in Device Manager).
+    pub has_error: bool,
+}
+
+/// Combined output of a full scan: network printers and USB-attached
+/// printers kept in separate sections. Emitted by `discovery::full_scan_result`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanResult {
+    pub network: Vec<Printer>,
+    pub usb: Vec<UsbDevice>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PrinterStatus {
@@ -136,6 +163,33 @@ pub struct DriverResults {
     /// Result of the Microsoft Update Catalog search, if one was run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalog: Option<CatalogSearchResult>,
+    /// SDI driver-pack candidates discovered for this printer's HWID, with
+    /// per-pack Authenticode verification status. Populated only when the
+    /// `sdi` feature is enabled and an IPP device-id is known.
+    #[cfg(feature = "sdi")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sdi_candidates: Vec<SdiDriverCandidate>,
+}
+
+/// A single SDI driver-pack candidate for a printer.
+///
+/// Surfaced by the `drivers` command when SDI is compiled in. One entry per
+/// `(pack × HWID hit)` pair from [`crate::drivers::sdi::resolver::enumerate_candidates`].
+/// The `verification` field is the reduced [`crate::commands::sdi_verify::PackVerifyOutcome`]
+/// flattened into a short human-readable string so CLI and JSON consumers
+/// don't have to know about Authenticode internals.
+#[cfg(feature = "sdi")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SdiDriverCandidate {
+    pub driver_name: String,
+    pub pack_name: String,
+    pub hwid_match: String,
+    /// One of: `"verified"`, `"unsigned (N/M)"`, `"invalid: <reason>"`,
+    /// `"no-catalogs"`, `"not-extracted"`.
+    pub verification: String,
+    /// Primary signer subject when `verification` is `"verified"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signer: Option<String>,
 }
 
 /// Outcome of a Microsoft Update Catalog search for a printer model.
@@ -328,3 +382,75 @@ pub struct History {
     #[serde(default)]
     pub installs: Vec<HistoryEntry>,
 }
+
+#[cfg(test)]
+mod usb_model_tests {
+    use super::*;
+
+    #[test]
+    fn usb_device_serializes_with_snake_case_fields() {
+        let dev = UsbDevice {
+            hardware_id: "USB\\VID_03F0&PID_1D17\\ABC".to_string(),
+            friendly_name: Some("HP LaserJet 1320".to_string()),
+            queue_name: None,
+            has_error: true,
+        };
+        let json = serde_json::to_value(&dev).unwrap();
+        assert_eq!(json["hardware_id"], "USB\\VID_03F0&PID_1D17\\ABC");
+        assert_eq!(json["friendly_name"], "HP LaserJet 1320");
+        assert!(json["queue_name"].is_null());
+        assert_eq!(json["has_error"], true);
+    }
+
+    #[test]
+    fn scan_result_has_both_sections() {
+        let result = ScanResult {
+            network: vec![],
+            usb: vec![],
+        };
+        let json = serde_json::to_value(&result).unwrap();
+        assert!(json.get("network").is_some());
+        assert!(json.get("usb").is_some());
+    }
+
+    #[test]
+    #[cfg(feature = "sdi")]
+    fn driver_results_carries_sdi_candidates() {
+        let results = DriverResults {
+            printer_model: "HP LaserJet 1320".into(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            sdi_candidates: vec![SdiDriverCandidate {
+                driver_name: "HP LaserJet".into(),
+                pack_name: "DP_Printer_26000".into(),
+                hwid_match: "USB\\VID_03F0".into(),
+                verification: "verified".into(),
+                signer: Some("CN=HP Inc.".into()),
+            }],
+        };
+        let json = serde_json::to_value(&results).unwrap();
+        assert!(json.get("sdi_candidates").is_some());
+    }
+
+    #[test]
+    #[cfg(feature = "sdi")]
+    fn sdi_driver_candidate_serializes_snake_case() {
+        let c = SdiDriverCandidate {
+            driver_name: "HP LaserJet".into(),
+            pack_name: "DP_Printer_26000".into(),
+            hwid_match: "USB\\VID_03F0".into(),
+            verification: "verified".into(),
+            signer: Some("CN=HP Inc.".into()),
+        };
+        let json = serde_json::to_value(&c).unwrap();
+        assert_eq!(json["driver_name"], "HP LaserJet");
+        assert_eq!(json["pack_name"], "DP_Printer_26000");
+        assert_eq!(json["hwid_match"], "USB\\VID_03F0");
+        assert_eq!(json["verification"], "verified");
+        assert_eq!(json["signer"], "CN=HP Inc.");
+    }
+}
+

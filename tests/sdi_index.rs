@@ -1,3 +1,5 @@
+#![cfg(feature = "sdi")]
+
 //! Integration tests for the SDW index parser.
 //!
 //! The headline test is `parses_real_dp_printer_26000_bin`, which loads a

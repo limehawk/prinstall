@@ -1,3 +1,5 @@
+#![cfg(feature = "sdi")]
+
 //! Integration tests for the SDI cache state manager.
 //!
 //! Every test uses its own tempdir so the suite can run in parallel.

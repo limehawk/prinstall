@@ -1,3 +1,5 @@
+#![cfg(feature = "sdi")]
+
 //! Integration tests for `src/drivers/sdi/pack.rs`.
 //!
 //! These tests exercise both the synthetic-7z path (built with

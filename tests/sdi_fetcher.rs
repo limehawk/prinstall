@@ -1,3 +1,5 @@
+#![cfg(feature = "sdi")]
+
 //! Integration tests for `src/drivers/sdi/fetcher.rs`.
 //!
 //! Each test spawns a hand-rolled HTTP mock server on an ephemeral

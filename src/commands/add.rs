@@ -230,6 +230,15 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     }
 
     // ── Step 6.5: SDI resolver (Tier 4 — Snappy Driver Installer) ───────
+    //
+    // Cached candidates are gated by Authenticode verification: only packs
+    // whose `.cat` catalogs all pass `Get-AuthenticodeSignature` install.
+    // Unsigned, invalid, or catalog-less packs are skipped — the flow falls
+    // through to the IPP Class Driver fallback instead.
+    //
+    // Uncached (`--sdi-fetch`) candidates install WITHOUT verification for
+    // now; threading the verify gate through post-fetch extraction is
+    // future work. Those installs are tagged `UNVERIFIED` in the report.
     #[cfg(feature = "sdi")]
     if args.no_sdi {
         report.resolution.add_tier("SDI Origin", TierStatus::Disabled, "--no-sdi");
@@ -242,20 +251,114 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
             let candidates = drivers::sdi::resolver::enumerate_candidates(dev_id, &cache);
             if let Some(best) = pick_sdi_candidate(&candidates, args.sdi_fetch) {
                 let cached = best.source == drivers::sources::Source::SdiCached;
-                match try_sdi_install(best, target, &printer_name, &model, verbose) {
-                    Some(result) => {
-                        let cache_tag = if cached { "[cached]" } else { "[fetched]" };
-                        report.resolution.add_tier("SDI Origin", TierStatus::Matched,
-                            &format!("{} {cache_tag}", best.driver_name));
-                        populate_install_steps(&mut report, target, &best.driver_name, &printer_name, true);
-                        report.source_annotation = Some(format!("SDI {cache_tag}"));
-                        report.success = true;
-                        report.elapsed = start.elapsed();
-                        report.render();
-                        return result;
+
+                // Phase 1 — extract the driver subdirectory from the pack.
+                // Persistent cache under sdi/extracted/<pack_stem>/ means
+                // this is effectively free after the first install.
+                match extract_sdi_driver(best, verbose) {
+                    Some((extract_dir, extracted_inf)) => {
+                        if cached {
+                            // Phase 2 — Authenticode verification gate.
+                            let verify_executor = RealExecutor::new(verbose);
+                            let outcome = crate::commands::sdi_verify::verify_pack_directory(
+                                &verify_executor,
+                                &extract_dir,
+                                verbose,
+                            );
+
+                            if outcome.is_safe_to_install() {
+                                // Verified — proceed with install.
+                                let signer = if let crate::commands::sdi_verify::PackVerifyOutcome::Verified { signers, .. } = &outcome {
+                                    signers.first().cloned()
+                                } else {
+                                    None
+                                };
+                                match stage_and_install_sdi(
+                                    best,
+                                    &extracted_inf,
+                                    target,
+                                    &printer_name,
+                                    &model,
+                                    verbose,
+                                ) {
+                                    Some(result) => {
+                                        let signer_tag = signer.as_deref().unwrap_or("unknown signer");
+                                        report.resolution.add_tier(
+                                            "SDI Origin",
+                                            TierStatus::Verified,
+                                            &format!("{} [verified: {signer_tag}]", best.driver_name),
+                                        );
+                                        populate_install_steps(&mut report, target, &best.driver_name, &printer_name, true);
+                                        report.source_annotation = Some("SDI [verified]".into());
+                                        report.success = true;
+                                        report.elapsed = start.elapsed();
+                                        report.render();
+                                        return result;
+                                    }
+                                    None => {
+                                        report.resolution.add_tier(
+                                            "SDI Origin",
+                                            TierStatus::Failed,
+                                            "staging or install failed",
+                                        );
+                                    }
+                                }
+                            } else {
+                                // Verification failed — skip and fall through.
+                                let reason = match &outcome {
+                                    crate::commands::sdi_verify::PackVerifyOutcome::Unsigned { unsigned, total } => {
+                                        format!("verification failed: {unsigned}/{total} cats unsigned")
+                                    }
+                                    crate::commands::sdi_verify::PackVerifyOutcome::Invalid { first_reason, .. } => {
+                                        format!("verification failed: {first_reason}")
+                                    }
+                                    crate::commands::sdi_verify::PackVerifyOutcome::NoCatalogs => {
+                                        "verification failed: no .cat catalogs in pack".to_string()
+                                    }
+                                    crate::commands::sdi_verify::PackVerifyOutcome::Verified { .. } => {
+                                        // unreachable given is_safe_to_install == false
+                                        "verification failed".to_string()
+                                    }
+                                };
+                                report.resolution.add_tier("SDI Origin", TierStatus::Failed, &reason);
+                            }
+                        } else {
+                            // Uncached + --sdi-fetch path. Install WITHOUT verification
+                            // for now. Future work: run the verify gate after fetch+extract
+                            // inside this same flow.
+                            match stage_and_install_sdi(
+                                best,
+                                &extracted_inf,
+                                target,
+                                &printer_name,
+                                &model,
+                                verbose,
+                            ) {
+                                Some(result) => {
+                                    report.resolution.add_tier(
+                                        "SDI Origin",
+                                        TierStatus::Matched,
+                                        &format!("{} [fetched, UNVERIFIED]", best.driver_name),
+                                    );
+                                    populate_install_steps(&mut report, target, &best.driver_name, &printer_name, true);
+                                    report.source_annotation = Some("SDI [fetched, unverified]".into());
+                                    report.success = true;
+                                    report.elapsed = start.elapsed();
+                                    report.render();
+                                    return result;
+                                }
+                                None => {
+                                    report.resolution.add_tier(
+                                        "SDI Origin",
+                                        TierStatus::Failed,
+                                        "staging or install failed",
+                                    );
+                                }
+                            }
+                        }
                     }
                     None => {
-                        report.resolution.add_tier("SDI Origin", TierStatus::Failed, "extraction or install failed");
+                        report.resolution.add_tier("SDI Origin", TierStatus::Failed, "extraction failed");
                     }
                 }
             } else if !candidates.is_empty() {
@@ -377,19 +480,17 @@ fn pick_sdi_candidate<'a>(
     }
 }
 
-/// Attempt to install a printer using a matched SDI candidate. Returns
-/// `Some(result)` on success (install completed with SDI-annotated
-/// result), `None` if the SDI path failed at any step (extraction,
-/// staging, or retry install) and the caller should fall through to the
-/// next tier.
+/// Extract an SDI candidate's driver subdirectory from its cached pack,
+/// returning the root extract directory (for verification) and the specific
+/// INF path (for staging). Uses the persistent extraction cache under
+/// `sdi/extracted/<pack_stem>/` so the slow solid-LZMA2 decompression only
+/// runs on the first install of a given pack. Returns `None` if the
+/// candidate isn't cached or extraction fails.
 #[cfg(feature = "sdi")]
-fn try_sdi_install(
+fn extract_sdi_driver(
     candidate: &drivers::sources::SourceCandidate,
-    target: &str,
-    printer_name: &str,
-    model: &str,
     verbose: bool,
-) -> Option<PrinterOpResult> {
+) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
     let (pack_path, inf_dir_prefix, inf_filename) = match &candidate.install_hint {
         drivers::sources::InstallHint::SdiCached {
             pack_path,
@@ -406,11 +507,6 @@ fn try_sdi_install(
         }
     };
 
-    // Extract the driver's subdirectory from the cached pack. Uses a
-    // PERSISTENT extraction cache under sdi/extracted/<pack_stem>/ so
-    // the slow solid-LZMA2 decompression only happens once per pack.
-    // Subsequent installs from the same pack (same or different driver)
-    // read directly from the extracted tree — sub-second, no 7z touch.
     let pack_stem = pack_path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -418,9 +514,6 @@ fn try_sdi_install(
     let extract_dir = crate::paths::sdi_dir().join("extracted").join(pack_stem);
 
     // Check if this driver was already extracted in a previous run.
-    // The persistent extraction cache means the slow 7z decompression
-    // only happens once per pack — every subsequent install reads from
-    // the extracted tree directly.
     let mut cached_inf = extract_dir.clone();
     for seg in inf_dir_prefix.split('/').filter(|s| !s.is_empty()) {
         cached_inf.push(seg);
@@ -460,7 +553,21 @@ fn try_sdi_install(
         }
     };
 
-    // Stage the extracted INF + siblings via pnputil /add-driver
+    Some((extract_dir, extracted_inf))
+}
+
+/// Stage the extracted INF via pnputil /add-driver and run the three-step
+/// install. Returns `Some(annotated_result)` on success, `None` if staging
+/// or install failed.
+#[cfg(feature = "sdi")]
+fn stage_and_install_sdi(
+    candidate: &drivers::sources::SourceCandidate,
+    extracted_inf: &std::path::Path,
+    target: &str,
+    printer_name: &str,
+    model: &str,
+    verbose: bool,
+) -> Option<PrinterOpResult> {
     let inf_str = extracted_inf.to_string_lossy().to_string();
     if verbose {
         eprintln!("[sdi] Staging INF: {inf_str}");
@@ -476,7 +583,6 @@ fn try_sdi_install(
         return None;
     }
 
-    // Retry the three-step install with the SDI-resolved driver name.
     let retry = installer::install_printer(
         target,
         &candidate.driver_name,
@@ -525,24 +631,38 @@ fn annotate_sdi_success(
     result
 }
 
-/// USB-printer install path: verify queue exists → driver match → stage
-/// driver → swap via Set-Printer. No port creation, no SNMP, no IPP fallback.
+/// USB-printer install dispatcher. If the target queue already exists, swap
+/// its driver (legacy flow). Otherwise, resolve a USB device by friendly
+/// name and stage-and-install a driver for the orphan device.
 async fn run_usb(args: AddArgs<'_>) -> PrinterOpResult {
     let verbose = args.verbose;
     let target = args.target;
 
     if verbose {
-        eprintln!("[add] USB mode — target queue: '{target}'");
+        eprintln!("[add] USB mode — target: '{target}'");
     }
 
-    // Verify the USB printer queue exists. Windows auto-creates a queue
-    // via PnP when a USB printer is plugged in; we're swapping its driver,
-    // not creating it from scratch.
-    if !installer::powershell::printer_exists(target, verbose) {
-        return PrinterOpResult::err(format!(
-            "USB printer queue '{target}' not found. Run `prinstall list` to see installed printers."
-        ));
+    // Existing queue? → driver swap (legacy behavior).
+    if installer::powershell::printer_exists(target, verbose) {
+        return run_usb_swap_driver(args).await;
     }
+
+    // No queue — resolve USB device and stage-and-install.
+    let executor = RealExecutor::new(verbose);
+    let Some(device) = resolve_usb_device_by_name(&executor, target, verbose).await else {
+        return PrinterOpResult::err(format!(
+            "No USB printer matching '{target}' found. Run `prinstall scan --usb-only` to see attached devices."
+        ));
+    };
+
+    run_usb_stage_and_install(args, device).await
+}
+
+/// Legacy USB flow: queue already exists, swap its driver via Set-Printer.
+/// No port creation, no SNMP, no IPP fallback.
+async fn run_usb_swap_driver(args: AddArgs<'_>) -> PrinterOpResult {
+    let verbose = args.verbose;
+    let target = args.target;
 
     // ── Model resolution: --model wins, otherwise use the queue name ─────
     // The queue name is typically the model string Windows assigned during
@@ -569,6 +689,119 @@ async fn run_usb(args: AddArgs<'_>) -> PrinterOpResult {
 
     // ── Call Set-Printer -DriverName ─────────────────────────────────────
     installer::update_printer_driver(target, &driver_name, &model, verbose)
+}
+
+/// New USB flow for orphan devices without a queue. Matches the driver,
+/// stages it via pnputil, triggers a PnP rescan, polls for queue creation,
+/// and falls back to an explicit Add-Printer if PnP doesn't bite.
+async fn run_usb_stage_and_install(
+    args: AddArgs<'_>,
+    device: crate::models::UsbDevice,
+) -> PrinterOpResult {
+    let verbose = args.verbose;
+    let friendly = device
+        .friendly_name
+        .as_deref()
+        .unwrap_or(args.target)
+        .to_string();
+    let model = args
+        .model_override
+        .map(|m| m.to_string())
+        .unwrap_or_else(|| friendly.clone());
+
+    let local_drivers = drivers::local_store::list_drivers(verbose);
+    let driver_name = match resolve_driver(&args, &model, &local_drivers, verbose) {
+        Ok(name) => name,
+        Err(result) => return result,
+    };
+
+    if verbose {
+        eprintln!("[add] USB stage-and-install: device='{friendly}' driver='{driver_name}'");
+    }
+
+    // Stage the driver package (matches the network-path behavior).
+    stage_driver_if_needed(&driver_name, &model, &local_drivers, verbose).await;
+
+    // pnputil /add-driver + /scan-devices to make PnP pick it up.
+    let executor = RealExecutor::new(verbose);
+    let staging = crate::paths::staging_dir();
+    let staging_str = staging.to_string_lossy().to_string();
+    let add_result =
+        installer::powershell::pnputil_add_driver(&executor, &staging_str, verbose).await;
+    if !add_result.success {
+        return PrinterOpResult::err(format!(
+            "Failed to stage driver via pnputil: {}",
+            add_result.error.unwrap_or_default()
+        ));
+    }
+    let _ = installer::powershell::pnputil_scan_devices(&executor, verbose).await;
+
+    // Poll for queue creation (~5s).
+    let printer_name = args.name_override.unwrap_or(&friendly).to_string();
+    for _ in 0..10 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        if installer::powershell::printer_exists(&printer_name, verbose) {
+            return PrinterOpResult::ok(InstallDetail {
+                printer_name,
+                driver_name,
+                port_name: "USB (PnP auto)".into(),
+                warning: None,
+            });
+        }
+    }
+
+    // Explicit Add-Printer fallback using the USB port.
+    let Some(port) =
+        installer::powershell::find_usb_port_for_device(&executor, &friendly, verbose).await
+    else {
+        return PrinterOpResult::err(format!(
+            "USB driver staged but no matching USB port found for '{friendly}'. Replug the device."
+        ));
+    };
+
+    let escaped_name = escape_ps_string(&printer_name);
+    let escaped_driver = escape_ps_string(&driver_name);
+    let escaped_port = escape_ps_string(&port);
+    // Wrap in single quotes to match the rest of the codebase (see
+    // try_ipp_fallback for the pattern). escape_ps_string doubles any
+    // embedded single quotes so the quoting stays intact.
+    let cmd = format!(
+        "Add-Printer -Name '{escaped_name}' -DriverName '{escaped_driver}' -PortName '{escaped_port}'"
+    );
+    let ps_result = executor.run(&cmd);
+    if ps_result.success {
+        PrinterOpResult::ok(InstallDetail {
+            printer_name,
+            driver_name,
+            port_name: port,
+            warning: Some(
+                "Installed via explicit Add-Printer fallback after PnP timeout".into(),
+            ),
+        })
+    } else {
+        PrinterOpResult::err(format!(
+            "Add-Printer failed: {}",
+            ps_result.error_summary()
+        ))
+    }
+}
+
+/// Find a USB device by case-insensitive friendly-name substring match.
+/// Returns None when no device matches — caller falls back to an error
+/// or to legacy queue-swap behavior depending on context.
+async fn resolve_usb_device_by_name(
+    exec: &dyn PsExecutor,
+    name: &str,
+    verbose: bool,
+) -> Option<crate::models::UsbDevice> {
+    let devices = discovery::usb::enumerate(exec, verbose).await;
+    let needle = name.to_ascii_lowercase();
+    devices.into_iter().find(|d| {
+        d.friendly_name
+            .as_deref()
+            .map(|f| f.to_ascii_lowercase().contains(&needle))
+            .unwrap_or(false)
+    })
 }
 
 /// Shared driver-resolution logic for both USB and network paths.
@@ -806,5 +1039,54 @@ mod tests {
         let detail = result.detail_as::<InstallDetail>().unwrap();
         assert_eq!(detail.port_name, "IP_10.20.30.40");
         assert_eq!(detail.printer_name, "HP LaserJet 9999 (IPP)");
+    }
+}
+
+#[cfg(test)]
+mod usb_install_tests {
+    use super::*;
+    use crate::core::executor::MockExecutor;
+    use crate::installer::powershell::PsResult;
+
+    fn ok(stdout: &str) -> PsResult {
+        PsResult {
+            success: true,
+            stdout: stdout.to_string(),
+            stderr: String::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn resolve_usb_device_matches_by_friendly_name() {
+        let mock = MockExecutor::new()
+            .stub_contains(
+                "Get-PnpDevice",
+                ok(r#"[{"FriendlyName":"HP LaserJet 1320","InstanceId":"USB\\VID_03F0&PID_1D17\\ABC","Status":"Error"}]"#),
+            )
+            .stub_contains("Get-Printer", ok("[]"));
+        let dev = resolve_usb_device_by_name(&mock, "HP LaserJet 1320", false).await;
+        assert!(dev.is_some());
+        assert_eq!(dev.unwrap().friendly_name.as_deref(), Some("HP LaserJet 1320"));
+    }
+
+    #[tokio::test]
+    async fn resolve_usb_device_matches_substring_case_insensitive() {
+        let mock = MockExecutor::new()
+            .stub_contains(
+                "Get-PnpDevice",
+                ok(r#"[{"FriendlyName":"HP LaserJet 1320","InstanceId":"USB\\VID_03F0&PID_1D17\\ABC","Status":"Error"}]"#),
+            )
+            .stub_contains("Get-Printer", ok("[]"));
+        let dev = resolve_usb_device_by_name(&mock, "laserjet 1320", false).await;
+        assert!(dev.is_some());
+    }
+
+    #[tokio::test]
+    async fn resolve_usb_device_returns_none_when_missing() {
+        let mock = MockExecutor::new()
+            .stub_contains("Get-PnpDevice", ok("[]"))
+            .stub_contains("Get-Printer", ok("[]"));
+        let dev = resolve_usb_device_by_name(&mock, "Nonexistent", false).await;
+        assert!(dev.is_none());
     }
 }

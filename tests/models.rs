@@ -49,6 +49,8 @@ mod models_test {
             device_id: None,
             windows_update: None,
             catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
         };
         assert_eq!(results.matched.len(), 0);
         assert_eq!(results.universal.len(), 0);
