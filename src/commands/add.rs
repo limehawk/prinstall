@@ -190,36 +190,65 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     }
 
     // ── Step 6: Catalog resolver (Tier 3 — Microsoft Update Catalog) ────
+    //
+    // Catalog-downloaded CABs get the same Authenticode gate as the SDI
+    // tier (when built with `--features sdi`, which is the default). The
+    // resolver extracts the CAB to `staging/catalog/<guid>-<idx>/`; we
+    // find `.cat` files beside the matched INF and require every catalog
+    // to carry a trusted signature before handing the driver to the
+    // installer. Unsigned or tampered packs are skipped — the pipeline
+    // falls through to SDI and then IPP Class Driver.
+    //
+    // In the `--no-default-features` (no-SDI) lean build, the
+    // `sdi_verify` module isn't compiled in, so we keep the pre-v0.4.3
+    // ungated behavior for that variant. The SDI-default build is where
+    // Watson wants defense-in-depth anyway.
     if args.no_catalog {
         report.resolution.add_tier("Catalog", TierStatus::Disabled, "--no-catalog");
     } else if let Some(ref dev_id) = device_id {
         match drivers::resolver::resolve_driver_for_device(dev_id, verbose).await {
             Ok(resolved) => {
-                let inf_str = resolved.inf_path.to_string_lossy().to_string();
-                let stage_result = installer::powershell::stage_driver_inf(&inf_str, verbose);
-                if stage_result.success {
-                    let retry = installer::install_printer(
-                        target,
-                        &resolved.display_name,
-                        &printer_name,
-                        &model,
-                        verbose,
-                    );
-                    if retry.success {
-                        report.resolution.add_tier("Catalog", TierStatus::Matched,
-                            &format!("{} (from {})", resolved.display_name, resolved.catalog_title));
-                        populate_install_steps(&mut report, target, &resolved.display_name, &printer_name, true);
-                        report.source_annotation = Some(format!("Microsoft Update Catalog"));
-                        report.success = true;
-                        report.elapsed = start.elapsed();
-                        report.render();
-                        return annotate_catalog_success(retry, &resolved);
+                // The extraction root holds both the .inf and the .cat files
+                // that sign it. Walking upward from the matched INF to its
+                // parent directory covers the typical layout where Windows
+                // driver packages keep catalogs alongside their INFs.
+                let cab_dir = resolved
+                    .inf_path
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| resolved.inf_path.clone());
+
+                if catalog_pack_safe_to_install(&cab_dir, verbose, &mut report) {
+                    let signer_tag = catalog_signer_tag(&cab_dir, verbose);
+                    let inf_str = resolved.inf_path.to_string_lossy().to_string();
+                    let stage_result = installer::powershell::stage_driver_inf(&inf_str, verbose);
+                    if stage_result.success {
+                        let retry = installer::install_printer(
+                            target,
+                            &resolved.display_name,
+                            &printer_name,
+                            &model,
+                            verbose,
+                        );
+                        if retry.success {
+                            let (status, detail) = catalog_success_tier(&resolved, signer_tag.as_deref());
+                            report.resolution.add_tier("Catalog", status, &detail);
+                            populate_install_steps(&mut report, target, &resolved.display_name, &printer_name, true);
+                            report.source_annotation = Some(catalog_source_annotation(signer_tag.as_deref()));
+                            report.success = true;
+                            report.elapsed = start.elapsed();
+                            report.render();
+                            return annotate_catalog_success(retry, &resolved);
+                        }
+                        report.resolution.add_tier("Catalog", TierStatus::Failed, "driver staged but install failed");
+                    } else {
+                        report.resolution.add_tier("Catalog", TierStatus::Failed,
+                            &format!("staging failed: {}", stage_result.error_summary()));
                     }
-                    report.resolution.add_tier("Catalog", TierStatus::Failed, "driver staged but install failed");
-                } else {
-                    report.resolution.add_tier("Catalog", TierStatus::Failed,
-                        &format!("staging failed: {}", stage_result.error_summary()));
                 }
+                // If the pack failed verification, `catalog_pack_safe_to_install`
+                // already recorded the Failed tier with a descriptive reason —
+                // fall through to the next tier.
             }
             Err(e) => {
                 report.resolution.add_tier("Catalog", TierStatus::Failed, &e);
@@ -423,6 +452,116 @@ fn populate_install_steps(
     report.install.add_step("Port", &format!("IP_{ip}"), all_ok);
     report.install.add_step("Driver", driver_name, all_ok);
     report.install.add_step("Queue", printer_name, all_ok);
+}
+
+/// Run the Authenticode verification gate on a catalog-extracted pack.
+///
+/// Returns `true` if the pack is safe to install (all `.cat` catalogs carry a
+/// trusted Authenticode signature). Returns `false` if the pack should be
+/// skipped — in which case this helper has already recorded the appropriate
+/// `Failed` tier entry on `report` with a descriptive reason, so the caller
+/// just needs to fall through to the next tier.
+///
+/// In the no-SDI lean build this is a stub that always returns `true` — that
+/// variant keeps the pre-v0.4.3 ungated behavior because the `sdi_verify`
+/// module isn't compiled in.
+#[cfg(feature = "sdi")]
+fn catalog_pack_safe_to_install(
+    cab_dir: &std::path::Path,
+    verbose: bool,
+    report: &mut InstallReport,
+) -> bool {
+    let verify_executor = RealExecutor::new(verbose);
+    let outcome = crate::commands::sdi_verify::verify_pack_directory(
+        &verify_executor,
+        cab_dir,
+        verbose,
+    );
+    if outcome.is_safe_to_install() {
+        return true;
+    }
+    let reason = match &outcome {
+        crate::commands::sdi_verify::PackVerifyOutcome::Unsigned { unsigned, total } => {
+            format!("verification failed: {unsigned}/{total} cats unsigned")
+        }
+        crate::commands::sdi_verify::PackVerifyOutcome::Invalid { first_reason, .. } => {
+            format!("verification failed: {first_reason}")
+        }
+        crate::commands::sdi_verify::PackVerifyOutcome::NoCatalogs => {
+            "verification failed: no .cat catalogs in pack".to_string()
+        }
+        crate::commands::sdi_verify::PackVerifyOutcome::Verified { .. } => {
+            // Unreachable: is_safe_to_install() is false.
+            "verification failed".to_string()
+        }
+    };
+    report.resolution.add_tier("Catalog", TierStatus::Failed, &reason);
+    false
+}
+
+#[cfg(not(feature = "sdi"))]
+fn catalog_pack_safe_to_install(
+    _cab_dir: &std::path::Path,
+    _verbose: bool,
+    _report: &mut InstallReport,
+) -> bool {
+    // No verify gate in the lean build — preserve pre-v0.4.3 behavior.
+    true
+}
+
+/// Re-run the verification to pull the leaf signer for audit display.
+///
+/// This is a second Get-AuthenticodeSignature pass — cheap enough to be worth
+/// the clarity over threading the `PackVerifyOutcome` through the success
+/// path. Returns `None` in the no-SDI lean build.
+#[cfg(feature = "sdi")]
+fn catalog_signer_tag(cab_dir: &std::path::Path, verbose: bool) -> Option<String> {
+    let verify_executor = RealExecutor::new(verbose);
+    let outcome = crate::commands::sdi_verify::verify_pack_directory(
+        &verify_executor,
+        cab_dir,
+        verbose,
+    );
+    if let crate::commands::sdi_verify::PackVerifyOutcome::Verified { signers, .. } = outcome {
+        signers.into_iter().next()
+    } else {
+        None
+    }
+}
+
+#[cfg(not(feature = "sdi"))]
+fn catalog_signer_tag(_cab_dir: &std::path::Path, _verbose: bool) -> Option<String> {
+    None
+}
+
+/// Pick the right tier status + detail string for a catalog-tier success.
+///
+/// When we have a signer (SDI-default build with verification), use
+/// `TierStatus::Verified` and include the signer CN. Otherwise fall back to
+/// `TierStatus::Matched` so the lean build renders a clean tier without
+/// pretending a verification happened.
+fn catalog_success_tier(
+    resolved: &drivers::resolver::ResolvedDriver,
+    signer: Option<&str>,
+) -> (TierStatus, String) {
+    match signer {
+        Some(s) => (
+            TierStatus::Verified,
+            format!("{} (from {}) [verified: {s}]", resolved.display_name, resolved.catalog_title),
+        ),
+        None => (
+            TierStatus::Matched,
+            format!("{} (from {})", resolved.display_name, resolved.catalog_title),
+        ),
+    }
+}
+
+/// Build the top-of-report source-annotation string for the catalog tier.
+fn catalog_source_annotation(signer: Option<&str>) -> String {
+    match signer {
+        Some(_) => "Microsoft Update Catalog [verified]".to_string(),
+        None => "Microsoft Update Catalog".to_string(),
+    }
 }
 
 /// Attach a catalog-success note to an otherwise-successful install result
@@ -1039,6 +1178,94 @@ mod tests {
         let detail = result.detail_as::<InstallDetail>().unwrap();
         assert_eq!(detail.port_name, "IP_10.20.30.40");
         assert_eq!(detail.printer_name, "HP LaserJet 9999 (IPP)");
+    }
+
+    fn sample_resolved() -> drivers::resolver::ResolvedDriver {
+        drivers::resolver::ResolvedDriver {
+            inf_path: std::path::PathBuf::from("/tmp/abc/prnhp001.inf"),
+            display_name: "HP Universal Printing PCL 6".to_string(),
+            catalog_title: "HP - Printer - 61.325.1.24923".to_string(),
+            catalog_date: "2024-01-15".to_string(),
+            driver_ver: Some("10/24/2023,61.325.1.24923".to_string()),
+            matched_hwid: "1284_CID_HP_UNIVERSAL_PCL6".to_string(),
+        }
+    }
+
+    #[test]
+    fn catalog_success_tier_verified_includes_signer() {
+        let resolved = sample_resolved();
+        let (status, detail) = catalog_success_tier(&resolved, Some("CN=HP Inc."));
+        assert!(matches!(status, TierStatus::Verified));
+        assert!(detail.contains("HP Universal Printing PCL 6"));
+        assert!(detail.contains("verified: CN=HP Inc."));
+    }
+
+    #[test]
+    fn catalog_success_tier_unverified_falls_back_to_matched() {
+        let resolved = sample_resolved();
+        let (status, detail) = catalog_success_tier(&resolved, None);
+        assert!(matches!(status, TierStatus::Matched));
+        assert!(detail.contains("HP Universal Printing PCL 6"));
+        // No "verified" marker in the detail when we had no signer.
+        assert!(!detail.contains("[verified"));
+    }
+
+    #[test]
+    fn catalog_source_annotation_tags_verified_builds() {
+        assert_eq!(
+            catalog_source_annotation(Some("CN=HP Inc.")),
+            "Microsoft Update Catalog [verified]"
+        );
+    }
+
+    #[test]
+    fn catalog_source_annotation_plain_without_signer() {
+        assert_eq!(
+            catalog_source_annotation(None),
+            "Microsoft Update Catalog"
+        );
+    }
+}
+
+/// Tests for the catalog-tier Authenticode verification gate added in Task 25.
+///
+/// These only run with `--features sdi` because `verify_pack_directory` (and
+/// the `PackVerifyOutcome` type it returns) lives in the `sdi_verify` module.
+/// The no-SDI lean build falls through `catalog_pack_safe_to_install` as a
+/// stub that always returns `true`, which is tested indirectly by the
+/// compile-time cfg gates — no runtime tests needed for that branch.
+#[cfg(test)]
+#[cfg(feature = "sdi")]
+mod catalog_gate_tests {
+    use super::*;
+    use crate::verbose::InstallReport;
+
+    /// Empty pack → NoCatalogs → unsafe. The helper should record a Failed
+    /// tier with the "no .cat catalogs" reason.
+    #[test]
+    fn gate_rejects_pack_with_no_cat_files() {
+        let tmp = std::env::temp_dir().join(format!("prinstall-test-empty-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        // Drop one .inf but no .cat to force the NoCatalogs verdict.
+        std::fs::write(tmp.join("dummy.inf"), b"; not signed").unwrap();
+
+        let mut report = InstallReport::new("10.0.0.5");
+        let safe = catalog_pack_safe_to_install(&tmp, false, &mut report);
+        assert!(!safe, "pack with no .cat files must be rejected");
+
+        // Clean up.
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// Missing directory → still returns NoCatalogs (find_cat_files yields an
+    /// empty vec for unreadable dirs) → unsafe. Smoke test that the helper
+    /// doesn't panic on a bogus path.
+    #[test]
+    fn gate_handles_missing_directory_without_panic() {
+        let missing = std::path::PathBuf::from("/nonexistent/prinstall-test-missing");
+        let mut report = InstallReport::new("10.0.0.6");
+        let safe = catalog_pack_safe_to_install(&missing, false, &mut report);
+        assert!(!safe);
     }
 }
 
