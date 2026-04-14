@@ -131,7 +131,6 @@ pub enum Commands {
     /// Results are split into Matched Drivers (ranked by confidence) and
     /// Universal Drivers (always available for the manufacturer).
     #[command(
-        alias = "driver",
         after_help = "EXAMPLES:\n  \
             prinstall drivers 192.168.1.100\n  \
             prinstall drivers 192.168.1.100 --json\n  \
@@ -308,6 +307,23 @@ pub enum Commands {
     )]
     List,
 
+    /// Manage drivers in the Windows driver store
+    ///
+    /// Stage, list, or remove drivers independently of any printer queue.
+    /// Useful for pre-loading drivers before a PnP event (USB plug-in,
+    /// first `Add-Printer` call) or for air-gapped deployments where
+    /// drivers land on the box before any install trigger fires.
+    #[command(
+        after_help = "EXAMPLES:\n  \
+            prinstall driver add C:\\Drivers\\HP_LaserJet_1320\n  \
+            prinstall driver add C:\\Drivers\\brother.inf\n  \
+            prinstall driver add C:\\Drivers\\HP_LaserJet_1320 --no-verify"
+    )]
+    Driver {
+        #[command(subcommand)]
+        action: DriverAction,
+    },
+
     /// Manage the SDI (Snappy Driver Installer Origin) driver cache
     ///
     /// SDI provides vendor-specific printer drivers for brands the
@@ -318,6 +334,25 @@ pub enum Commands {
     #[cfg(feature = "sdi")]
     #[command(subcommand)]
     Sdi(SdiAction),
+}
+
+/// Actions for the `prinstall driver` subcommand group.
+#[derive(Debug, Clone, clap::Subcommand)]
+pub enum DriverAction {
+    /// Stage a driver into the Windows driver store (pnputil /add-driver)
+    ///
+    /// Accepts either a single INF file path or a folder containing INFs
+    /// (recursed via `/subdirs`). When verification is enabled (default),
+    /// runs `Get-AuthenticodeSignature` on any `.cat` files in the path
+    /// before staging — same gate as `prinstall add`. Pass `--no-verify`
+    /// to bypass with an UNVERIFIED audit marker.
+    Add {
+        /// Path to an INF file or a folder containing INFs
+        path: String,
+        /// Skip Authenticode .cat signature verification
+        #[arg(long)]
+        no_verify: bool,
+    },
 }
 
 /// Actions for the `prinstall sdi` subcommand.

@@ -26,9 +26,13 @@ async fn main() {
 
 async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
     // Privilege check for commands that mutate Windows state
-    if matches!(cmd, cli::Commands::Add { .. } | cli::Commands::Remove { .. })
-        && !privilege::is_elevated()
-    {
+    let needs_admin = matches!(
+        cmd,
+        cli::Commands::Add { .. }
+            | cli::Commands::Remove { .. }
+            | cli::Commands::Driver { .. }
+    );
+    if needs_admin && !privilege::is_elevated() {
         eprintln!("Error: Administrator privileges required for this command.");
         eprintln!("Run this command from an elevated terminal or RMM shell.");
         std::process::exit(1);
@@ -54,8 +58,24 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
             cmd_remove(target, *keep_driver, *keep_port, cli).await;
         }
         cli::Commands::List => cmd_list(cli).await,
+        cli::Commands::Driver { action } => cmd_driver(action, cli).await,
         #[cfg(feature = "sdi")]
         cli::Commands::Sdi(action) => cmd_sdi(action, cli).await,
+    }
+}
+
+async fn cmd_driver(action: &cli::DriverAction, cli: &cli::Cli) {
+    match action {
+        cli::DriverAction::Add { path, no_verify } => {
+            let exit_code = commands::driver::add(commands::driver::DriverAddArgs {
+                path,
+                no_verify: *no_verify,
+                verbose: cli.verbose,
+                json: cli.json,
+            })
+            .await;
+            std::process::exit(exit_code);
+        }
     }
 }
 

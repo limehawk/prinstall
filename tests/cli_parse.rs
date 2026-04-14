@@ -44,17 +44,6 @@ mod cli_parse_test {
     }
 
     #[test]
-    fn driver_singular_alias_works() {
-        let cli = prinstall::cli::Cli::parse_from(["prinstall", "driver", "192.168.1.100"]);
-        match cli.command {
-            Some(prinstall::cli::Commands::Drivers { ip, .. }) => {
-                assert_eq!(ip, "192.168.1.100");
-            }
-            _ => panic!("expected Drivers via 'driver' alias"),
-        }
-    }
-
-    #[test]
     fn add_with_all_flags() {
         let cli = prinstall::cli::Cli::parse_from([
             "prinstall", "add", "192.168.1.100",
@@ -181,6 +170,37 @@ mod cli_parse_test {
         match cli.command {
             Some(prinstall::cli::Commands::Add { no_verify, .. }) => assert!(!no_verify),
             _ => panic!("wrong command"),
+        }
+    }
+
+    #[test]
+    fn driver_add_parses_with_path() {
+        let cli = prinstall::cli::Cli::parse_from([
+            "prinstall", "driver", "add", "C:\\test\\driver",
+        ]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Driver { action }) => match action {
+                prinstall::cli::DriverAction::Add { path, no_verify } => {
+                    assert_eq!(path, "C:\\test\\driver");
+                    assert!(!no_verify);
+                }
+            },
+            _ => panic!("expected Driver::Add"),
+        }
+    }
+
+    #[test]
+    fn driver_add_parses_with_no_verify() {
+        let cli = prinstall::cli::Cli::parse_from([
+            "prinstall", "driver", "add", "C:\\test", "--no-verify",
+        ]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Driver { action }) => match action {
+                prinstall::cli::DriverAction::Add { no_verify, .. } => {
+                    assert!(no_verify);
+                }
+            },
+            _ => panic!("expected Driver::Add"),
         }
     }
 }

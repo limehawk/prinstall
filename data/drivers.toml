@@ -3,7 +3,8 @@
 # V1 supports ZIP and CAB formats only.
 #
 # Vendors with verified direct-download URLs:
-#   - HP    (PCL6 + PS, evergreen URLs — stable across UPD updates)
+#   - HP    (PCL6 + PS, version-in-filename URLs — need to bump on UPD updates.
+#            HP tracks PCL and PS as independent version streams.)
 #   - Xerox (PCL6 + PS, version-in-path URLs — need to bump on GPD updates)
 #   - Kyocera KX Driver (evergreen URL via AEM dispatcher alias)
 #
@@ -24,12 +25,12 @@ prefixes = ["HP", "Hewlett-Packard", "Hewlett Packard"]
 
 [[manufacturers.universal_drivers]]
 name = "HP Universal Print Driver PCL6"
-url = "https://ftp.hp.com/pub/softlib/software13/printers/UPD/upd-pcl6-x64.zip"
+url = "https://ftp.hp.com/pub/softlib/software13/printers/UPD/upd-pcl6-x64-7.9.0.26347.zip"
 format = "zip"
 
 [[manufacturers.universal_drivers]]
 name = "HP Universal Print Driver PS"
-url = "https://ftp.hp.com/pub/softlib/software13/printers/UPD/upd-ps-x64.zip"
+url = "https://ftp.hp.com/pub/softlib/software13/printers/UPD/upd-ps-x64-8.1.0.26560.zip"
 format = "zip"
 
 [[manufacturers]]
