@@ -79,6 +79,8 @@ mod output_test {
             device_id: None,
             windows_update: None,
             catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
         };
         let text = output::format_driver_results(&results);
         assert!(text.contains("Matched Drivers"));

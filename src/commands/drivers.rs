@@ -112,6 +112,93 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
         results.catalog = Some(search_catalog(&query, query_source, verbose).await);
     }
 
+    // ── Step 6: SDI candidates (sdi feature only) ────────────────────────────
+    // Enumerate every cached SDI pack that claims a driver for this HWID, then
+    // run Authenticode verification live on each extracted pack directory so
+    // the display can show "verified" / "unsigned (N/M)" / etc. per candidate.
+    // Uncached packs (SdiUncached) aren't verifiable without a fetch, so they
+    // land as "not-extracted" — a cheap signal that a `--sdi-fetch` install
+    // would incur a download before a verify gate could even run.
+    #[cfg(feature = "sdi")]
+    {
+        use crate::commands::sdi_verify::{PackVerifyOutcome, verify_pack_directory};
+        use crate::drivers::sdi::cache::SdiCache;
+        use crate::drivers::sdi::resolver::enumerate_candidates;
+        use crate::drivers::sources::{InstallHint, Source};
+        use crate::models::SdiDriverCandidate;
+
+        if let Some(ref dev_id) = results.device_id
+            && let Ok(mut cache) = SdiCache::load()
+        {
+            let _ = cache.auto_register_packs();
+            let sdi_candidates = enumerate_candidates(dev_id, &cache);
+
+            let mapped: Vec<SdiDriverCandidate> = sdi_candidates
+                .into_iter()
+                .map(|c| {
+                    // pack_name = the .7z stem. For SdiCached we derive it
+                    // from the pack_path file_stem (mirrors the same logic
+                    // used by commands/add.rs::extract_sdi_driver). For
+                    // SdiUncached we already have the pack_name field on
+                    // the hint; trim the .7z suffix so both sources report
+                    // the same stem format.
+                    let pack_name = match &c.install_hint {
+                        InstallHint::SdiCached { pack_path, .. } => pack_path
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("unknown")
+                            .to_string(),
+                        InstallHint::SdiUncached { pack_name, .. } => pack_name
+                            .strip_suffix(".7z")
+                            .unwrap_or(pack_name.as_str())
+                            .to_string(),
+                        _ => "unknown".to_string(),
+                    };
+                    let hwid_match = dev_id.clone();
+
+                    let (verification, signer) = if c.source == Source::SdiCached {
+                        let extract_dir =
+                            crate::paths::sdi_dir().join("extracted").join(&pack_name);
+                        if extract_dir.exists() {
+                            match verify_pack_directory(executor, &extract_dir, verbose) {
+                                PackVerifyOutcome::Verified { signers, .. } => (
+                                    "verified".to_string(),
+                                    signers.first().cloned(),
+                                ),
+                                PackVerifyOutcome::Unsigned { unsigned, total } => (
+                                    format!("unsigned ({unsigned}/{total})"),
+                                    None,
+                                ),
+                                PackVerifyOutcome::Invalid { first_reason, .. } => (
+                                    format!("invalid: {first_reason}"),
+                                    None,
+                                ),
+                                PackVerifyOutcome::NoCatalogs => {
+                                    ("no-catalogs".to_string(), None)
+                                }
+                            }
+                        } else {
+                            ("not-extracted".to_string(), None)
+                        }
+                    } else {
+                        // SdiUncached — pack hasn't been fetched, can't verify here.
+                        ("not-extracted".to_string(), None)
+                    };
+
+                    SdiDriverCandidate {
+                        driver_name: c.driver_name.clone(),
+                        pack_name,
+                        hwid_match,
+                        verification,
+                        signer,
+                    }
+                })
+                .collect();
+
+            results.sdi_candidates = mapped;
+        }
+    }
+
     results
 }
 

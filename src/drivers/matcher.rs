@@ -104,6 +104,8 @@ pub fn match_drivers(model: &str, local_store_drivers: &[String]) -> DriverResul
         device_id: None,
         windows_update: None,
         catalog: None,
+        #[cfg(feature = "sdi")]
+        sdi_candidates: Vec::new(),
     }
 }
 
