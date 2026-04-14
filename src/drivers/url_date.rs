@@ -259,6 +259,7 @@ mod tests {
             }],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: Vec::new(),
         }
@@ -281,6 +282,7 @@ mod tests {
             universal: Vec::new(),
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: Vec::new(),
         };

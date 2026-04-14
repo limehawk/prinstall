@@ -297,15 +297,35 @@ fn parse_model_lines(body: &[String]) -> Vec<HwidEntry> {
     out
 }
 
-/// Synthesize candidate PnP hardware IDs from an IEEE 1284 IPP device ID.
+/// Synthesize candidate PnP hardware IDs from a printer-identification string.
 ///
-/// Input format: `MFG:Brother;CMD:PJL,PCL;MDL:MFC-L2750DW series;CID:Brother Laser Type1;`
+/// Two input formats are recognized:
 ///
-/// Emits, in priority order:
-///   1. `1284_CID_<NORMALIZED_CID>` — canonical Microsoft CID-derived form
-///   2. `<NORMALIZED_CID>` alone — secondary form some INFs use
-///   3. `<NORMALIZED_MFG><NORMALIZED_MDL>` — long-shot model-based form
+/// * **IEEE 1284 IPP device ID** —
+///   `MFG:Brother;CMD:PJL,PCL;MDL:MFC-L2750DW series;CID:Brother Laser Type1;`
+///   Emits, in priority order:
+///     1. `1284_CID_<NORMALIZED_CID>` — canonical Microsoft CID-derived form
+///     2. `<NORMALIZED_CID>` alone — secondary form some INFs use
+///     3. `<NORMALIZED_MFG><NORMALIZED_MDL>` — long-shot model-based form
+///
+/// * **USB PnP InstanceId** — `USB\VID_03F0&PID_1D17\ABC123` (from
+///   `Get-PnpDevice`). The per-device serial suffix after the second `\`
+///   is stripped so the output matches the `USB\VID_xxxx&PID_yyyy` entries
+///   that commonly appear in INF `[Models]` sections. Emits:
+///     1. `USB\VID_xxxx&PID_yyyy` — full VID/PID (most specific)
+///     2. `USB\VID_xxxx` — VID-only fallback
+///
+/// Detection is by prefix: inputs starting with `USB\` (case-insensitive)
+/// are treated as USB InstanceIds; everything else falls through to the
+/// IPP 1284 parser.
 pub fn synthesize_hwids(device_id: &str) -> Vec<String> {
+    // USB InstanceId fast path — must check before IPP parsing because
+    // a USB\VID_... string never contains `;` or `:`.
+    let trimmed = device_id.trim();
+    if trimmed.len() >= 4 && trimmed[..4].eq_ignore_ascii_case("USB\\") {
+        return synthesize_usb_hwids(trimmed);
+    }
+
     let mut mfg: Option<String> = None;
     let mut mdl: Option<String> = None;
     let mut cid: Option<String> = None;
@@ -354,6 +374,52 @@ pub fn synthesize_hwids(device_id: &str) -> Vec<String> {
                 out.push(combined);
             }
         }
+    }
+
+    out
+}
+
+/// Emit candidate HWIDs for a USB PnP InstanceId.
+///
+/// Trims a per-device serial suffix (everything after the second `\`) so the
+/// output matches how vendor INFs list their device IDs. Returns an empty
+/// list for inputs that don't contain a `VID_` segment.
+fn synthesize_usb_hwids(instance_id: &str) -> Vec<String> {
+    // Strip the trailing `\<serial>` segment if present. A bare
+    // `USB\VID_xxxx&PID_yyyy` input returns unchanged from this step.
+    let without_serial = match instance_id.match_indices('\\').nth(1) {
+        Some((idx, _)) => &instance_id[..idx],
+        None => instance_id,
+    };
+
+    let parts: Vec<&str> = without_serial.splitn(2, '\\').collect();
+    if parts.len() != 2 {
+        return Vec::new();
+    }
+    let prefix = parts[0]; // "USB" (any case)
+    let body = parts[1]; // "VID_xxxx&PID_yyyy" (or similar)
+
+    // Canonicalize the `USB\` prefix to upper case; vendors are consistent
+    // about this but PnP occasionally reports mixed case.
+    let prefix_upper = prefix.to_ascii_uppercase();
+
+    let mut out = Vec::new();
+    let full = format!("{prefix_upper}\\{body}");
+    out.push(full);
+
+    // Extract the first `VID_xxxx` segment for the VID-only fallback. Split
+    // on `&` to pull out the VID alone — PID-less INF entries are common.
+    let vid_only = body
+        .split('&')
+        .find(|seg| {
+            let up = seg.to_ascii_uppercase();
+            up.starts_with("VID_")
+        })
+        .map(|vid| format!("{prefix_upper}\\{vid}"));
+    if let Some(v) = vid_only
+        && !out.contains(&v)
+    {
+        out.push(v);
     }
 
     out
@@ -433,6 +499,32 @@ mod tests {
     fn synthesize_hwids_returns_empty_on_garbage() {
         assert!(synthesize_hwids("").is_empty());
         assert!(synthesize_hwids("garbage with no colons or semicolons").is_empty());
+    }
+
+    #[test]
+    fn synthesize_hwids_usb_instance_id() {
+        let hwids = synthesize_hwids("USB\\VID_03F0&PID_1D17\\ABC");
+        assert_eq!(
+            hwids,
+            vec![
+                "USB\\VID_03F0&PID_1D17".to_string(),
+                "USB\\VID_03F0".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn synthesize_hwids_usb_no_serial() {
+        // Idempotent: feeding in a USB id that lacks the trailing serial
+        // produces the same full + VID-only candidates.
+        let hwids = synthesize_hwids("USB\\VID_03F0&PID_1D17");
+        assert_eq!(
+            hwids,
+            vec![
+                "USB\\VID_03F0&PID_1D17".to_string(),
+                "USB\\VID_03F0".to_string(),
+            ]
+        );
     }
 
     #[test]

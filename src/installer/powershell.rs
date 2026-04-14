@@ -339,8 +339,9 @@ pub async fn find_usb_port_for_device(
         #[serde(rename = "Description")]
         description: Option<String>,
     }
-    let cmd = "Get-PrinterPort | Where-Object { $_.Name -like 'USB*' } | \
-               Select-Object Name, Description | ConvertTo-Json -InputObject @($_)";
+    let cmd = "ConvertTo-Json -InputObject @(\
+               Get-PrinterPort | Where-Object { $_.Name -like 'USB*' } | \
+               Select-Object Name, Description)";
     let rows: Vec<Row> =
         crate::core::executor::run_json(exec, cmd).unwrap_or_default();
     if verbose {

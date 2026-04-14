@@ -1,3 +1,4 @@
+pub mod bundle;
 pub mod cab;
 pub mod catalog;
 pub mod downloader;

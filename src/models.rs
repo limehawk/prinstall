@@ -166,12 +166,47 @@ pub struct DriverResults {
     /// Result of the Microsoft Update Catalog search, if one was run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalog: Option<CatalogSearchResult>,
+    /// Local bundle candidates — INFs found under the configured bundle
+    /// directory that match the printer's HWIDs. Always-on (no feature flag).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bundle_candidates: Vec<BundleDriverCandidate>,
     /// SDI driver-pack candidates discovered for this printer's HWID, with
     /// per-pack Authenticode verification status. Populated only when the
     /// `sdi` feature is enabled and an IPP device-id is known.
     #[cfg(feature = "sdi")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sdi_candidates: Vec<SdiDriverCandidate>,
+}
+
+/// A single local-bundle driver candidate for a printer.
+///
+/// Surfaced by the `drivers` command when a matching INF is found under
+/// the configured bundle directory (`PRINSTALL_BUNDLE_DIR`, exe-adjacent
+/// `drivers/`, or `<data_dir>/drivers/`). Shape mirrors
+/// [`SdiDriverCandidate`] but is always compiled in — bundles have no
+/// supply-chain overhead to hide behind a feature flag.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BundleDriverCandidate {
+    pub driver_name: String,
+    /// Directory (typically the parent of the INF) holding the pack.
+    pub pack_dir: String,
+    /// Full path to the matched INF on disk.
+    pub inf_path: String,
+    pub hwid_match: String,
+    /// Provider string from the INF's `[Version]` block.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// One of: `"verified"`, `"unsigned (N/M)"`, `"invalid: <reason>"`,
+    /// `"no-catalogs"`, `"not-verified"` (lean no-SDI build stub).
+    pub verification: String,
+    /// Primary signer subject when `verification` is `"verified"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signer: Option<String>,
+    /// Driver publication date parsed from the INF's `DriverVer` field
+    /// (format `MM/DD/YYYY,version`). Normalized to `YYYY-MM-DD` where
+    /// possible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_date: Option<String>,
 }
 
 /// A single SDI driver-pack candidate for a printer.
@@ -387,6 +422,7 @@ mod usb_model_tests {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: vec![],
             sdi_candidates: vec![SdiDriverCandidate {
                 driver_name: "HP LaserJet".into(),
                 pack_name: "DP_Printer_26000".into(),

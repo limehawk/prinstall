@@ -13,7 +13,7 @@
 //!    Authenticode verification status surfaced inline.
 
 use crate::core::executor::PsExecutor;
-use crate::models::{CatalogEntry, CatalogSearchResult, DriverResults};
+use crate::models::{BundleDriverCandidate, CatalogEntry, CatalogSearchResult, DriverResults};
 use crate::{discovery, drivers as drivers_mod};
 
 /// Maximum number of catalog rows to keep. The catalog can return hundreds
@@ -86,6 +86,37 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
     if !query.is_empty() {
         results.catalog = Some(search_catalog(&query, query_source, verbose).await);
     }
+
+    // ── Step 4.5: Local bundle candidates ─────────────────────────────────────
+    // Scan the bundle dir(s) for INFs that match the detected IPP/USB HWIDs.
+    // Always-on (no feature flag) — bundles have no supply-chain overhead to
+    // hide behind a flag. Runs verification live on every candidate so the
+    // tree rendering can show the star icon based on the actual trust tier.
+    let bundle_source = results
+        .device_id
+        .clone()
+        .unwrap_or_else(|| model.clone());
+    let raw_bundle = drivers_mod::bundle::scan_candidates(&bundle_source, verbose);
+    results.bundle_candidates = raw_bundle
+        .into_iter()
+        .map(|c| {
+            let driver_date = c
+                .driver_ver
+                .as_deref()
+                .and_then(crate::output::normalize_date);
+            let (verification, signer) = verify_bundle(executor, &c.pack_dir, verbose);
+            BundleDriverCandidate {
+                driver_name: c.display_name,
+                pack_dir: c.pack_dir.to_string_lossy().to_string(),
+                inf_path: c.inf_path.to_string_lossy().to_string(),
+                hwid_match: c.matched_hwid,
+                provider: c.provider,
+                verification,
+                signer,
+                driver_date,
+            }
+        })
+        .collect();
 
     // ── Step 5: SDI candidates (sdi feature only) ────────────────────────────
     // Enumerate every cached SDI pack that claims a driver for this HWID, then
@@ -187,6 +218,46 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
     }
 
     results
+}
+
+/// Run the verify gate against a bundle pack directory and collapse the
+/// outcome into the short status strings the output tree expects.
+///
+/// In the lean no-SDI build the `sdi_verify` module isn't compiled, so we
+/// fall back to `"not-verified"` — the tree shows the candidate under the
+/// fallback `○` icon instead of the verified `★` tier.
+#[cfg(feature = "sdi")]
+fn verify_bundle(
+    executor: &dyn PsExecutor,
+    pack_dir: &std::path::Path,
+    verbose: bool,
+) -> (String, Option<String>) {
+    use crate::commands::sdi_verify::{PackVerifyOutcome, verify_pack_directory};
+    let outcome = verify_pack_directory(executor, pack_dir, verbose);
+    match outcome {
+        PackVerifyOutcome::Verified { signers, .. } => (
+            "verified".to_string(),
+            signers.first().cloned(),
+        ),
+        PackVerifyOutcome::Unsigned { unsigned, total } => (
+            format!("unsigned ({unsigned}/{total})"),
+            None,
+        ),
+        PackVerifyOutcome::Invalid { first_reason, .. } => (
+            format!("invalid: {first_reason}"),
+            None,
+        ),
+        PackVerifyOutcome::NoCatalogs => ("no-catalogs".to_string(), None),
+    }
+}
+
+#[cfg(not(feature = "sdi"))]
+fn verify_bundle(
+    _executor: &dyn PsExecutor,
+    _pack_dir: &std::path::Path,
+    _verbose: bool,
+) -> (String, Option<String>) {
+    ("not-verified".to_string(), None)
 }
 
 /// Decide what string to feed the catalog search.

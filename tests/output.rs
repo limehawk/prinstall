@@ -62,6 +62,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
@@ -82,6 +83,7 @@ mod output_test {
                 "MFG:Brother;CMD:PJL,PCL;MDL:MFC-L2750DW series;CLS:PRINTER;CID:Brother Laser Type1;URF:W8,CP1".to_string()
             ),
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
@@ -118,6 +120,7 @@ mod output_test {
             ],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
@@ -166,6 +169,7 @@ mod output_test {
                 ],
                 error: None,
             }),
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
@@ -192,6 +196,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
@@ -385,6 +390,7 @@ mod output_test {
             universal: vec![],
             device_id: Some("USB\\VID_03F0&PID_1D17".into()),
             catalog: None,
+            bundle_candidates: Vec::new(),
             sdi_candidates: vec![
                 SdiDriverCandidate {
                     driver_name: "HP LaserJet 1320 Series".into(),
@@ -424,6 +430,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             sdi_candidates: vec![
                 SdiDriverCandidate {
                     driver_name: "Random Generic Driver".into(),
@@ -455,6 +462,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             sdi_candidates: vec![
                 // Unsigned first in the vec...
                 SdiDriverCandidate {
@@ -492,6 +500,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             sdi_candidates: vec![],
         };
         let out = output::format_driver_results(&results);
@@ -699,6 +708,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
@@ -721,6 +731,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
@@ -743,6 +754,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
@@ -769,6 +781,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             sdi_candidates: vec![
                 SdiDriverCandidate {
                     driver_name: "Old Verified Driver".into(),
@@ -812,6 +825,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
@@ -839,6 +853,7 @@ mod output_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
@@ -875,6 +890,7 @@ mod output_test {
                 }],
                 error: None,
             }),
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };

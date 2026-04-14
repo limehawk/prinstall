@@ -49,6 +49,7 @@ mod models_test {
             universal: vec![],
             device_id: None,
             catalog: None,
+            bundle_candidates: Vec::new(),
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };

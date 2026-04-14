@@ -28,16 +28,16 @@ struct QueueRow {
     port_name: Option<String>,
 }
 
-const PNP_CMD: &str = "Get-PnpDevice -PresentOnly | \
+const PNP_CMD: &str = "ConvertTo-Json -InputObject @(\
+    Get-PnpDevice -PresentOnly | \
     Where-Object { $_.InstanceId -like 'USB\\*' -and \
         ($_.Class -eq 'Printer' -or $_.Class -eq 'USBPrint' -or \
          ($_.Status -eq 'Error' -and $_.FriendlyName -match 'print|LaserJet|DeskJet|OfficeJet|Brother|Canon|Epson|Kyocera|Lexmark|Xerox|Ricoh|HP')) } | \
-    Select-Object FriendlyName, InstanceId, Status | \
-    ConvertTo-Json -InputObject @($_)";
+    Select-Object FriendlyName, InstanceId, Status)";
 
-const QUEUE_CMD: &str = "Get-Printer | Where-Object { $_.PortName -like 'USB*' } | \
-    Select-Object Name, PortName | \
-    ConvertTo-Json -InputObject @($_)";
+const QUEUE_CMD: &str = "ConvertTo-Json -InputObject @(\
+    Get-Printer | Where-Object { $_.PortName -like 'USB*' } | \
+    Select-Object Name, PortName)";
 
 /// Enumerate every USB-attached printing device Windows knows about,
 /// marking each with its matching print queue name when one exists.

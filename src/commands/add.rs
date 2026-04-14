@@ -165,6 +165,30 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     // Track whether the auto-selected driver came from local store
     let driver_is_local = local_drivers.iter().any(|d| d == &driver_name);
 
+    // ── Step 4.5: Local bundle tier ──────────────────────────────────────
+    // A tech can drop a vendor driver pack into one of the bundle-dir
+    // candidate locations (PRINSTALL_BUNDLE_DIR, exe-adjacent drivers/,
+    // or <data_dir>/drivers/) and we'll prefer it over network sources.
+    // Positions between Local store and Manufacturer in the cascade:
+    // if the driver's already in the local store we don't bother (the
+    // primary install will succeed with what's there); otherwise the
+    // bundle tier gets a shot before we reach out to the manufacturer.
+    let device_id_for_bundle = device_id.clone().unwrap_or_else(|| model.clone());
+    if !driver_is_local
+        && let Some(result) = try_bundle_install(
+            &device_id_for_bundle,
+            target,
+            &printer_name,
+            &model,
+            args.no_verify,
+            verbose,
+            &mut report,
+            start,
+        )
+    {
+        return result;
+    }
+
     // ── Step 4: stage the driver if not in local store ───────────────────
     let stage_outcome =
         stage_driver_if_needed(&driver_name, &model, &local_drivers, args.no_verify, verbose)
@@ -953,6 +977,29 @@ async fn run_usb_swap_driver(args: AddArgs<'_>) -> PrinterOpResult {
         eprintln!("[add] Swapping driver on '{target}' → '{driver_name}'");
     }
 
+    // ── Local bundle tier (USB driver swap) ──────────────────────────────
+    // If the existing queue's PnP device matches a bundled INF, stage it
+    // and use that display name for the swap — same precedence rule as
+    // the network path. Less impactful than the network tier since the
+    // queue already exists, but keeping the three install paths aligned
+    // means the behavior of --force / --no-verify is uniform.
+    let executor = RealExecutor::new(verbose);
+    let matching_device = discovery::usb::enumerate(&executor, verbose)
+        .await
+        .into_iter()
+        .find(|d| d.queue_name.as_deref() == Some(target));
+    if let Some(dev) = matching_device
+        && let Some(result) = try_bundle_swap_usb(
+            &dev.hardware_id,
+            target,
+            &model,
+            args.no_verify,
+            verbose,
+        )
+    {
+        return result;
+    }
+
     // ── Stage the driver if not in local store ───────────────────────────
     // USB has no tier-cascade to fall through to, so a verification failure
     // is fatal here — surface it clearly instead of silently swapping to
@@ -996,6 +1043,24 @@ async fn run_usb_stage_and_install(
         eprintln!("[add] USB stage-and-install: device='{friendly}' driver='{driver_name}'");
     }
 
+    // ── Local bundle tier (USB) ──────────────────────────────────────────
+    // Check for a matching INF in the bundle dir BEFORE the manufacturer
+    // download fallback. The USB hardware_id is the HWID source — it
+    // matches directly against [Models] entries like
+    // `%Friendly%=InstallSection, USB\VID_03F0&PID_1D17`.
+    let printer_name = args.name_override.unwrap_or(&friendly).to_string();
+    if let Some(result) = try_bundle_install_usb(
+        &device.hardware_id,
+        &printer_name,
+        &driver_name,
+        args.no_verify,
+        verbose,
+    )
+    .await
+    {
+        return result;
+    }
+
     // Stage the driver package (matches the network-path behavior).
     // USB has no tier-cascade, so a verification failure is fatal.
     let stage_outcome =
@@ -1020,7 +1085,6 @@ async fn run_usb_stage_and_install(
     let _ = installer::powershell::pnputil_scan_devices(&executor, verbose).await;
 
     // Poll for queue creation (~5s).
-    let printer_name = args.name_override.unwrap_or(&friendly).to_string();
     for _ in 0..10 {
         tokio::time::sleep(Duration::from_millis(500)).await;
         if installer::powershell::printer_exists(&printer_name, verbose) {
@@ -1293,6 +1357,285 @@ fn run_manufacturer_verify(
     // No verify gate in the lean build — preserve pre-v0.4.3 behavior by
     // succeeding with no signer information.
     Ok(None)
+}
+
+/// Try to install from a local driver bundle, returning `Some(result)` on
+/// success (caller returns immediately). Returns `None` when no bundle
+/// candidate matched, when the verification gate rejected the best
+/// candidate, or when staging/install failed — in all of those cases the
+/// caller falls through to the next tier.
+///
+/// The tier's status is recorded on `report` whether we succeed or fail, so
+/// the audit trail always shows whether the bundle tier contributed. The
+/// function owns the full success branch (populate_install_steps + render +
+/// return) because matching on intermediate outcomes through the cascade
+/// below is structurally awkward — keeping the success path self-contained
+/// mirrors how the catalog tier handles the same situation.
+#[allow(clippy::too_many_arguments)]
+fn try_bundle_install(
+    device_id: &str,
+    target: &str,
+    printer_name: &str,
+    model: &str,
+    no_verify: bool,
+    verbose: bool,
+    report: &mut InstallReport,
+    start: Instant,
+) -> Option<PrinterOpResult> {
+    let candidates = drivers::bundle::scan_candidates(device_id, verbose);
+    let best = candidates.first()?;
+
+    // Verification gate (unless --no-verify). On lean no-SDI builds the
+    // gate is a stub that always returns "verified" so we skip the work.
+    let (gate_ok, signer) = if no_verify {
+        if verbose {
+            eprintln!("[bundle] --no-verify passed, skipping Authenticode check");
+        }
+        (true, None)
+    } else {
+        bundle_pack_verify(&best.pack_dir, verbose)
+    };
+
+    if !gate_ok {
+        report.resolution.add_tier(
+            "Local bundle",
+            TierStatus::Failed,
+            "verification failed",
+        );
+        return None;
+    }
+
+    // Stage the INF.
+    let inf_str = best.inf_path.to_string_lossy().to_string();
+    let stage_result = installer::powershell::stage_driver_inf(&inf_str, verbose);
+    if !stage_result.success {
+        if verbose {
+            eprintln!(
+                "[bundle] stage_driver_inf failed for {inf_str}: {}",
+                stage_result.error_summary()
+            );
+        }
+        report.resolution.add_tier(
+            "Local bundle",
+            TierStatus::Failed,
+            &format!("staging failed: {}", stage_result.error_summary()),
+        );
+        return None;
+    }
+
+    // Three-step install against the bundled driver's display name.
+    let install =
+        installer::install_printer(target, &best.display_name, printer_name, model, verbose);
+    if !install.success {
+        report.resolution.add_tier(
+            "Local bundle",
+            TierStatus::Failed,
+            "driver staged but install failed",
+        );
+        return None;
+    }
+
+    // Success — populate the report and hand the result back for return.
+    let (status, detail, annotation) = if no_verify {
+        (
+            TierStatus::Matched,
+            format!("{} [UNVERIFIED]", best.display_name),
+            "Local bundle [unverified]".to_string(),
+        )
+    } else {
+        let signer_tag = signer.as_deref().unwrap_or("unknown signer");
+        (
+            TierStatus::Verified,
+            format!("{} [verified: {signer_tag}]", best.display_name),
+            "Local bundle [verified]".to_string(),
+        )
+    };
+    report.resolution.add_tier("Local bundle", status, &detail);
+    populate_install_steps(report, target, &best.display_name, printer_name, true);
+    report.source_annotation = Some(annotation);
+    report.success = true;
+    report.elapsed = start.elapsed();
+    report.render();
+    Some(install)
+}
+
+/// Run the Authenticode verification gate on a bundle pack directory.
+/// Returns `(ok, signer)`. In lean no-SDI builds the gate is a stub that
+/// returns `(true, None)`, matching the pre-gate behavior of the other tiers.
+#[cfg(feature = "sdi")]
+fn bundle_pack_verify(pack_dir: &std::path::Path, verbose: bool) -> (bool, Option<String>) {
+    let verify_executor = RealExecutor::new(verbose);
+    let outcome = crate::commands::sdi_verify::verify_pack_directory(
+        &verify_executor,
+        pack_dir,
+        verbose,
+    );
+    if let crate::commands::sdi_verify::PackVerifyOutcome::Verified { signers, .. } = outcome {
+        (true, signers.into_iter().next())
+    } else {
+        (false, None)
+    }
+}
+
+#[cfg(not(feature = "sdi"))]
+fn bundle_pack_verify(_pack_dir: &std::path::Path, _verbose: bool) -> (bool, Option<String>) {
+    // No verify gate in the lean build — keep behavior consistent with
+    // manufacturer / catalog tiers, which also skip the gate.
+    (true, None)
+}
+
+/// USB variant of the bundle tier for the driver-swap flow (queue
+/// already exists). Stages the bundled INF and points `Set-Printer` at
+/// the bundled driver's display name. Returns `Some(result)` on success;
+/// `None` if no bundle candidate matched, the verification gate rejected
+/// the best candidate, or staging/swap failed.
+fn try_bundle_swap_usb(
+    hardware_id: &str,
+    target: &str,
+    model: &str,
+    no_verify: bool,
+    verbose: bool,
+) -> Option<PrinterOpResult> {
+    let candidates = drivers::bundle::scan_candidates(hardware_id, verbose);
+    let best = candidates.first()?;
+
+    let (gate_ok, _signer) = if no_verify {
+        if verbose {
+            eprintln!("[bundle] --no-verify passed, skipping Authenticode check");
+        }
+        (true, None)
+    } else {
+        bundle_pack_verify(&best.pack_dir, verbose)
+    };
+    if !gate_ok {
+        return None;
+    }
+
+    let inf_str = best.inf_path.to_string_lossy().to_string();
+    let stage = installer::powershell::stage_driver_inf(&inf_str, verbose);
+    if !stage.success {
+        if verbose {
+            eprintln!(
+                "[bundle] USB swap: stage_driver_inf failed for {inf_str}: {}",
+                stage.error_summary()
+            );
+        }
+        return None;
+    }
+
+    let result = installer::update_printer_driver(target, &best.display_name, model, verbose);
+    if result.success {
+        Some(annotate_bundle_swap_success(result, best, no_verify))
+    } else {
+        None
+    }
+}
+
+fn annotate_bundle_swap_success(
+    mut result: PrinterOpResult,
+    best: &drivers::bundle::BundleCandidate,
+    no_verify: bool,
+) -> PrinterOpResult {
+    let tag = if no_verify { "[UNVERIFIED]" } else { "[verified]" };
+    if let Some(mut detail) = result.detail_as::<InstallDetail>() {
+        detail.warning = Some(format!(
+            "Installed via local driver bundle: '{}' (matched HWID: {}). {tag}",
+            best.display_name, best.matched_hwid,
+        ));
+        if let Ok(v) = serde_json::to_value(&detail) {
+            result.detail = v;
+        }
+    }
+    result
+}
+
+/// USB variant of the bundle tier. Different plumbing from the network
+/// path — no `InstallReport`, no three-step `install_printer`, no
+/// `--no-catalog`/`--no-sdi` cascade. We stage the INF via pnputil, run a
+/// PnP scan, and poll for queue creation (matching the existing
+/// `run_usb_stage_and_install` flow). Returns `Some(result)` on success;
+/// `None` means the bundle tier didn't contribute (no match, verification
+/// failed, staging failed, or PnP never created the queue in time).
+async fn try_bundle_install_usb(
+    hardware_id: &str,
+    printer_name: &str,
+    attempted_driver: &str,
+    no_verify: bool,
+    verbose: bool,
+) -> Option<PrinterOpResult> {
+    let candidates = drivers::bundle::scan_candidates(hardware_id, verbose);
+    let best = candidates.first()?;
+
+    let (gate_ok, signer) = if no_verify {
+        if verbose {
+            eprintln!("[bundle] --no-verify passed, skipping Authenticode check");
+        }
+        (true, None)
+    } else {
+        bundle_pack_verify(&best.pack_dir, verbose)
+    };
+    if !gate_ok {
+        if verbose {
+            eprintln!(
+                "[bundle] USB: verification failed for pack {}, falling through",
+                best.pack_dir.display()
+            );
+        }
+        return None;
+    }
+
+    // Stage via pnputil on the INF's parent directory so related files
+    // (.cat, .sys, .ppd) come along. pnputil accepts either a specific
+    // INF path or a directory — we use the INF path directly to mirror
+    // the network-tier behavior.
+    let inf_str = best.inf_path.to_string_lossy().to_string();
+    let stage = installer::powershell::stage_driver_inf(&inf_str, verbose);
+    if !stage.success {
+        if verbose {
+            eprintln!(
+                "[bundle] USB: stage_driver_inf failed for {inf_str}: {}",
+                stage.error_summary()
+            );
+        }
+        return None;
+    }
+
+    // PnP rescan to let Windows bind the device to the now-staged driver.
+    let executor = RealExecutor::new(verbose);
+    let _ = installer::powershell::pnputil_scan_devices(&executor, verbose).await;
+
+    // Poll for queue creation. Same cadence as the network-path fallback.
+    for _ in 0..10 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        if installer::powershell::printer_exists(printer_name, verbose) {
+            let verified_tag = if no_verify { "[UNVERIFIED]" } else { "[verified]" };
+            let signer_suffix = signer
+                .as_deref()
+                .map(|s| format!(" signer={s}"))
+                .unwrap_or_default();
+            let note = format!(
+                "Installed via local driver bundle: '{}' (matched HWID: {}). {verified_tag}{signer_suffix}",
+                best.display_name, best.matched_hwid
+            );
+            return Some(PrinterOpResult::ok(InstallDetail {
+                printer_name: printer_name.to_string(),
+                driver_name: best.display_name.clone(),
+                port_name: "USB (PnP auto)".into(),
+                warning: Some(note),
+            }));
+        }
+    }
+
+    // PnP didn't bite. Fall through — the manufacturer download path still
+    // gets a shot and will eventually try the explicit Add-Printer fallback.
+    if verbose {
+        eprintln!(
+            "[bundle] USB: pnputil staged '{}' but no queue for '{printer_name}' after 5s; falling through",
+            best.display_name
+        );
+    }
+    let _ = attempted_driver;
+    None
 }
 
 /// Check whether port 631 (IPP) is open on the target. Short timeout — this is
