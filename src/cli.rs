@@ -95,6 +95,14 @@ pub enum Commands {
         /// Per-host timeout in milliseconds [default: 500]
         #[arg(long)]
         timeout: Option<u64>,
+
+        /// Skip USB enumeration, show only network-discovered printers
+        #[arg(long, conflicts_with = "usb_only")]
+        network_only: bool,
+
+        /// Skip network scan, show only USB-attached printers
+        #[arg(long)]
+        usb_only: bool,
     },
 
     /// Identify a specific printer by IP address

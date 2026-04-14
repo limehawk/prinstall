@@ -35,7 +35,7 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
     }
 
     match cmd {
-        cli::Commands::Scan { subnet, method, timeout } => {
+        cli::Commands::Scan { subnet, method, timeout, network_only: _, usb_only: _ } => {
             cmd_scan(subnet.clone(), method.as_deref(), *timeout, cli).await
         }
         cli::Commands::Id { ip } => cmd_id(ip, cli).await,

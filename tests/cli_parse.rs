@@ -118,4 +118,34 @@ mod cli_parse_test {
             _ => panic!("expected Add"),
         }
     }
+
+    #[test]
+    fn scan_accepts_network_only_flag() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "scan", "--network-only"]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Scan { network_only, usb_only, .. }) => {
+                assert!(network_only);
+                assert!(!usb_only);
+            }
+            _ => panic!("wrong command"),
+        }
+    }
+
+    #[test]
+    fn scan_accepts_usb_only_flag() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "scan", "--usb-only"]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Scan { network_only, usb_only, .. }) => {
+                assert!(!network_only);
+                assert!(usb_only);
+            }
+            _ => panic!("wrong command"),
+        }
+    }
+
+    #[test]
+    fn scan_rejects_both_only_flags() {
+        let result = prinstall::cli::Cli::try_parse_from(["prinstall", "scan", "--network-only", "--usb-only"]);
+        assert!(result.is_err(), "expected conflict error");
+    }
 }
