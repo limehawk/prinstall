@@ -60,6 +60,15 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
         .collect();
     drivers_mod::matcher::enrich_with_dates(&mut results, &date_map);
 
+    // ── Step 2b: manufacturer-URL HEAD probe for publication dates ───────────
+    // HP/Xerox/Kyocera universal-driver URLs from drivers.toml almost
+    // always return a `Last-Modified` header on HEAD. Populating
+    // `driver_date` for those rows closes the last date-source gap so
+    // the combined-score ranker no longer falls back to the midpoint
+    // score for manufacturer-tier matches. Graceful failure — any error
+    // leaves the date as None (existing behavior).
+    drivers_mod::url_date::enrich_manufacturer_dates(&mut results, verbose).await;
+
     // ── Step 3: IPP device ID for pre-flight visibility ──────────────────────
     if let Ok(ipv4) = args.ip.parse::<std::net::Ipv4Addr>() {
         let attrs = discovery::ipp::query_ipp_attributes(ipv4, verbose).await;
