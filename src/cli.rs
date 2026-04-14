@@ -131,6 +131,7 @@ pub enum Commands {
     /// Results are split into Matched Drivers (ranked by confidence) and
     /// Universal Drivers (always available for the manufacturer).
     #[command(
+        alias = "driver",
         after_help = "EXAMPLES:\n  \
             prinstall drivers 192.168.1.100\n  \
             prinstall drivers 192.168.1.100 --json\n  \

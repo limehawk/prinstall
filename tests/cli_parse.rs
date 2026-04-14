@@ -44,6 +44,17 @@ mod cli_parse_test {
     }
 
     #[test]
+    fn driver_singular_alias_works() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "driver", "192.168.1.100"]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Drivers { ip, .. }) => {
+                assert_eq!(ip, "192.168.1.100");
+            }
+            _ => panic!("expected Drivers via 'driver' alias"),
+        }
+    }
+
+    #[test]
     fn add_with_all_flags() {
         let cli = prinstall::cli::Cli::parse_from([
             "prinstall", "add", "192.168.1.100",
