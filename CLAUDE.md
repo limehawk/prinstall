@@ -88,12 +88,12 @@ prinstall add <IP>                         Install a network printer
 prinstall add <QUEUE-NAME> --usb           Swap driver on an existing USB printer queue
 prinstall remove <IP|QUEUE-NAME>           Remove printer + orphaned driver + port
 prinstall list                             List locally installed printers
-prinstall sdi status|refresh|list|prefetch|clean|verify   (--features sdi only)
+prinstall sdi status|refresh|list|prefetch|clean|verify   (default build only; not in --no-default-features)
 ```
 
 Global flags: `--json`, `--verbose`, `--community <str>`, `--force`,
 `--subnet <cidr>`. Per-command flags: `--driver`, `--name`, `--model`, `--usb`,
-`--no-catalog` on `add`; `--no-sdi`, `--sdi-fetch` on `add` (sdi feature only);
+`--no-catalog` on `add`; `--no-sdi`, `--sdi-fetch` on `add` (default build only);
 `--keep-driver`, `--keep-port` on `remove`.
 
 ## Project Structure
@@ -179,10 +179,10 @@ tests/
 ├── sdi_pack.rs              7 tests  [sdi feature]
 ├── sdi_cache.rs             17 tests [sdi feature]
 └── sdi_fetcher.rs           10 tests [sdi feature]
-# Plus 118 inline lib tests (150 with --features sdi) in src/commands/*.rs,
-# src/core/*.rs, src/drivers/*.rs, src/discovery/*.rs, etc.
-# Total: 210 tests without SDI (118 lib + 92 integration),
-#        282 with --features sdi (150 lib + 92 non-SDI integration + 40 SDI integration).
+# Plus 158 inline lib tests default (includes SDI) / 119 lean (--no-default-features)
+# in src/commands/*.rs, src/core/*.rs, src/drivers/*.rs, src/discovery/*.rs, etc.
+# Total: 292 tests default (includes SDI) — 158 lib + 134 integration,
+#        211 lean (--no-default-features) — 119 lib + 92 non-SDI integration.
 # All run on Linux via MockExecutor (no Windows required for CI).
 ```
 
@@ -190,11 +190,11 @@ tests/
 
 ```bash
 # Tests run on Linux — MockExecutor stubs all PowerShell calls
-cargo test                          # default build (no SDI)
-cargo test --features sdi           # with SDI modules
+cargo test                          # default build — includes SDI modules
+cargo test --no-default-features    # lean build — no SDI
 cargo clippy -- -W clippy::all
-cargo build --release               # default binary (~8 MB)
-cargo build --release --features sdi  # SDI-enabled binary (~9 MB)
+cargo build --release                       # default binary with SDI (~9 MB)
+cargo build --release --no-default-features # lean binary without SDI (~8 MB)
 ```
 
 ### Cross-compile a Windows binary from Linux
@@ -208,8 +208,8 @@ docker run --rm -v "$PWD":/io -w /io messense/cargo-xwin:latest \
 Binary lands at `target/x86_64-pc-windows-msvc/release/prinstall.exe`.
 
 Release builds happen via GitHub Actions `windows-latest` runner on tag push
-(`.github/workflows/release.yml`). CI builds both `prinstall.exe` (default) and
-`prinstall-sdi.exe` (with SDI). The docker workflow above is for dev loop only.
+(`.github/workflows/release.yml`). CI builds both `prinstall.exe` (default, includes SDI) and
+`prinstall-nosdi.exe` (lean, no SDI). The docker workflow above is for dev loop only.
 
 ### Changing the app icon
 
@@ -333,9 +333,15 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 - [x] `driver` accepted as alias for `drivers` command
 - [x] Scan flags: `--network-only`, `--usb-only`
 
+**Shipped (v0.4.2):**
+- [x] Authenticode verification gate on SDI install — unsigned or tampered packs are skipped and the pipeline falls through to IPP Class Driver
+- [x] `TierStatus::Verified` variant in install report — shows a verified ✓ tier when the SDI pack passed signature check
+- [x] `drivers` command shows SDI candidates with per-pack verification status (verified / unsigned / invalid / not-extracted)
+- [x] SDI promoted to default feature (`default = ["sdi"]`); lean build available via `--no-default-features`
+- [x] Release ships `prinstall.exe` (default, includes SDI) + `prinstall-nosdi.exe` (lean)
+- [x] `tests/sdi_*.rs` now compiles under default test suite (was broken — fixed as side effect of SDI-default)
+
 **Open:**
-- [ ] Authenticode verification at install time — only offer SDI drivers whose
-      .cat passes signature check, then promote SDI to default (no feature flag)
 - [ ] Lexmark Universal Print Driver URL — needs .exe extraction support
       (InstallShield wrapper, not zip/cab)
 - [ ] Printer defaults (duplex, color/mono, paper size, set-default) via
@@ -344,6 +350,3 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 - [ ] Batch install mode (multiple IPs in one shot)
 - [ ] SignPath.io code signing for SmartScreen trust
 - [ ] Interactive TUI rework (lazygit-style panels)
-- [ ] Feature-gate tests/sdi_*.rs properly — they fail to compile under `cargo test`
-      (without `--features sdi`). Either add `#![cfg(feature = "sdi")]` at the top of
-      each file, or configure CI to always pass `--features sdi`.
