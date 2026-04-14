@@ -7,6 +7,7 @@ pub mod known_matches;
 pub mod local_store;
 pub mod manifest;
 pub mod matcher;
+pub mod name_match;
 pub mod resolver;
 #[cfg(feature = "sdi")]
 pub mod sdi;
