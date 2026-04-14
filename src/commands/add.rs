@@ -525,24 +525,38 @@ fn annotate_sdi_success(
     result
 }
 
-/// USB-printer install path: verify queue exists → driver match → stage
-/// driver → swap via Set-Printer. No port creation, no SNMP, no IPP fallback.
+/// USB-printer install dispatcher. If the target queue already exists, swap
+/// its driver (legacy flow). Otherwise, resolve a USB device by friendly
+/// name and stage-and-install a driver for the orphan device.
 async fn run_usb(args: AddArgs<'_>) -> PrinterOpResult {
     let verbose = args.verbose;
     let target = args.target;
 
     if verbose {
-        eprintln!("[add] USB mode — target queue: '{target}'");
+        eprintln!("[add] USB mode — target: '{target}'");
     }
 
-    // Verify the USB printer queue exists. Windows auto-creates a queue
-    // via PnP when a USB printer is plugged in; we're swapping its driver,
-    // not creating it from scratch.
-    if !installer::powershell::printer_exists(target, verbose) {
-        return PrinterOpResult::err(format!(
-            "USB printer queue '{target}' not found. Run `prinstall list` to see installed printers."
-        ));
+    // Existing queue? → driver swap (legacy behavior).
+    if installer::powershell::printer_exists(target, verbose) {
+        return run_usb_swap_driver(args).await;
     }
+
+    // No queue — resolve USB device and stage-and-install.
+    let executor = RealExecutor::new(verbose);
+    let Some(device) = resolve_usb_device_by_name(&executor, target, verbose).await else {
+        return PrinterOpResult::err(format!(
+            "No USB printer matching '{target}' found. Run `prinstall scan --usb-only` to see attached devices."
+        ));
+    };
+
+    run_usb_stage_and_install(args, device).await
+}
+
+/// Legacy USB flow: queue already exists, swap its driver via Set-Printer.
+/// No port creation, no SNMP, no IPP fallback.
+async fn run_usb_swap_driver(args: AddArgs<'_>) -> PrinterOpResult {
+    let verbose = args.verbose;
+    let target = args.target;
 
     // ── Model resolution: --model wins, otherwise use the queue name ─────
     // The queue name is typically the model string Windows assigned during
@@ -569,6 +583,119 @@ async fn run_usb(args: AddArgs<'_>) -> PrinterOpResult {
 
     // ── Call Set-Printer -DriverName ─────────────────────────────────────
     installer::update_printer_driver(target, &driver_name, &model, verbose)
+}
+
+/// New USB flow for orphan devices without a queue. Matches the driver,
+/// stages it via pnputil, triggers a PnP rescan, polls for queue creation,
+/// and falls back to an explicit Add-Printer if PnP doesn't bite.
+async fn run_usb_stage_and_install(
+    args: AddArgs<'_>,
+    device: crate::models::UsbDevice,
+) -> PrinterOpResult {
+    let verbose = args.verbose;
+    let friendly = device
+        .friendly_name
+        .as_deref()
+        .unwrap_or(args.target)
+        .to_string();
+    let model = args
+        .model_override
+        .map(|m| m.to_string())
+        .unwrap_or_else(|| friendly.clone());
+
+    let local_drivers = drivers::local_store::list_drivers(verbose);
+    let driver_name = match resolve_driver(&args, &model, &local_drivers, verbose) {
+        Ok(name) => name,
+        Err(result) => return result,
+    };
+
+    if verbose {
+        eprintln!("[add] USB stage-and-install: device='{friendly}' driver='{driver_name}'");
+    }
+
+    // Stage the driver package (matches the network-path behavior).
+    stage_driver_if_needed(&driver_name, &model, &local_drivers, verbose).await;
+
+    // pnputil /add-driver + /scan-devices to make PnP pick it up.
+    let executor = RealExecutor::new(verbose);
+    let staging = crate::paths::staging_dir();
+    let staging_str = staging.to_string_lossy().to_string();
+    let add_result =
+        installer::powershell::pnputil_add_driver(&executor, &staging_str, verbose).await;
+    if !add_result.success {
+        return PrinterOpResult::err(format!(
+            "Failed to stage driver via pnputil: {}",
+            add_result.error.unwrap_or_default()
+        ));
+    }
+    let _ = installer::powershell::pnputil_scan_devices(&executor, verbose).await;
+
+    // Poll for queue creation (~5s).
+    let printer_name = args.name_override.unwrap_or(&friendly).to_string();
+    for _ in 0..10 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        if installer::powershell::printer_exists(&printer_name, verbose) {
+            return PrinterOpResult::ok(InstallDetail {
+                printer_name,
+                driver_name,
+                port_name: "USB (PnP auto)".into(),
+                warning: None,
+            });
+        }
+    }
+
+    // Explicit Add-Printer fallback using the USB port.
+    let Some(port) =
+        installer::powershell::find_usb_port_for_device(&executor, &friendly, verbose).await
+    else {
+        return PrinterOpResult::err(format!(
+            "USB driver staged but no matching USB port found for '{friendly}'. Replug the device."
+        ));
+    };
+
+    let escaped_name = escape_ps_string(&printer_name);
+    let escaped_driver = escape_ps_string(&driver_name);
+    let escaped_port = escape_ps_string(&port);
+    // Wrap in single quotes to match the rest of the codebase (see
+    // try_ipp_fallback for the pattern). escape_ps_string doubles any
+    // embedded single quotes so the quoting stays intact.
+    let cmd = format!(
+        "Add-Printer -Name '{escaped_name}' -DriverName '{escaped_driver}' -PortName '{escaped_port}'"
+    );
+    let ps_result = executor.run(&cmd);
+    if ps_result.success {
+        PrinterOpResult::ok(InstallDetail {
+            printer_name,
+            driver_name,
+            port_name: port,
+            warning: Some(
+                "Installed via explicit Add-Printer fallback after PnP timeout".into(),
+            ),
+        })
+    } else {
+        PrinterOpResult::err(format!(
+            "Add-Printer failed: {}",
+            ps_result.error_summary()
+        ))
+    }
+}
+
+/// Find a USB device by case-insensitive friendly-name substring match.
+/// Returns None when no device matches — caller falls back to an error
+/// or to legacy queue-swap behavior depending on context.
+async fn resolve_usb_device_by_name(
+    exec: &dyn PsExecutor,
+    name: &str,
+    verbose: bool,
+) -> Option<crate::models::UsbDevice> {
+    let devices = discovery::usb::enumerate(exec, verbose).await;
+    let needle = name.to_ascii_lowercase();
+    devices.into_iter().find(|d| {
+        d.friendly_name
+            .as_deref()
+            .map(|f| f.to_ascii_lowercase().contains(&needle))
+            .unwrap_or(false)
+    })
 }
 
 /// Shared driver-resolution logic for both USB and network paths.
@@ -806,5 +933,54 @@ mod tests {
         let detail = result.detail_as::<InstallDetail>().unwrap();
         assert_eq!(detail.port_name, "IP_10.20.30.40");
         assert_eq!(detail.printer_name, "HP LaserJet 9999 (IPP)");
+    }
+}
+
+#[cfg(test)]
+mod usb_install_tests {
+    use super::*;
+    use crate::core::executor::MockExecutor;
+    use crate::installer::powershell::PsResult;
+
+    fn ok(stdout: &str) -> PsResult {
+        PsResult {
+            success: true,
+            stdout: stdout.to_string(),
+            stderr: String::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn resolve_usb_device_matches_by_friendly_name() {
+        let mock = MockExecutor::new()
+            .stub_contains(
+                "Get-PnpDevice",
+                ok(r#"[{"FriendlyName":"HP LaserJet 1320","InstanceId":"USB\\VID_03F0&PID_1D17\\ABC","Status":"Error"}]"#),
+            )
+            .stub_contains("Get-Printer", ok("[]"));
+        let dev = resolve_usb_device_by_name(&mock, "HP LaserJet 1320", false).await;
+        assert!(dev.is_some());
+        assert_eq!(dev.unwrap().friendly_name.as_deref(), Some("HP LaserJet 1320"));
+    }
+
+    #[tokio::test]
+    async fn resolve_usb_device_matches_substring_case_insensitive() {
+        let mock = MockExecutor::new()
+            .stub_contains(
+                "Get-PnpDevice",
+                ok(r#"[{"FriendlyName":"HP LaserJet 1320","InstanceId":"USB\\VID_03F0&PID_1D17\\ABC","Status":"Error"}]"#),
+            )
+            .stub_contains("Get-Printer", ok("[]"));
+        let dev = resolve_usb_device_by_name(&mock, "laserjet 1320", false).await;
+        assert!(dev.is_some());
+    }
+
+    #[tokio::test]
+    async fn resolve_usb_device_returns_none_when_missing() {
+        let mock = MockExecutor::new()
+            .stub_contains("Get-PnpDevice", ok("[]"))
+            .stub_contains("Get-Printer", ok("[]"));
+        let dev = resolve_usb_device_by_name(&mock, "Nonexistent", false).await;
+        assert!(dev.is_none());
     }
 }
