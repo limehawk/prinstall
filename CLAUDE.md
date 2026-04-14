@@ -300,14 +300,7 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 ## Known gotchas
 
 - **PowerShell `ConvertTo-Json` unwraps single-element pipelines** — use
-  `ConvertTo-Json -InputObject @(...)` (NOT piped) for list queries. See
-  `commands/drivers.rs::probe_windows_update` for the pattern.
-- **`Add-Printer -ConnectionName "http://..."` returns HRESULT 0x80070032
-  "Not supported"** on dockurr's Windows 11 image (and possibly others). The
-  cmdlet doesn't trigger Windows Update driver lookup — it only wraps
-  `InstallPrinterDriverFromPackage` which requires a pre-existing driver. This
-  is why the WU probe feature is currently non-functional and we fall back to
-  explicit `-DriverName "Microsoft IPP Class Driver"`.
+  `ConvertTo-Json -InputObject @(...)` (NOT piped) for list queries.
 - **`Microsoft IPP Class Driver` and other Windows system drivers are NOT
   removable** — the remove command skips them via `is_system_driver` whitelist.
 - **TCP/IP printer port removal has a ~500ms spooler lag** — the

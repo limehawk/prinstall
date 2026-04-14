@@ -163,9 +163,6 @@ pub struct DriverResults {
     /// This is the string Windows Update matches drivers against.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub device_id: Option<String>,
-    /// Result of the Windows Update install-rollback probe, if one was run.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub windows_update: Option<WindowsUpdateProbe>,
     /// Result of the Microsoft Update Catalog search, if one was run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalog: Option<CatalogSearchResult>,
@@ -261,49 +258,6 @@ impl From<crate::drivers::catalog::CatalogUpdate> for CatalogEntry {
             size_bytes: u.size_bytes,
             guid: u.guid,
         }
-    }
-}
-
-/// Outcome of an install-rollback probe against Windows Update.
-///
-/// We perform the probe by running `Add-Printer -ConnectionName` (which
-/// triggers Windows Update's driver lookup), capturing the driver name
-/// Windows chose, then immediately removing the probe queue. The driver
-/// package stays in the driver store as a beneficial side effect.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WindowsUpdateProbe {
-    /// The driver name Windows Update selected (e.g. "Brother MFC-L2750DW series Class Driver").
-    pub driver_name: String,
-    /// The port name Windows assigned to the probe queue.
-    pub port_name: String,
-    /// The printer name Windows generated for the probe (usually the IPP-advertised name).
-    pub resolved_printer_name: String,
-    /// True if the selected driver is one of the in-box fallback drivers
-    /// (e.g. "Microsoft IPP Class Driver"), meaning Windows Update had
-    /// nothing vendor-specific to offer for this printer.
-    pub from_in_box_fallback: bool,
-    /// Present when the probe could not complete. The matched/universal
-    /// sections remain valid even when probe_error is Some.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub probe_error: Option<String>,
-}
-
-impl WindowsUpdateProbe {
-    /// Build a probe result representing a failed probe — carries the error
-    /// message but no driver info. Used for graceful degradation.
-    pub fn failure(error: impl Into<String>) -> Self {
-        Self {
-            driver_name: String::new(),
-            port_name: String::new(),
-            resolved_printer_name: String::new(),
-            from_in_box_fallback: false,
-            probe_error: Some(error.into()),
-        }
-    }
-
-    /// True if this result represents a successful probe with a driver name.
-    pub fn is_success(&self) -> bool {
-        self.probe_error.is_none() && !self.driver_name.is_empty()
     }
 }
 
@@ -432,7 +386,6 @@ mod usb_model_tests {
             matched: vec![],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             sdi_candidates: vec![SdiDriverCandidate {
                 driver_name: "HP LaserJet".into(),

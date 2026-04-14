@@ -575,27 +575,7 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
         });
     }
 
-    // 4. WU probe success — promote to a real candidate row.
-    if let Some(ref probe) = results.windows_update
-        && probe.is_success()
-        && !probe.from_in_box_fallback
-    {
-        out.push(TreeCandidate {
-            icon: TreeIcon::Ranked,
-            name: probe.driver_name.clone(),
-            evidence: vec![
-                format!(
-                    "Windows Update \u{00B7} {}{}",
-                    dim("staged in driver store"),
-                    format_date_suffix(None),
-                ),
-            ],
-            parsed_date: None,
-            verification: Verification::TrustedUnverified,
-        });
-    }
-
-    // 5. Catalog collapsed to best entry.
+    // 4. Catalog collapsed to best entry.
     if let Some(ref catalog) = results.catalog
         && catalog.error.is_none()
         && !catalog.updates.is_empty()
@@ -629,7 +609,7 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
         });
     }
 
-    // 6. Universal drivers.
+    // 5. Universal drivers.
     for dm in &results.universal {
         let src = match dm.source {
             DriverSource::LocalStore => "Local Store",
@@ -649,25 +629,7 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
         });
     }
 
-    // 7. In-box WU fallback — a plausibly-useful but generic driver.
-    if let Some(ref probe) = results.windows_update
-        && probe.is_success()
-        && probe.from_in_box_fallback
-    {
-        out.push(TreeCandidate {
-            icon: TreeIcon::Fallback,
-            name: probe.driver_name.clone(),
-            evidence: vec![format!(
-                "Windows Update \u{00B7} {}{}",
-                dim("in-box fallback (no vendor driver)"),
-                format_date_suffix(None),
-            )],
-            parsed_date: None,
-            verification: Verification::TrustedUnverified,
-        });
-    }
-
-    // 8. Unverified / invalid SDI candidates — sketchy trust tier.
+    // 6. Unverified / invalid SDI candidates — sketchy trust tier.
     #[cfg(feature = "sdi")]
     for c in results.sdi_candidates.iter().filter(|c| c.verification != "verified") {
         let mut evidence = vec![format_sdi_evidence_line(&c.pack_name, c.driver_date.as_deref())];
@@ -789,30 +751,6 @@ fn render_tree(candidates: &[TreeCandidate]) -> String {
     out
 }
 
-/// Shorten a PowerShell stderr dump into something the user can actually
-/// read at the bottom of the drivers report. If the message carries an
-/// `HRESULT 0xXXXXXXXX` fragment, preserve that; otherwise trim to the
-/// first 60 chars.
-fn shorten_probe_error(raw: &str) -> String {
-    // Search for an HRESULT token first — it's the single most useful
-    // signal in most Add-Printer failures (WU rejection, driver missing).
-    for tok in raw.split_whitespace() {
-        let t = tok.trim_matches(|c: char| !c.is_alphanumeric() && c != 'x' && c != 'X');
-        if (t.starts_with("0x") || t.starts_with("0X"))
-            && t.len() >= 6
-            && t.chars().skip(2).all(|c| c.is_ascii_hexdigit())
-        {
-            return format!("HRESULT {t}");
-        }
-    }
-    let trimmed = raw.trim();
-    if trimmed.len() > 60 {
-        format!("{}…", &trimmed[..60])
-    } else {
-        trimmed.to_string()
-    }
-}
-
 /// Format driver matching results as a narrow-terminal tree layout.
 ///
 /// The output is a two-line header (printer model + CID) followed by a
@@ -868,22 +806,6 @@ pub fn format_driver_results(results: &DriverResults) -> String {
     }
 
     out.push_str(&render_tree(&candidates));
-
-    // ── WU probe footer ───────────────────────────────────────────────────────
-    // Only render the footer when the probe *didn't* already land as a
-    // candidate row in the main list above (i.e. it failed). Successful
-    // probes are already promoted into the tree.
-    if let Some(ref probe) = results.windows_update
-        && let Some(ref err) = probe.probe_error
-    {
-        let msg = shorten_probe_error(err);
-        out.push('\n');
-        out.push_str(&format!(
-            "  {} {}\n",
-            dim("Windows Update probe: skipped"),
-            dim(&format!("({msg})")),
-        ));
-    }
 
     out
 }
