@@ -202,138 +202,29 @@ pub fn format_scan_results_json(printers: &[Printer]) -> String {
     serde_json::to_string_pretty(printers).unwrap_or_else(|_| "[]".to_string())
 }
 
-/// Format `prinstall list` results.
+/// Format `prinstall list` results as a narrow-terminal tree layout.
 ///
-/// Dedicated formatter because `list` carries richer metadata than
-/// scan — queue name, driver, port, shared flag, default flag — and
-/// those all deserve their own columns. A `*` marker prefixes the
-/// default printer so operators can see at a glance which queue
-/// Windows will use when an app just says "print".
+/// Matches the style established by [`format_driver_results`]: a summary
+/// line at the top, then one icon-prefixed block per printer with two
+/// `└`-bulleted evidence lines. Default printer leads with `★`, network
+/// queues use `●`, USB / installed queues use `○`. Target width ~60 cols.
 pub fn format_list_results(printers: &[Printer]) -> String {
     if printers.is_empty() {
         return "No locally installed printers found.".to_string();
     }
 
-    // ── Column widths ─────────────────────────────────────────────────────
-    let name_width = printers
-        .iter()
-        .map(|p| p.local_name.as_deref().unwrap_or("-").len())
-        .max()
-        .unwrap_or(20)
-        .max(4);
-    let ip_width = printers
-        .iter()
-        .map(|p| p.ip.map(|ip| ip.to_string().len()).unwrap_or(1))
-        .max()
-        .unwrap_or(2)
-        .max(2);
-    let driver_width = printers
-        .iter()
-        .map(|p| {
-            p.driver_name
-                .as_deref()
-                .or(p.model.as_deref())
-                .unwrap_or("-")
-                .len()
-        })
-        .max()
-        .unwrap_or(20)
-        .max(6);
-    let port_width = printers
-        .iter()
-        .map(|p| p.port_name.as_deref().unwrap_or("-").len())
-        .max()
-        .unwrap_or(12)
-        .max(4);
-    let source_width = "Source".len().max(9);
-    let shared_width = "Shared".len();
-
-    let mut out = String::new();
-
-    // ── Header ────────────────────────────────────────────────────────────
-    out.push('\n');
-    out.push_str(&format!(
-        "  {:<name_w$}  {:<ip_w$}  {:<driver_w$}  {:<port_w$}  {:<src_w$}  {:<shared_w$}  {}\n",
-        header("Name"),
-        header("IP"),
-        header("Driver"),
-        header("Port"),
-        header("Source"),
-        header("Shared"),
-        header("Status"),
-        name_w = name_width,
-        ip_w = ip_width,
-        driver_w = driver_width,
-        port_w = port_width,
-        src_w = source_width,
-        shared_w = shared_width,
-    ));
-    out.push_str(&format!(
-        "  {:-<name_w$}  {:-<ip_w$}  {:-<driver_w$}  {:-<port_w$}  {:-<src_w$}  {:-<shared_w$}  {:-<8}\n",
-        "", "", "", "", "", "", "",
-        name_w = name_width,
-        ip_w = ip_width,
-        driver_w = driver_width,
-        port_w = port_width,
-        src_w = source_width,
-        shared_w = shared_width,
-    ));
-
-    // ── Rows ──────────────────────────────────────────────────────────────
-    let default_count = printers.iter().filter(|p| p.is_default == Some(true)).count();
-
-    for p in printers {
-        let name = p.local_name.as_deref().unwrap_or("-");
-        let ip_str = p.ip.map(|ip| ip.to_string()).unwrap_or_else(|| "-".to_string());
-        let driver = p
-            .driver_name
-            .as_deref()
-            .or(p.model.as_deref())
-            .unwrap_or("-");
-        let port = p.port_name.as_deref().unwrap_or("-");
-        let source_str = match p.source {
-            PrinterSource::Network => "Network",
-            PrinterSource::Usb => "USB",
-            PrinterSource::Installed => "Installed",
-        };
-        let shared_str = match p.shared {
-            Some(true) => "Yes",
-            Some(false) => "No",
-            None => "-",
-        };
-        let status_str = p.status.to_string();
-        let marker = if p.is_default == Some(true) { "*" } else { " " };
-
-        out.push_str(&format!(
-            "{} {:<name_w$}  {:<ip_w$}  {:<driver_w$}  {:<port_w$}  {:<src_w$}  {:<shared_w$}  {}\n",
-            marker,
-            name,
-            ip_str,
-            driver,
-            port,
-            source_str,
-            shared_str,
-            status_color(&status_str, &p.status),
-            name_w = name_width,
-            ip_w = ip_width,
-            driver_w = driver_width,
-            port_w = port_width,
-            src_w = source_width,
-            shared_w = shared_width,
-        ));
-    }
-
-    // ── Footer ────────────────────────────────────────────────────────────
+    // ── Summary line ──────────────────────────────────────────────────────
     let total = printers.len();
+    let net_count = printers.iter().filter(|p| p.ip.is_some()).count();
     let usb_count = printers
         .iter()
         .filter(|p| matches!(p.source, PrinterSource::Usb))
         .count();
-    let net_count = printers
+    let virtual_count = total.saturating_sub(usb_count).saturating_sub(net_count);
+    let default_count = printers
         .iter()
-        .filter(|p| p.ip.is_some())
+        .filter(|p| p.is_default == Some(true))
         .count();
-    let virtual_count = total - usb_count - net_count;
 
     let mut summary_parts = vec![format!("{total} printer(s)")];
     if net_count > 0 {
@@ -349,14 +240,96 @@ pub fn format_list_results(printers: &[Printer]) -> String {
         summary_parts.push(format!("{default_count} default"));
     }
 
+    let mut out = String::new();
     out.push('\n');
-    out.push_str(&dim(&format!("  {}", summary_parts.join("  ·  "))));
-    out.push('\n');
-    if default_count > 0 {
-        out.push_str(&dim("  * = Windows default printer"));
-        out.push('\n');
-    }
+    out.push_str(&dim(&summary_parts.join(" \u{00B7} ")));
+    out.push_str("\n\n");
 
+    // ── Rank: default → network → USB → virtual/installed ────────────────
+    // Within each tier, network rows sort by IP. Everything else keeps
+    // insertion order so the PowerShell `Get-Printer` sort is preserved.
+    let mut ranked: Vec<(usize, &Printer)> = printers.iter().enumerate().collect();
+    ranked.sort_by_key(|(idx, p)| {
+        let tier = if p.is_default == Some(true) {
+            0
+        } else if p.ip.is_some() {
+            1
+        } else if matches!(p.source, PrinterSource::Usb) {
+            2
+        } else {
+            3
+        };
+        // Secondary sort key for network tier: IP bytes for natural ordering.
+        let ip_key = p.ip.map(|ip| ip.octets()).unwrap_or([255, 255, 255, 255]);
+        (tier, ip_key, *idx)
+    });
+
+    // ── Build tree candidates ─────────────────────────────────────────────
+    let candidates: Vec<TreeCandidate> = ranked
+        .into_iter()
+        .map(|(_, p)| {
+            let name = p
+                .local_name
+                .clone()
+                .unwrap_or_else(|| "(unnamed)".to_string());
+
+            // Annotation: "(default)", "(shared)", or "(default · shared)".
+            let is_default = p.is_default == Some(true);
+            let is_shared = p.shared == Some(true);
+            let annotated_name = match (is_default, is_shared) {
+                (true, true) => format!("{name} {}", dim("(default \u{00B7} shared)")),
+                (true, false) => format!("{name} {}", dim("(default)")),
+                (false, true) => format!("{name} {}", dim("(shared)")),
+                (false, false) => name,
+            };
+
+            // Icon: star if default, filled dot if network (non-default),
+            // open circle otherwise (USB / installed / virtual).
+            let icon = if is_default {
+                TreeIcon::Best
+            } else if p.ip.is_some() {
+                TreeIcon::Ranked
+            } else {
+                TreeIcon::Fallback
+            };
+
+            // First evidence line: "<ip or port> · <driver>".
+            let driver = p
+                .driver_name
+                .as_deref()
+                .or(p.model.as_deref())
+                .unwrap_or("-");
+            let locator = if let Some(ip) = p.ip {
+                ip.to_string()
+            } else {
+                p.port_name
+                    .clone()
+                    .unwrap_or_else(|| "-".to_string())
+            };
+            let evidence_1 = format!("{} \u{00B7} {}", locator, driver);
+
+            // Second evidence line: "<source> · <status>".
+            let source_str = match p.source {
+                PrinterSource::Network => "Network",
+                PrinterSource::Usb => "USB",
+                PrinterSource::Installed => "Installed",
+            };
+            let status_str = p.status.to_string();
+            let evidence_2 = format!(
+                "{} \u{00B7} {}",
+                dim(source_str),
+                status_color(&status_str, &p.status),
+            );
+
+            TreeCandidate {
+                icon,
+                name: annotated_name,
+                evidence: vec![evidence_1, evidence_2],
+            }
+        })
+        .collect();
+
+    out.push_str(&render_tree(&candidates));
     out
 }
 

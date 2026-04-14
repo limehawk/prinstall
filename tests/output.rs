@@ -276,15 +276,16 @@ mod output_test {
     }
 
     #[test]
-    fn format_list_results_shows_name_driver_port_and_default_marker() {
+    fn format_list_results_tree_layout_with_summary_and_icons() {
         let printers = vec![
+            // Deliberately NOT in rank order — the formatter should reorder.
             make_local_printer(
-                "Front Desk",
-                "HP Universal Printing PCL 6",
-                "IP_10.0.0.5",
+                "Microsoft Print to PDF",
+                "Microsoft Print To PDF",
+                "PORTPROMPT:",
                 PrinterSource::Installed,
-                true,
-                true,
+                false,
+                false,
             ),
             make_local_printer(
                 "Back Office",
@@ -295,39 +296,70 @@ mod output_test {
                 false,
             ),
             make_local_printer(
-                "Microsoft Print to PDF",
-                "Microsoft Print To PDF",
-                "PORTPROMPT:",
+                "Front Desk",
+                "HP Universal Printing PCL 6",
+                "IP_10.0.0.5",
                 PrinterSource::Installed,
-                false,
-                false,
+                true,
+                true,
             ),
         ];
         let text = output::format_list_results(&printers);
-        // Queue names
-        assert!(text.contains("Front Desk"));
-        assert!(text.contains("Back Office"));
-        assert!(text.contains("Microsoft Print to PDF"));
-        // Drivers
+
+        // Summary tokens at the top.
+        assert!(text.contains("3 printer(s)"), "expected '3 printer(s)' summary:\n{text}");
+        assert!(text.contains("1 network"), "expected '1 network' summary token:\n{text}");
+        assert!(text.contains("1 USB"), "expected '1 USB' summary token:\n{text}");
+        assert!(text.contains("1 default"), "expected '1 default' summary token:\n{text}");
+
+        // The summary line precedes any printer block.
+        let summary_pos = text.find("3 printer(s)").expect("summary present");
+        let front_desk_pos = text.find("Front Desk").expect("Front Desk present");
+        assert!(summary_pos < front_desk_pos, "summary should appear before printer blocks");
+
+        // Default printer leads with the star icon.
+        let star_line = text.lines().find(|l| l.contains("\u{2605}"))
+            .expect("expected at least one star line");
+        assert!(star_line.contains("Front Desk"),
+            "expected default printer 'Front Desk' on the star line, got: {star_line}");
+
+        // (no standalone dot here — the only network printer is the default,
+        // so it gets the star icon instead of the filled dot.)
+
+        // Drivers appear inline on evidence lines.
         assert!(text.contains("HP Universal Printing PCL 6"));
         assert!(text.contains("Brother Laser Type1 Class Driver"));
-        // Ports
-        assert!(text.contains("IP_10.0.0.5"));
-        assert!(text.contains("USB001"));
-        assert!(text.contains("PORTPROMPT:"));
-        // Shared column
-        assert!(text.contains("Yes"));
-        assert!(text.contains("No"));
-        // Summary footer
-        assert!(text.contains("3 printer(s)"));
-        assert!(text.contains("1 USB"));
-        assert!(text.contains("1 default"));
-        // Default marker
-        assert!(text.contains("* = Windows default printer"));
+
+        // Bare IP appears on the Front Desk block (not just inside IP_10.0.0.5).
+        let front_desk_block: String = text
+            .lines()
+            .skip_while(|l| !l.contains("Front Desk"))
+            .take(3)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(front_desk_block.contains("10.0.0.5"),
+            "expected bare IP '10.0.0.5' in Front Desk block:\n{front_desk_block}");
+
+        // Second evidence line has "Source · Status" format.
+        assert!(text.contains("USB \u{00B7} Ready"),
+            "expected 'USB · Ready' evidence line:\n{text}");
+        assert!(text.contains("Network \u{00B7} Ready") || text.contains("Installed \u{00B7} Ready"),
+            "expected 'Network · Ready' or 'Installed · Ready' line:\n{text}");
+
+        // Tree bullet present (└).
+        assert!(text.contains("\u{2514}"), "expected tree bullet \u{2514} in output");
+
+        // Default annotation visible as text (belt-and-suspenders for NO_COLOR).
+        assert!(text.contains("(default"),
+            "expected '(default' annotation text near default queue:\n{text}");
+
+        // Old table headers are gone.
+        assert!(!text.contains("* = Windows default printer"),
+            "old default marker footer should be gone");
     }
 
     #[test]
-    fn format_list_results_shows_ip_column_for_network_printers() {
+    fn format_list_results_network_printer_shows_bare_ip_with_dot_icon() {
         let printers = vec![
             make_local_printer(
                 "Front Desk",
@@ -347,16 +379,19 @@ mod output_test {
             ),
         ];
         let text = output::format_list_results(&printers);
-        // Dedicated IP column header (separate from the Port column).
-        let header_line = text.lines().find(|l| l.contains("Name") && l.contains("Driver")).expect("header row");
-        assert!(header_line.contains("IP"), "expected IP column header, got: {header_line}");
-        // Network printer's bare IP appears in its row independent of the Port cell.
-        let front_desk_line = text.lines().find(|l| l.contains("Front Desk")).expect("Front Desk row");
-        let ip_occurrences = front_desk_line.matches("10.0.0.5").count();
-        assert!(
-            ip_occurrences >= 2,
-            "expected IP in both dedicated column AND Port column (IP_10.0.0.5), got {ip_occurrences} in:\n{front_desk_line}"
-        );
+        // No defaults here — network queue should get the filled-dot icon.
+        assert!(text.contains("\u{25CF}"), "expected filled dot icon for network printer:\n{text}");
+        // Front Desk row carries the bare IP on an evidence line.
+        let front_desk_block: String = text
+            .lines()
+            .skip_while(|l| !l.contains("Front Desk"))
+            .take(3)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(front_desk_block.contains("10.0.0.5"),
+            "expected bare IP '10.0.0.5' in Front Desk block:\n{front_desk_block}");
+        // USB queue uses the open-circle icon.
+        assert!(text.contains("\u{25CB}"), "expected open-circle icon for USB printer:\n{text}");
     }
 
     #[test]
