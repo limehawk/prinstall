@@ -55,7 +55,47 @@ mod output_test {
     }
 
     #[test]
-    fn format_driver_results_has_both_sections() {
+    fn format_driver_results_header_uses_model_without_label_prefix() {
+        let results = DriverResults {
+            printer_model: "Brother MFC-L2750DW series".to_string(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        // First non-empty line is the raw model — no "Printer:" label prefix.
+        let first_line = text.lines().find(|l| !l.trim().is_empty()).expect("at least one line");
+        assert_eq!(first_line.trim(), "Brother MFC-L2750DW series");
+        assert!(!text.contains("Printer:"), "old 'Printer:' label should be gone");
+    }
+
+    #[test]
+    fn format_driver_results_extracts_cid_from_device_id() {
+        let results = DriverResults {
+            printer_model: "Brother MFC-L2750DW series".to_string(),
+            matched: vec![],
+            universal: vec![],
+            device_id: Some(
+                "MFG:Brother;CMD:PJL,PCL;MDL:MFC-L2750DW series;CLS:PRINTER;CID:Brother Laser Type1;URF:W8,CP1".to_string()
+            ),
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(text.contains("CID: Brother Laser Type1"),
+            "expected 'CID: Brother Laser Type1' in output:\n{text}");
+        // Old "IPP Device ID:" label should not appear.
+        assert!(!text.contains("IPP Device ID:"));
+    }
+
+    #[test]
+    fn format_driver_results_renders_matched_and_universal_with_tree_icons() {
         let results = DriverResults {
             printer_model: "HP LaserJet Pro MFP M428fdw".to_string(),
             matched: vec![
@@ -83,10 +123,106 @@ mod output_test {
             sdi_candidates: vec![],
         };
         let text = output::format_driver_results(&results);
-        assert!(text.contains("Matched Drivers"));
-        assert!(text.contains("Universal Drivers"));
+        // No section-header dividers.
+        assert!(!text.contains("Matched Drivers"), "old section header should be gone");
+        assert!(!text.contains("Universal Drivers"), "old section header should be gone");
+        // Driver names still appear.
         assert!(text.contains("M428f"));
-        assert!(text.contains("Universal"));
+        assert!(text.contains("HP Universal Print Driver PCL6"));
+        // Exact match uses the star icon.
+        assert!(text.contains("\u{2605}"), "expected star (\u{2605}) for exact match");
+        // Universal uses the open-circle icon.
+        assert!(text.contains("\u{25CB}"), "expected open circle (\u{25CB}) for universal driver");
+        // Evidence lines use the └ bullet.
+        assert!(text.contains("\u{2514}"), "expected tree bullet \u{2514}");
+        // Universal evidence mentions HWID.
+        assert!(text.contains("no HWID match"));
+    }
+
+    #[test]
+    fn format_driver_results_collapses_catalog_with_variant_count() {
+        let entry = |title: &str, version: &str, date: &str| CatalogEntry {
+            title: title.to_string(),
+            products: "Windows 10, version 1803 and later".to_string(),
+            classification: "Drivers".to_string(),
+            last_updated: date.to_string(),
+            version: version.to_string(),
+            size: "3.5 MB".to_string(),
+            size_bytes: 3_500_000,
+            guid: "abc".to_string(),
+        };
+        let results = DriverResults {
+            printer_model: "Brother MFC-L2750DW series".to_string(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: Some(CatalogSearchResult {
+                query: "Brother MFC-L2750DW".to_string(),
+                updates: vec![
+                    entry("Brother Printer - 10.0.17119.1", "10.0.17119.1", "2009-04-21"),
+                    entry("Brother Printer - 10.0.17119.0", "10.0.17119.0", "2008-05-01"),
+                    entry("Brother Printer - 9.0.0.0", "9.0.0.0", "2007-01-01"),
+                    entry("Brother Printer - 8.0.0.0", "8.0.0.0", "2006-01-01"),
+                    entry("Brother Printer - 7.0.0.0", "7.0.0.0", "2005-01-01"),
+                ],
+                error: None,
+            }),
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        // Only one catalog entry rendered (not 5).
+        let occurrences = text.matches("Brother Printer").count();
+        assert_eq!(occurrences, 1, "expected catalog collapsed to 1 row; got {occurrences}:\n{text}");
+        // Variant count annotation present.
+        assert!(text.contains("(Catalog \u{00B7} 5 variants)"),
+            "expected '(Catalog \u{00B7} 5 variants)' annotation:\n{text}");
+        // Best version used (10.0.17119.1 is newest).
+        assert!(text.contains("10.0.17119.1"));
+        // No products boilerplate.
+        assert!(!text.contains("Windows 10, version 1803"));
+        // No catalog footer.
+        assert!(!text.contains("catalog.update.microsoft.com"));
+    }
+
+    #[test]
+    fn format_driver_results_empty_shows_no_drivers_message() {
+        let results = DriverResults {
+            printer_model: "Unknown Printer".to_string(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(text.contains("No drivers found for this printer."));
+    }
+
+    #[test]
+    fn format_driver_results_renders_wu_probe_error_as_footer() {
+        let results = DriverResults {
+            printer_model: "Brother MFC-L2750DW series".to_string(),
+            matched: vec![DriverMatch {
+                name: "Brother Laser Type1 Class Driver".to_string(),
+                category: DriverCategory::Matched,
+                confidence: MatchConfidence::Exact,
+                source: DriverSource::LocalStore,
+                score: 1000,
+            }],
+            universal: vec![],
+            device_id: None,
+            windows_update: Some(WindowsUpdateProbe::failure("HRESULT 0x80070032")),
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(text.contains("Windows Update probe:"), "expected WU probe footer line:\n{text}");
+        assert!(text.contains("0x80070032"));
     }
 
     #[test]
@@ -231,7 +367,7 @@ mod output_test {
 
     #[test]
     #[cfg(feature = "sdi")]
-    fn format_driver_results_renders_sdi_section_with_verification() {
+    fn format_driver_results_renders_verified_sdi_with_star_and_check() {
         use prinstall::models::SdiDriverCandidate;
 
         let results = DriverResults {
@@ -247,8 +383,40 @@ mod output_test {
                     pack_name: "DP_Printer_26000".into(),
                     hwid_match: "USB\\VID_03F0&PID_1D17".into(),
                     verification: "verified".into(),
-                    signer: Some("CN=HP Inc.".into()),
+                    signer: Some("Microsoft WHCP".into()),
                 },
+            ],
+        };
+        let out = output::format_driver_results(&results);
+        // No old "SDI Candidates" section header.
+        assert!(!out.contains("SDI Candidates"),
+            "expected no 'SDI Candidates' section header in new layout:\n{out}");
+        // Verified SDI uses the star icon.
+        assert!(out.contains("\u{2605}"), "expected star for verified SDI:\n{out}");
+        // Driver name shown.
+        assert!(out.contains("HP LaserJet 1320 Series"));
+        // SDI evidence line with pack name.
+        assert!(out.contains("SDI") && out.contains("DP_Printer_26000"),
+            "expected 'SDI' and pack name in evidence:\n{out}");
+        // Verified check mark and signer.
+        assert!(out.contains("\u{2713}"), "expected check mark for verified:\n{out}");
+        assert!(out.contains("verified"));
+        assert!(out.contains("Microsoft WHCP"));
+    }
+
+    #[test]
+    #[cfg(feature = "sdi")]
+    fn format_driver_results_renders_unsigned_sdi_with_open_circle_and_x() {
+        use prinstall::models::SdiDriverCandidate;
+
+        let results = DriverResults {
+            printer_model: "Generic Printer".into(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            sdi_candidates: vec![
                 SdiDriverCandidate {
                     driver_name: "Random Generic Driver".into(),
                     pack_name: "DP_Sketchy_01".into(),
@@ -258,25 +426,56 @@ mod output_test {
                 },
             ],
         };
-
         let out = output::format_driver_results(&results);
-        // Section header shown
-        assert!(out.contains("SDI Candidates"), "expected SDI Candidates header in:\n{out}");
-        // Driver + pack names shown
-        assert!(out.contains("HP LaserJet 1320 Series"));
-        assert!(out.contains("DP_Printer_26000"));
-        assert!(out.contains("Random Generic Driver"));
-        assert!(out.contains("DP_Sketchy_01"));
-        // Verification status per row
-        assert!(out.contains("verified"));
+        // Unsigned SDI uses open-circle icon.
+        assert!(out.contains("\u{25CB}"), "expected open circle for unsigned SDI:\n{out}");
+        // X mark for unsigned.
+        assert!(out.contains("\u{2717}"), "expected X mark for unsigned:\n{out}");
         assert!(out.contains("unsigned"));
-        // Signer shown for verified row
-        assert!(out.contains("CN=HP Inc."));
+        assert!(out.contains("DP_Sketchy_01"));
     }
 
     #[test]
     #[cfg(feature = "sdi")]
-    fn format_driver_results_omits_sdi_section_when_empty() {
+    fn format_driver_results_verified_sdi_ordered_before_unsigned() {
+        use prinstall::models::SdiDriverCandidate;
+
+        let results = DriverResults {
+            printer_model: "Generic".into(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            sdi_candidates: vec![
+                // Unsigned first in the vec...
+                SdiDriverCandidate {
+                    driver_name: "Unsigned Driver".into(),
+                    pack_name: "DP_Sketchy_01".into(),
+                    hwid_match: "USB\\VID_DEAD".into(),
+                    verification: "unsigned (1/3)".into(),
+                    signer: None,
+                },
+                // ...but verified should render first in the output.
+                SdiDriverCandidate {
+                    driver_name: "Verified Driver".into(),
+                    pack_name: "DP_Safe_01".into(),
+                    hwid_match: "USB\\VID_BEEF".into(),
+                    verification: "verified".into(),
+                    signer: Some("CN=Trusted".into()),
+                },
+            ],
+        };
+        let out = output::format_driver_results(&results);
+        let verified_pos = out.find("Verified Driver").expect("verified row present");
+        let unsigned_pos = out.find("Unsigned Driver").expect("unsigned row present");
+        assert!(verified_pos < unsigned_pos,
+            "verified SDI should appear before unsigned in output:\n{out}");
+    }
+
+    #[test]
+    #[cfg(feature = "sdi")]
+    fn format_driver_results_omits_sdi_rows_when_empty() {
         let results = DriverResults {
             printer_model: "HP LaserJet 1320".into(),
             matched: vec![],
@@ -287,6 +486,7 @@ mod output_test {
             sdi_candidates: vec![],
         };
         let out = output::format_driver_results(&results);
-        assert!(!out.contains("SDI Candidates"), "expected NO SDI section for empty candidates");
+        assert!(!out.contains("SDI Candidates"), "expected no SDI section header");
+        assert!(!out.contains("\u{2605}"), "no candidates → no star icons");
     }
 }
