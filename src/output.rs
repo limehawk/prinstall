@@ -321,16 +321,96 @@ pub fn format_list_results(printers: &[Printer]) -> String {
                 status_color(&status_str, &p.status),
             );
 
-            TreeCandidate {
-                icon,
-                name: annotated_name,
-                evidence: vec![evidence_1, evidence_2],
-            }
+            TreeCandidate::bare(icon, annotated_name, vec![evidence_1, evidence_2])
         })
         .collect();
 
     out.push_str(&render_tree(&candidates));
     out
+}
+
+/// Normalize a driver-date string into `YYYY-MM-DD`.
+///
+/// Accepts the common shapes we see across driver sources:
+///   * ISO: `"2024-03-15"` or `"2024-03-15T00:00:00"` — passed through
+///   * US slashed: `"3/15/2024"` or `"03/15/2024"`
+///   * INF `DriverVer`: `"03/15/2024,1.0.0.0"` — takes the leading date
+///   * PS JSON DateTime fallback: `"/Date(1710460800000)/"` (ms since epoch)
+///
+/// Returns `None` for anything unparseable. Month/day/year validation is
+/// strict — out-of-range components return `None` rather than a silently
+/// rolled-over date.
+pub fn normalize_date(raw: &str) -> Option<String> {
+    use chrono::{DateTime, NaiveDate};
+
+    let s = raw.trim();
+    if s.is_empty() {
+        return None;
+    }
+
+    // INF DriverVer: "MM/DD/YYYY,x.y.z.w" — take the date half.
+    let head = s.split(',').next().unwrap_or(s).trim();
+
+    // ISO datetime: "2024-03-15T00:00:00" — take the date portion.
+    let date_only = head.split('T').next().unwrap_or(head).trim();
+
+    // ISO date: "2024-03-15"
+    if let Ok(d) = NaiveDate::parse_from_str(date_only, "%Y-%m-%d") {
+        return Some(d.format("%Y-%m-%d").to_string());
+    }
+
+    // US slashed: "M/D/YYYY" or "MM/DD/YYYY"
+    for fmt in &["%m/%d/%Y", "%-m/%-d/%Y"] {
+        if let Ok(d) = NaiveDate::parse_from_str(date_only, fmt) {
+            return Some(d.format("%Y-%m-%d").to_string());
+        }
+    }
+
+    // PS JSON DateTime: "/Date(1710460800000)/"
+    if let Some(inner) = date_only
+        .strip_prefix("/Date(")
+        .and_then(|s| s.strip_suffix(")/"))
+    {
+        // Strip trailing timezone offset if present (e.g. "1234567890000-0500").
+        let ms_str = inner.split(['+', '-']).next().unwrap_or(inner);
+        if let Ok(ms) = ms_str.parse::<i64>()
+            && let Some(dt) = DateTime::from_timestamp_millis(ms)
+        {
+            return Some(dt.date_naive().format("%Y-%m-%d").to_string());
+        }
+    }
+
+    // Full ISO timestamp with fractional seconds / offsets.
+    if let Ok(dt) = DateTime::parse_from_rfc3339(head) {
+        return Some(dt.date_naive().format("%Y-%m-%d").to_string());
+    }
+
+    None
+}
+
+/// Trust tier for a driver candidate. Drives the verification-score half
+/// of the combined ranking in [`build_tree`].
+///
+///   * `Verified`            — explicit signature check passed (Task 17 SDI
+///     gate, or Task 25 catalog / manufacturer verified). 1.0.
+///   * `TrustedUnverified`   — comes from a trusted source we just didn't
+///     gate (catalog, manufacturer, local driver store). 0.3.
+///   * `UnverifiedCommunity` — unsigned SDI, unknown origin. 0.1.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Verification {
+    Verified,
+    TrustedUnverified,
+    UnverifiedCommunity,
+}
+
+impl Verification {
+    fn score(self) -> f64 {
+        match self {
+            Self::Verified => 1.0,
+            Self::TrustedUnverified => 0.3,
+            Self::UnverifiedCommunity => 0.1,
+        }
+    }
 }
 
 /// Icon tier for a ranked driver candidate. Maps to a semantic color so
@@ -357,10 +437,36 @@ impl TreeIcon {
 
 /// One ranked driver candidate in the tree layout. The `evidence` lines
 /// are already colored — [`render_tree`] just prepends the └ bullet.
+///
+/// The `parsed_date` / `verification` fields only matter in the driver-tree
+/// path — [`build_tree`] uses them to compute a combined recency-plus-trust
+/// sort score. List / scan / printer-id consumers leave them defaulted and
+/// skip the sort step, preserving insertion order.
 struct TreeCandidate {
     icon: TreeIcon,
     name: String,
     evidence: Vec<String>,
+    /// Publication date parsed from the source's raw date string via
+    /// [`normalize_date`] then [`chrono::NaiveDate::parse_from_str`]. Only
+    /// populated for driver rows; other callers (list/scan/id) leave it None.
+    parsed_date: Option<chrono::NaiveDate>,
+    /// Trust tier for this candidate. Only meaningful on driver rows; other
+    /// callers leave it at the default `TrustedUnverified`.
+    verification: Verification,
+}
+
+impl TreeCandidate {
+    /// Minimal constructor used by the list/scan/id paths — no date, no
+    /// verification, just the icon+name+evidence trio they already produce.
+    fn bare(icon: TreeIcon, name: String, evidence: Vec<String>) -> Self {
+        Self {
+            icon,
+            name,
+            evidence,
+            parsed_date: None,
+            verification: Verification::TrustedUnverified,
+        }
+    }
 }
 
 /// Extract the `CID:` (Compatible ID) field from a 1284 device ID string.
@@ -399,28 +505,39 @@ fn pick_best_catalog_entry(entries: &[CatalogEntry]) -> Option<&CatalogEntry> {
 
 /// Build the ranked candidate list from a `DriverResults`.
 ///
-/// Order (highest priority first):
-///   1. Verified SDI candidates                      → `★`
-///   2. Matched drivers with `Exact` confidence      → `★`
-///   3. Matched drivers with `Fuzzy` confidence      → `●`
-///   4. Windows Update probe success (non-in-box)    → `●`  (promoted here)
-///   5. Best Catalog hit (collapsed to 1 row)        → `●`
-///   6. Universal drivers                            → `○`
-///   7. In-box WU fallback                           → `○`
-///   8. Unverified / invalid SDI candidates          → `○`
+/// Ranking (Task 26): a combined score of
+///
+/// ```text
+/// score = date_score * 0.6  +  verification_score * 0.4
+/// ```
+///
+/// * `date_score` — normalized recency across the full candidate set.
+///   Oldest → 0.0, newest → 1.0; linear interpolation by days. Candidates
+///   with no known date receive a midpoint `0.5` so they're not shoved
+///   to the bottom on the absence-of-data alone.
+/// * `verification_score` — 1.0 for verified signatures, 0.3 for
+///   trusted-but-unverified sources (catalog, manufacturer, local store),
+///   0.1 for unsigned / unknown (community SDI without a signature).
+///
+/// Icon (★ / ● / ○) still reflects verification independently of the sort
+/// order — a freshly-dated but unsigned SDI candidate can outrank an older
+/// verified one while still carrying the open-circle marker so the user
+/// can see the trust tier at a glance.
 fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
     let mut out: Vec<TreeCandidate> = Vec::new();
 
     // 1. Verified SDI — lead with the trust story.
     #[cfg(feature = "sdi")]
     for c in results.sdi_candidates.iter().filter(|c| c.verification == "verified") {
-        let mut evidence = vec![format!("SDI \u{00B7} pack {}", dim(&c.pack_name))];
+        let mut evidence = vec![format_sdi_evidence_line(&c.pack_name, c.driver_date.as_deref())];
         let signer = c.signer.as_deref().unwrap_or("unknown signer");
         evidence.push(format!("{} verified \u{00B7} {}", ok("\u{2713}"), dim(signer)));
         out.push(TreeCandidate {
             icon: TreeIcon::Best,
             name: c.driver_name.clone(),
             evidence,
+            parsed_date: parse_normalized(c.driver_date.as_deref()),
+            verification: Verification::Verified,
         });
     }
 
@@ -441,16 +558,22 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
             DriverSource::Manufacturer => "Manufacturer",
         };
         let pct = (dm.score / 10).min(100);
-        let evidence = vec![format!("{} \u{00B7} {} \u{00B7} {}", dim(src), conf, dim(&format!("{pct}%")))];
-        out.push(TreeCandidate { icon, name: dm.name.clone(), evidence });
+        let date_suffix = format_date_suffix(dm.driver_date.as_deref());
+        let evidence = vec![format!(
+            "{} \u{00B7} {} \u{00B7} {}{}",
+            dim(src),
+            conf,
+            dim(&format!("{pct}%")),
+            date_suffix,
+        )];
+        out.push(TreeCandidate {
+            icon,
+            name: dm.name.clone(),
+            evidence,
+            parsed_date: parse_normalized(dm.driver_date.as_deref()),
+            verification: Verification::TrustedUnverified,
+        });
     }
-    // Stable sort: Exact before Fuzzy. Ranking within a confidence tier
-    // is already delivered by the caller via the `score` ordering.
-    out.sort_by_key(|c| match c.icon {
-        TreeIcon::Best => 0,
-        TreeIcon::Ranked => 1,
-        TreeIcon::Fallback => 2,
-    });
 
     // 4. WU probe success — promote to a real candidate row.
     if let Some(ref probe) = results.windows_update
@@ -461,8 +584,14 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
             icon: TreeIcon::Ranked,
             name: probe.driver_name.clone(),
             evidence: vec![
-                format!("Windows Update \u{00B7} {}", dim("staged in driver store")),
+                format!(
+                    "Windows Update \u{00B7} {}{}",
+                    dim("staged in driver store"),
+                    format_date_suffix(None),
+                ),
             ],
+            parsed_date: None,
+            verification: Verification::TrustedUnverified,
         });
     }
 
@@ -478,21 +607,25 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
         } else {
             format!("{} {}", best.title, dim("(Catalog)"))
         };
+        let normalized_date = normalize_date(&best.last_updated);
+        let shown_date = normalized_date.clone().unwrap_or_else(|| best.last_updated.clone());
         let version_trim = best.version.trim();
         let version_usable = !version_trim.is_empty()
             && !version_trim.eq_ignore_ascii_case("n/a");
         let evidence = vec![if version_usable {
             format!(
-                "latest: {} \u{00B7} {} \u{00B7} {}",
-                version_trim, best.size, best.last_updated
+                "latest: {} \u{00B7} {} \u{00B7} date: {}",
+                version_trim, best.size, shown_date,
             )
         } else {
-            format!("{} \u{00B7} {}", best.size, best.last_updated)
+            format!("{} \u{00B7} date: {}", best.size, shown_date)
         }];
         out.push(TreeCandidate {
             icon: TreeIcon::Ranked,
             name,
             evidence,
+            parsed_date: normalized_date.as_deref().and_then(parse_iso_date),
+            verification: Verification::TrustedUnverified,
         });
     }
 
@@ -502,14 +635,21 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
             DriverSource::LocalStore => "Local Store",
             DriverSource::Manufacturer => "Manufacturer",
         };
+        let date_suffix = format_date_suffix(dm.driver_date.as_deref());
         out.push(TreeCandidate {
             icon: TreeIcon::Fallback,
             name: dm.name.clone(),
-            evidence: vec![format!("{} \u{00B7} no HWID match", dim(src))],
+            evidence: vec![format!(
+                "{} \u{00B7} no HWID match{}",
+                dim(src),
+                date_suffix,
+            )],
+            parsed_date: parse_normalized(dm.driver_date.as_deref()),
+            verification: Verification::TrustedUnverified,
         });
     }
 
-    // 7. In-box WU fallback — after real drivers, before sketchy SDI.
+    // 7. In-box WU fallback — a plausibly-useful but generic driver.
     if let Some(ref probe) = results.windows_update
         && probe.is_success()
         && probe.from_in_box_fallback
@@ -518,16 +658,19 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
             icon: TreeIcon::Fallback,
             name: probe.driver_name.clone(),
             evidence: vec![format!(
-                "Windows Update \u{00B7} {}",
-                dim("in-box fallback (no vendor driver)")
+                "Windows Update \u{00B7} {}{}",
+                dim("in-box fallback (no vendor driver)"),
+                format_date_suffix(None),
             )],
+            parsed_date: None,
+            verification: Verification::TrustedUnverified,
         });
     }
 
-    // 8. Unverified / invalid SDI candidates — last so they don't lead.
+    // 8. Unverified / invalid SDI candidates — sketchy trust tier.
     #[cfg(feature = "sdi")]
     for c in results.sdi_candidates.iter().filter(|c| c.verification != "verified") {
-        let mut evidence = vec![format!("SDI \u{00B7} pack {}", dim(&c.pack_name))];
+        let mut evidence = vec![format_sdi_evidence_line(&c.pack_name, c.driver_date.as_deref())];
         let v = &c.verification;
         let verdict_line = if v.starts_with("unsigned") || v.starts_with("invalid") {
             format!("{} {}", err_text("\u{2717}"), err_text(v))
@@ -540,10 +683,92 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
             icon: TreeIcon::Fallback,
             name: c.driver_name.clone(),
             evidence,
+            parsed_date: parse_normalized(c.driver_date.as_deref()),
+            verification: Verification::UnverifiedCommunity,
         });
     }
 
+    // ── Rank by combined (date, verification) score ─────────────────────────
+    sort_by_combined_score(&mut out);
+
     out
+}
+
+/// Build the evidence line `SDI · pack {name} · date: {YYYY-MM-DD|unknown}`.
+/// Shared between the verified and unverified SDI branches so the two render
+/// with identical structure.
+fn format_sdi_evidence_line(pack_name: &str, raw_date: Option<&str>) -> String {
+    let shown = raw_date
+        .and_then(normalize_date)
+        .unwrap_or_else(|| "unknown".to_string());
+    format!(
+        "SDI \u{00B7} pack {} \u{00B7} date: {}",
+        dim(pack_name),
+        dim(&shown),
+    )
+}
+
+/// Build the trailing ` · date: {YYYY-MM-DD|unknown}` suffix appended to an
+/// existing evidence line. Returns "" (not " · date: unknown") when the caller
+/// wants to suppress the suffix entirely — currently nobody does, but the
+/// empty-branch keeps the API honest.
+fn format_date_suffix(raw_date: Option<&str>) -> String {
+    let shown = raw_date
+        .and_then(normalize_date)
+        .unwrap_or_else(|| "unknown".to_string());
+    format!(" \u{00B7} date: {}", dim(&shown))
+}
+
+/// Parse a date string through [`normalize_date`] then into a `NaiveDate`
+/// for range math. Returns `None` on any failure — the combined-score pass
+/// treats that as "unknown date, use the midpoint".
+fn parse_normalized(raw: Option<&str>) -> Option<chrono::NaiveDate> {
+    raw.and_then(normalize_date).and_then(|s| parse_iso_date(&s))
+}
+
+/// Parse an already-normalized `YYYY-MM-DD` string into `chrono::NaiveDate`.
+fn parse_iso_date(s: &str) -> Option<chrono::NaiveDate> {
+    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()
+}
+
+/// Stable sort by combined `(date_score * 0.6 + verification_score * 0.4)`.
+/// Higher score ranks earlier. Equal-score rows preserve their insertion
+/// order (stable sort — tie-broken by original index).
+fn sort_by_combined_score(candidates: &mut Vec<TreeCandidate>) {
+    // Determine min/max date across candidates that have one. An empty range
+    // (everyone known, same day) collapses to date_score 1.0.
+    let dates: Vec<chrono::NaiveDate> =
+        candidates.iter().filter_map(|c| c.parsed_date).collect();
+    let min = dates.iter().copied().min();
+    let max = dates.iter().copied().max();
+
+    // Attach a score to every candidate, move the whole lot through a sort
+    // key, then drop the score to yield the sorted `Vec<TreeCandidate>`.
+    // `Vec::drain(..)` + `.collect()` avoids cloning while letting us sort
+    // on the attached float.
+    let mut scored: Vec<(f64, TreeCandidate)> = candidates
+        .drain(..)
+        .map(|c| {
+            let date_score = match (c.parsed_date, min, max) {
+                (Some(d), Some(lo), Some(hi)) => {
+                    let span = (hi - lo).num_days();
+                    if span <= 0 {
+                        1.0
+                    } else {
+                        (d - lo).num_days() as f64 / span as f64
+                    }
+                }
+                _ => 0.5,
+            };
+            let combined = date_score * 0.6 + c.verification.score() * 0.4;
+            (combined, c)
+        })
+        .collect();
+
+    // `sort_by` is stable in Rust, so equal scores preserve insertion order
+    // without a manual tie-breaker. Descending on score means highest first.
+    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    candidates.extend(scored.into_iter().map(|(_, c)| c));
 }
 
 /// Render a `Vec<TreeCandidate>` into the final text block. Each candidate
@@ -745,17 +970,9 @@ pub fn format_printer_id(printer: &Printer) -> String {
     }
 
     let candidate = if let Some(n) = name {
-        TreeCandidate {
-            icon: TreeIcon::Ranked,
-            name: n,
-            evidence,
-        }
+        TreeCandidate::bare(TreeIcon::Ranked, n, evidence)
     } else {
-        TreeCandidate {
-            icon: TreeIcon::Fallback,
-            name: dim("(unknown printer)"),
-            evidence,
-        }
+        TreeCandidate::bare(TreeIcon::Fallback, dim("(unknown printer)"), evidence)
     };
 
     render_tree(&[candidate])
@@ -927,11 +1144,7 @@ fn network_tree_candidate(p: &Printer) -> TreeCandidate {
         vec![evidence_line]
     };
 
-    TreeCandidate {
-        icon: TreeIcon::Ranked,
-        name,
-        evidence,
-    }
+    TreeCandidate::bare(TreeIcon::Ranked, name, evidence)
 }
 
 /// Build a USB device row. Working queues get `●` with a dim
@@ -941,20 +1154,18 @@ fn network_tree_candidate(p: &Printer) -> TreeCandidate {
 fn usb_tree_candidate(dev: &UsbDevice) -> TreeCandidate {
     let friendly = dev.friendly_name.as_deref().unwrap_or("(unknown device)");
     match &dev.queue_name {
-        Some(q) => TreeCandidate {
-            icon: TreeIcon::Ranked,
-            name: format!("{friendly} {}", dim(&format!("(queue: {q})"))),
-            evidence: Vec::new(),
-        },
+        Some(q) => TreeCandidate::bare(
+            TreeIcon::Ranked,
+            format!("{friendly} {}", dim(&format!("(queue: {q})"))),
+            Vec::new(),
+        ),
         None => {
             let marker = if dev.has_error { warn("NO QUEUE") } else { dim("NO QUEUE") };
-            TreeCandidate {
-                icon: TreeIcon::Fallback,
-                name: format!("{friendly}  {marker}"),
-                evidence: vec![dim(&format!(
-                    "hint: prinstall add --usb \"{friendly}\""
-                ))],
-            }
+            TreeCandidate::bare(
+                TreeIcon::Fallback,
+                format!("{friendly}  {marker}"),
+                vec![dim(&format!("hint: prinstall add --usb \"{friendly}\""))],
+            )
         }
     }
 }

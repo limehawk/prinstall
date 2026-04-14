@@ -105,6 +105,7 @@ mod output_test {
                     confidence: MatchConfidence::Exact,
                     source: DriverSource::LocalStore,
                     score: 1000,
+                    driver_date: None,
                 },
             ],
             universal: vec![
@@ -114,6 +115,7 @@ mod output_test {
                     confidence: MatchConfidence::Universal,
                     source: DriverSource::Manufacturer,
                     score: 0,
+                    driver_date: None,
                 },
             ],
             device_id: None,
@@ -212,6 +214,7 @@ mod output_test {
                 confidence: MatchConfidence::Exact,
                 source: DriverSource::LocalStore,
                 score: 1000,
+                driver_date: None,
             }],
             universal: vec![],
             device_id: None,
@@ -419,6 +422,7 @@ mod output_test {
                     hwid_match: "USB\\VID_03F0&PID_1D17".into(),
                     verification: "verified".into(),
                     signer: Some("Microsoft WHCP".into()),
+                    driver_date: None,
                 },
             ],
         };
@@ -458,6 +462,7 @@ mod output_test {
                     hwid_match: "USB\\VID_DEAD&PID_BEEF".into(),
                     verification: "unsigned (1/3)".into(),
                     signer: None,
+                    driver_date: None,
                 },
             ],
         };
@@ -490,6 +495,7 @@ mod output_test {
                     hwid_match: "USB\\VID_DEAD".into(),
                     verification: "unsigned (1/3)".into(),
                     signer: None,
+                    driver_date: None,
                 },
                 // ...but verified should render first in the output.
                 SdiDriverCandidate {
@@ -498,6 +504,7 @@ mod output_test {
                     hwid_match: "USB\\VID_BEEF".into(),
                     verification: "verified".into(),
                     signer: Some("CN=Trusted".into()),
+                    driver_date: None,
                 },
             ],
         };
@@ -675,5 +682,246 @@ mod output_test {
         assert!(out.contains("(unknown printer)"),
             "expected '(unknown printer)' fallback:\n{out}");
         assert!(out.contains("\u{25CB}"), "expected ○ icon (Fallback):\n{out}");
+    }
+
+    // ── Task 26: dates and combined-score ranking ────────────────────────────
+
+    /// Build a `DriverMatch` with a specific date for ranking tests.
+    fn dm(name: &str, confidence: MatchConfidence, date: Option<&str>) -> DriverMatch {
+        DriverMatch {
+            name: name.to_string(),
+            category: match confidence {
+                MatchConfidence::Universal => DriverCategory::Universal,
+                _ => DriverCategory::Matched,
+            },
+            confidence,
+            source: DriverSource::LocalStore,
+            score: 500,
+            driver_date: date.map(|s| s.to_string()),
+        }
+    }
+
+    #[test]
+    fn normalize_date_handles_iso_mdy_and_driver_ver() {
+        assert_eq!(output::normalize_date("2024-03-15"), Some("2024-03-15".into()));
+        assert_eq!(output::normalize_date("3/15/2024"), Some("2024-03-15".into()));
+        assert_eq!(output::normalize_date("03/15/2024"), Some("2024-03-15".into()));
+        assert_eq!(
+            output::normalize_date("03/15/2024,1.0.0.0"),
+            Some("2024-03-15".into()),
+            "should strip version suffix from INF DriverVer"
+        );
+        assert_eq!(
+            output::normalize_date("2024-03-15T00:00:00"),
+            Some("2024-03-15".into()),
+            "should strip ISO time portion"
+        );
+        assert_eq!(output::normalize_date("gibberish"), None);
+        assert_eq!(output::normalize_date(""), None);
+    }
+
+    #[test]
+    fn format_driver_results_shows_date_on_matched_rows() {
+        let results = DriverResults {
+            printer_model: "Brother MFC-L2750DW series".to_string(),
+            matched: vec![dm(
+                "Brother Laser Type1 Class Driver",
+                MatchConfidence::Exact,
+                Some("2024-03-15"),
+            )],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(
+            text.contains("date: 2024-03-15"),
+            "expected 'date: 2024-03-15' on matched row:\n{text}"
+        );
+    }
+
+    #[test]
+    fn format_driver_results_shows_date_unknown_on_dateless_rows() {
+        let results = DriverResults {
+            printer_model: "Brother MFC-L2750DW series".to_string(),
+            matched: vec![dm(
+                "Brother Laser Type1 Class Driver",
+                MatchConfidence::Exact,
+                None,
+            )],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(
+            text.contains("date: unknown"),
+            "expected 'date: unknown' when no date is known:\n{text}"
+        );
+    }
+
+    #[test]
+    fn ranking_newer_verified_beats_older_verified() {
+        // Two verified drivers (same icon tier), different dates — newer wins.
+        let results = DriverResults {
+            printer_model: "Generic".to_string(),
+            matched: vec![
+                dm("Older Exact Match", MatchConfidence::Exact, Some("2020-01-01")),
+                dm("Newer Exact Match", MatchConfidence::Exact, Some("2024-03-15")),
+            ],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        let newer = text.find("Newer Exact Match").expect("newer present");
+        let older = text.find("Older Exact Match").expect("older present");
+        assert!(
+            newer < older,
+            "newer driver should rank above older:\n{text}"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "sdi")]
+    fn ranking_newer_unverified_beats_older_verified_sdi() {
+        use prinstall::models::SdiDriverCandidate;
+
+        // Verified 2018 driver: score = 0.0 * 0.6 + 1.0 * 0.4 = 0.4
+        // Unsigned 2025 driver: score = 1.0 * 0.6 + 0.1 * 0.4 = 0.64
+        // → unsigned newer should still rank above verified older.
+        let results = DriverResults {
+            printer_model: "Generic".into(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            sdi_candidates: vec![
+                SdiDriverCandidate {
+                    driver_name: "Old Verified Driver".into(),
+                    pack_name: "DP_Safe_00".into(),
+                    hwid_match: "USB\\VID_AAAA".into(),
+                    verification: "verified".into(),
+                    signer: Some("CN=Trusted".into()),
+                    driver_date: Some("2018-01-01".into()),
+                },
+                SdiDriverCandidate {
+                    driver_name: "Fresh Unsigned Driver".into(),
+                    pack_name: "DP_Sketchy_99".into(),
+                    hwid_match: "USB\\VID_BBBB".into(),
+                    verification: "unsigned (1/3)".into(),
+                    signer: None,
+                    driver_date: Some("2025-06-01".into()),
+                },
+            ],
+        };
+        let text = output::format_driver_results(&results);
+        let fresh = text.find("Fresh Unsigned Driver").expect("fresh present");
+        let old_ver = text.find("Old Verified Driver").expect("old present");
+        assert!(
+            fresh < old_ver,
+            "freshly-dated unsigned SDI should outrank older verified:\n{text}"
+        );
+    }
+
+    #[test]
+    fn ranking_dateless_driver_falls_to_midpoint() {
+        // oldest: 2020, middle: dateless (0.5 midpoint), newest: 2025
+        // Verification the same across all three → date alone decides.
+        // Expected order: newest, dateless, oldest.
+        let results = DriverResults {
+            printer_model: "Generic".to_string(),
+            matched: vec![
+                dm("Oldest", MatchConfidence::Fuzzy, Some("2020-01-01")),
+                dm("Dateless", MatchConfidence::Fuzzy, None),
+                dm("Newest", MatchConfidence::Fuzzy, Some("2025-01-01")),
+            ],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        let newest = text.find("Newest").expect("newest present");
+        let dateless = text.find("Dateless").expect("dateless present");
+        let oldest = text.find("Oldest").expect("oldest present");
+        assert!(
+            newest < dateless && dateless < oldest,
+            "expected newest < dateless < oldest, got:\n{text}"
+        );
+    }
+
+    #[test]
+    fn ranking_tiebreaker_preserves_insertion_order() {
+        // Two candidates with identical score (same verification, same date)
+        // must preserve insertion order (stable sort).
+        let results = DriverResults {
+            printer_model: "Generic".to_string(),
+            matched: vec![
+                dm("First", MatchConfidence::Fuzzy, Some("2023-01-01")),
+                dm("Second", MatchConfidence::Fuzzy, Some("2023-01-01")),
+                dm("Third", MatchConfidence::Fuzzy, Some("2023-01-01")),
+            ],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        let first = text.find("First").expect("first present");
+        let second = text.find("Second").expect("second present");
+        let third = text.find("Third").expect("third present");
+        assert!(
+            first < second && second < third,
+            "equal-score candidates should preserve insertion order:\n{text}"
+        );
+    }
+
+    #[test]
+    fn catalog_last_updated_is_normalized_in_output() {
+        // Catalog often reports dates as "M/D/YYYY" or "YYYY-MM-DD". We
+        // normalize to ISO in the evidence line.
+        let results = DriverResults {
+            printer_model: "Brother MFC-L2750DW series".to_string(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: Some(CatalogSearchResult {
+                query: "Brother MFC-L2750DW".to_string(),
+                updates: vec![CatalogEntry {
+                    title: "Brother Printer - 10.0.17119.1".to_string(),
+                    products: "Windows 10, version 1803 and later".to_string(),
+                    classification: "Drivers".to_string(),
+                    last_updated: "4/21/2009".to_string(),
+                    version: "10.0.17119.1".to_string(),
+                    size: "3.5 MB".to_string(),
+                    size_bytes: 3_500_000,
+                    guid: "abc".to_string(),
+                }],
+                error: None,
+            }),
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(
+            text.contains("date: 2009-04-21"),
+            "expected normalized catalog date 'date: 2009-04-21':\n{text}"
+        );
     }
 }

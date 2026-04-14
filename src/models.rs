@@ -124,6 +124,12 @@ pub struct DriverMatch {
     /// Exact matches get 1000. Universal drivers and unscored items are 0.
     #[serde(default)]
     pub score: u32,
+    /// Driver publication date (`YYYY-MM-DD` where possible). Populated for
+    /// local-store entries by the `drivers` command via
+    /// [`crate::drivers::matcher::enrich_with_dates`]. Manufacturer-URL and
+    /// WU probe dates are follow-up work; they stay `None` for now.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -190,6 +196,11 @@ pub struct SdiDriverCandidate {
     /// Primary signer subject when `verification` is `"verified"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signer: Option<String>,
+    /// Driver publication date parsed from the INF's `DriverVer` field
+    /// (format `MM/DD/YYYY,version`). Normalized to `YYYY-MM-DD` where
+    /// possible. Used by the `drivers` command ranking.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_date: Option<String>,
 }
 
 /// Outcome of a Microsoft Update Catalog search for a printer model.
@@ -429,6 +440,7 @@ mod usb_model_tests {
                 hwid_match: "USB\\VID_03F0".into(),
                 verification: "verified".into(),
                 signer: Some("CN=HP Inc.".into()),
+                driver_date: None,
             }],
         };
         let json = serde_json::to_value(&results).unwrap();
@@ -444,6 +456,7 @@ mod usb_model_tests {
             hwid_match: "USB\\VID_03F0".into(),
             verification: "verified".into(),
             signer: Some("CN=HP Inc.".into()),
+            driver_date: None,
         };
         let json = serde_json::to_value(&c).unwrap();
         assert_eq!(json["driver_name"], "HP LaserJet");
