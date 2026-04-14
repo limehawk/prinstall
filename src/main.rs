@@ -2,7 +2,7 @@ use clap::Parser;
 use std::io::IsTerminal;
 
 use prinstall::core::executor::RealExecutor;
-use prinstall::{cli, commands, discovery, output, privilege};
+use prinstall::{cli, commands, discovery, models, output, privilege};
 
 #[tokio::main]
 async fn main() {
@@ -35,8 +35,8 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
     }
 
     match cmd {
-        cli::Commands::Scan { subnet, method, timeout, network_only: _, usb_only: _ } => {
-            cmd_scan(subnet.clone(), method.as_deref(), *timeout, cli).await
+        cli::Commands::Scan { subnet, method, timeout, network_only, usb_only } => {
+            cmd_scan(subnet.clone(), method.as_deref(), *timeout, *network_only, *usb_only, cli).await
         }
         cli::Commands::Id { ip } => cmd_id(ip, cli).await,
         cli::Commands::Drivers { ip, model } => cmd_drivers(ip, model.as_deref(), cli).await,
@@ -144,6 +144,8 @@ async fn cmd_scan(
     subnet: Option<String>,
     method: Option<&str>,
     timeout_ms: Option<u64>,
+    network_only: bool,
+    usb_only: bool,
     cli: &cli::Cli,
 ) {
     let scan_method = match method {
@@ -157,11 +159,16 @@ async fn cmd_scan(
     // `--method mdns` skips host enumeration entirely.
     let mdns_only = matches!(scan_method, discovery::ScanMethod::Mdns);
 
-    let (cidr, hosts) = if mdns_only {
+    let hosts = if usb_only {
+        if cli.verbose {
+            eprintln!("[scan] USB-only — skipping network scan");
+        }
+        Vec::new()
+    } else if mdns_only {
         if cli.verbose {
             eprintln!("[scan] mDNS-only scan (no subnet target needed)");
         }
-        (String::from("(mdns)"), Vec::new())
+        Vec::new()
     } else {
         let raw_cidr = match subnet {
             Some(s) => s,
@@ -214,26 +221,38 @@ async fn cmd_scan(
             eprintln!("[scan] Scanning {} hosts on {cidr}...", hosts.len());
         }
 
-        (cidr, hosts)
+        hosts
     };
 
     let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(500));
 
-    let printers = discovery::scan_subnet(
-        hosts,
-        &cli.community,
-        &scan_method,
-        timeout,
-        cli.verbose,
-    )
-    .await;
+    let result = if network_only {
+        let printers = discovery::scan_subnet(
+            hosts,
+            &cli.community,
+            &scan_method,
+            timeout,
+            cli.verbose,
+        )
+        .await;
+        models::ScanResult { network: printers, usb: vec![] }
+    } else {
+        let executor = RealExecutor::new(cli.verbose);
+        discovery::full_scan_result(
+            hosts,
+            &cli.community,
+            &scan_method,
+            timeout,
+            &executor,
+            cli.verbose,
+        )
+        .await
+    };
 
     if cli.json {
-        println!("{}", output::format_scan_results_json(&printers));
-    } else if printers.is_empty() {
-        println!("{}", output::format_scan_guidance(&cidr, 0, 0));
+        println!("{}", output::format_scan_result_json(&result));
     } else {
-        println!("{}", output::format_scan_results(&printers));
+        print!("{}", output::format_scan_result_plain(&result));
     }
 }
 
