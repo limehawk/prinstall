@@ -189,6 +189,39 @@ mod output_test {
     }
 
     #[test]
+    fn format_list_results_shows_ip_column_for_network_printers() {
+        let printers = vec![
+            make_local_printer(
+                "Front Desk",
+                "HP UPD",
+                "IP_10.0.0.5",
+                PrinterSource::Installed,
+                false,
+                false,
+            ),
+            make_local_printer(
+                "Back Office",
+                "Brother",
+                "USB001",
+                PrinterSource::Usb,
+                false,
+                false,
+            ),
+        ];
+        let text = output::format_list_results(&printers);
+        // Dedicated IP column header (separate from the Port column).
+        let header_line = text.lines().find(|l| l.contains("Name") && l.contains("Driver")).expect("header row");
+        assert!(header_line.contains("IP"), "expected IP column header, got: {header_line}");
+        // Network printer's bare IP appears in its row independent of the Port cell.
+        let front_desk_line = text.lines().find(|l| l.contains("Front Desk")).expect("Front Desk row");
+        let ip_occurrences = front_desk_line.matches("10.0.0.5").count();
+        assert!(
+            ip_occurrences >= 2,
+            "expected IP in both dedicated column AND Port column (IP_10.0.0.5), got {ip_occurrences} in:\n{front_desk_line}"
+        );
+    }
+
+    #[test]
     fn format_list_results_empty_message() {
         let text = output::format_list_results(&[]);
         assert!(text.contains("No locally installed printers"));

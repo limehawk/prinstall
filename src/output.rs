@@ -221,6 +221,12 @@ pub fn format_list_results(printers: &[Printer]) -> String {
         .max()
         .unwrap_or(20)
         .max(4);
+    let ip_width = printers
+        .iter()
+        .map(|p| p.ip.map(|ip| ip.to_string().len()).unwrap_or(1))
+        .max()
+        .unwrap_or(2)
+        .max(2);
     let driver_width = printers
         .iter()
         .map(|p| {
@@ -247,23 +253,26 @@ pub fn format_list_results(printers: &[Printer]) -> String {
     // ── Header ────────────────────────────────────────────────────────────
     out.push('\n');
     out.push_str(&format!(
-        "  {:<name_w$}  {:<driver_w$}  {:<port_w$}  {:<src_w$}  {:<shared_w$}  {}\n",
+        "  {:<name_w$}  {:<ip_w$}  {:<driver_w$}  {:<port_w$}  {:<src_w$}  {:<shared_w$}  {}\n",
         header("Name"),
+        header("IP"),
         header("Driver"),
         header("Port"),
         header("Source"),
         header("Shared"),
         header("Status"),
         name_w = name_width,
+        ip_w = ip_width,
         driver_w = driver_width,
         port_w = port_width,
         src_w = source_width,
         shared_w = shared_width,
     ));
     out.push_str(&format!(
-        "  {:-<name_w$}  {:-<driver_w$}  {:-<port_w$}  {:-<src_w$}  {:-<shared_w$}  {:-<8}\n",
-        "", "", "", "", "", "",
+        "  {:-<name_w$}  {:-<ip_w$}  {:-<driver_w$}  {:-<port_w$}  {:-<src_w$}  {:-<shared_w$}  {:-<8}\n",
+        "", "", "", "", "", "", "",
         name_w = name_width,
+        ip_w = ip_width,
         driver_w = driver_width,
         port_w = port_width,
         src_w = source_width,
@@ -275,6 +284,7 @@ pub fn format_list_results(printers: &[Printer]) -> String {
 
     for p in printers {
         let name = p.local_name.as_deref().unwrap_or("-");
+        let ip_str = p.ip.map(|ip| ip.to_string()).unwrap_or_else(|| "-".to_string());
         let driver = p
             .driver_name
             .as_deref()
@@ -295,15 +305,17 @@ pub fn format_list_results(printers: &[Printer]) -> String {
         let marker = if p.is_default == Some(true) { "*" } else { " " };
 
         out.push_str(&format!(
-            "{} {:<name_w$}  {:<driver_w$}  {:<port_w$}  {:<src_w$}  {:<shared_w$}  {}\n",
+            "{} {:<name_w$}  {:<ip_w$}  {:<driver_w$}  {:<port_w$}  {:<src_w$}  {:<shared_w$}  {}\n",
             marker,
             name,
+            ip_str,
             driver,
             port,
             source_str,
             shared_str,
             status_color(&status_str, &p.status),
             name_w = name_width,
+            ip_w = ip_width,
             driver_w = driver_width,
             port_w = port_width,
             src_w = source_width,
