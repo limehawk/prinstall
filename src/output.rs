@@ -526,7 +526,16 @@ fn pick_best_catalog_entry(entries: &[CatalogEntry]) -> Option<&CatalogEntry> {
 fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
     let mut out: Vec<TreeCandidate> = Vec::new();
 
-    // 1. Verified SDI — lead with the trust story.
+    // 1a. Verified Local bundle — same trust tier as verified SDI.
+    for c in results
+        .bundle_candidates
+        .iter()
+        .filter(|c| c.verification == "verified")
+    {
+        out.push(make_bundle_candidate(c, TreeIcon::Best, Verification::Verified));
+    }
+
+    // 1b. Verified SDI — lead with the trust story.
     #[cfg(feature = "sdi")]
     for c in results.sdi_candidates.iter().filter(|c| c.verification == "verified") {
         let mut evidence = vec![format_sdi_evidence_line(&c.pack_name, c.driver_date.as_deref())];
@@ -629,6 +638,20 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
         });
     }
 
+    // 5.5. Unverified / invalid Local bundle candidates — shown under the
+    //      fallback circle so the trust story matches SDI's conventions.
+    for c in results
+        .bundle_candidates
+        .iter()
+        .filter(|c| c.verification != "verified")
+    {
+        out.push(make_bundle_candidate(
+            c,
+            TreeIcon::Fallback,
+            Verification::TrustedUnverified,
+        ));
+    }
+
     // 6. Unverified / invalid SDI candidates — sketchy trust tier.
     #[cfg(feature = "sdi")]
     for c in results.sdi_candidates.iter().filter(|c| c.verification != "verified") {
@@ -654,6 +677,63 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
     sort_by_combined_score(&mut out);
 
     out
+}
+
+/// Build a [`TreeCandidate`] for a local-bundle match. Evidence layout
+/// mirrors the SDI rows:
+///
+/// ```text
+/// ★ <display_name>
+///   └ Local bundle · <provider_or_pack_dir>
+///   └ ✓ verified · <signer>            (verified)
+///   └ ✗ <verification status>          (unverified)
+/// ```
+fn make_bundle_candidate(
+    c: &crate::models::BundleDriverCandidate,
+    icon: TreeIcon,
+    verification: Verification,
+) -> TreeCandidate {
+    // Prefer the INF's `Provider` when present; falls back to the pack dir.
+    let source = c
+        .provider
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| shorten_bundle_path(&c.pack_dir));
+    let mut evidence = vec![format!(
+        "Local bundle \u{00B7} {}{}",
+        dim(&source),
+        format_date_suffix(c.driver_date.as_deref()),
+    )];
+    let verdict = match c.verification.as_str() {
+        "verified" => {
+            let signer = c.signer.as_deref().unwrap_or("unknown signer");
+            format!("{} verified \u{00B7} {}", ok("\u{2713}"), dim(signer))
+        }
+        v if v.starts_with("unsigned") || v.starts_with("invalid") => {
+            format!("{} {}", err_text("\u{2717}"), err_text(v))
+        }
+        v => format!("{} {}", dim("\u{2717}"), dim(v)),
+    };
+    evidence.push(verdict);
+    TreeCandidate {
+        icon,
+        name: c.driver_name.clone(),
+        evidence,
+        parsed_date: parse_normalized(c.driver_date.as_deref()),
+        verification,
+    }
+}
+
+/// Trim a bundle pack dir to the last path segment so the evidence line
+/// stays short. Absolute paths like `/opt/prinstall/drivers/hp-m404/` render
+/// as `hp-m404` — enough context to identify the pack without eating the row.
+fn shorten_bundle_path(full: &str) -> String {
+    std::path::Path::new(full)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(full)
+        .to_string()
 }
 
 /// Build the evidence line `SDI · pack {name} · date: {YYYY-MM-DD|unknown}`.

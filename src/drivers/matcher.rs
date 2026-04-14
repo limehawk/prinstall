@@ -107,6 +107,7 @@ pub fn match_drivers(model: &str, local_store_drivers: &[String]) -> DriverResul
         universal,
         device_id: None,
         catalog: None,
+        bundle_candidates: Vec::new(),
         #[cfg(feature = "sdi")]
         sdi_candidates: Vec::new(),
     }
