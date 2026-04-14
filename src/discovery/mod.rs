@@ -4,6 +4,7 @@ pub mod mdns;
 pub mod port_scan;
 pub mod snmp;
 pub mod subnet;
+pub mod usb;
 
 use std::net::Ipv4Addr;
 use std::time::Duration;
