@@ -60,6 +60,8 @@ pub enum TierStatus {
     Skipped,
     /// ★ — this tier won
     Matched,
+    /// ✓ — this tier won AND Authenticode verification passed
+    Verified,
     /// - — explicitly disabled via flag
     Disabled,
 }
@@ -73,7 +75,9 @@ pub struct ResolutionPhase {
 
 impl ResolutionPhase {
     pub fn add_tier(&mut self, name: &str, status: TierStatus, detail: &str) {
-        if status == TierStatus::Matched && self.winner_idx.is_none() {
+        if matches!(status, TierStatus::Matched | TierStatus::Verified)
+            && self.winner_idx.is_none()
+        {
             self.winner_idx = Some(self.tiers.len());
         }
         self.tiers.push(TierResult {
@@ -203,6 +207,10 @@ impl InstallReport {
                 ),
                 TierStatus::Matched => (
                     output::accent("★"),
+                    output::accent(&tier.detail),
+                ),
+                TierStatus::Verified => (
+                    output::ok("✓"),
                     output::accent(&tier.detail),
                 ),
                 TierStatus::Disabled => (
@@ -422,6 +430,14 @@ mod tests {
         let mut res = ResolutionPhase::default();
         res.add_tier("Local", TierStatus::Failed, "no match");
         res.add_tier("SDI", TierStatus::Matched, "found it");
+        assert_eq!(res.winner_idx, Some(1));
+    }
+
+    #[test]
+    fn verified_tier_is_recognized_as_winner() {
+        let mut res = ResolutionPhase::default();
+        res.add_tier("Local", TierStatus::Failed, "no match");
+        res.add_tier("SDI Origin", TierStatus::Verified, "HP UPD [verified]");
         assert_eq!(res.winner_idx, Some(1));
     }
 }
