@@ -228,4 +228,65 @@ mod output_test {
         let text = output::format_list_results(&[]);
         assert!(text.contains("No locally installed printers"));
     }
+
+    #[test]
+    #[cfg(feature = "sdi")]
+    fn format_driver_results_renders_sdi_section_with_verification() {
+        use prinstall::models::SdiDriverCandidate;
+
+        let results = DriverResults {
+            printer_model: "HP LaserJet 1320".into(),
+            matched: vec![],
+            universal: vec![],
+            device_id: Some("USB\\VID_03F0&PID_1D17".into()),
+            windows_update: None,
+            catalog: None,
+            sdi_candidates: vec![
+                SdiDriverCandidate {
+                    driver_name: "HP LaserJet 1320 Series".into(),
+                    pack_name: "DP_Printer_26000".into(),
+                    hwid_match: "USB\\VID_03F0&PID_1D17".into(),
+                    verification: "verified".into(),
+                    signer: Some("CN=HP Inc.".into()),
+                },
+                SdiDriverCandidate {
+                    driver_name: "Random Generic Driver".into(),
+                    pack_name: "DP_Sketchy_01".into(),
+                    hwid_match: "USB\\VID_DEAD&PID_BEEF".into(),
+                    verification: "unsigned (1/3)".into(),
+                    signer: None,
+                },
+            ],
+        };
+
+        let out = output::format_driver_results(&results);
+        // Section header shown
+        assert!(out.contains("SDI Candidates"), "expected SDI Candidates header in:\n{out}");
+        // Driver + pack names shown
+        assert!(out.contains("HP LaserJet 1320 Series"));
+        assert!(out.contains("DP_Printer_26000"));
+        assert!(out.contains("Random Generic Driver"));
+        assert!(out.contains("DP_Sketchy_01"));
+        // Verification status per row
+        assert!(out.contains("verified"));
+        assert!(out.contains("unsigned"));
+        // Signer shown for verified row
+        assert!(out.contains("CN=HP Inc."));
+    }
+
+    #[test]
+    #[cfg(feature = "sdi")]
+    fn format_driver_results_omits_sdi_section_when_empty() {
+        let results = DriverResults {
+            printer_model: "HP LaserJet 1320".into(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            sdi_candidates: vec![],
+        };
+        let out = output::format_driver_results(&results);
+        assert!(!out.contains("SDI Candidates"), "expected NO SDI section for empty candidates");
+    }
 }

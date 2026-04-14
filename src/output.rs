@@ -405,7 +405,15 @@ pub fn format_driver_results(results: &DriverResults) -> String {
         }
     }
 
-    if results.matched.is_empty() && results.universal.is_empty() {
+    // Check if there are any traditional (matched/universal) drivers at all
+    let has_traditional_drivers = !results.matched.is_empty() || !results.universal.is_empty();
+
+    #[cfg(feature = "sdi")]
+    let has_sdi_candidates = !results.sdi_candidates.is_empty();
+    #[cfg(not(feature = "sdi"))]
+    let has_sdi_candidates = false;
+
+    if !has_traditional_drivers && !has_sdi_candidates {
         out.push_str("\nNo drivers found for this printer.\n");
         return out;
     }
@@ -505,6 +513,33 @@ pub fn format_driver_results(results: &DriverResults) -> String {
                 "\n  {}\n",
                 dim("Source: catalog.update.microsoft.com"),
             ));
+        }
+    }
+
+    // ── SDI Candidates ───────────────────────────────────────────────────────
+    #[cfg(feature = "sdi")]
+    if !results.sdi_candidates.is_empty() {
+        out.push_str(&format!(
+            "\n{}\n",
+            header("── SDI Candidates ───────────────────────────────────────────")
+        ));
+        for c in &results.sdi_candidates {
+            let verification_rendered = if c.verification == "verified" {
+                ok(&c.verification)
+            } else if c.verification.starts_with("unsigned") || c.verification.starts_with("invalid") {
+                err_text(&c.verification)
+            } else {
+                dim(&c.verification)
+            };
+            out.push_str(&format!(
+                "  {} — {} [{}]\n",
+                accent(&c.driver_name),
+                dim(&c.pack_name),
+                verification_rendered,
+            ));
+            if let Some(ref signer) = c.signer {
+                out.push_str(&format!("    {} {}\n", label("signed by:"), dim(signer)));
+            }
         }
     }
 
