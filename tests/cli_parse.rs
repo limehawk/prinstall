@@ -159,4 +159,28 @@ mod cli_parse_test {
         let result = prinstall::cli::Cli::try_parse_from(["prinstall", "scan", "--network-only", "--usb-only"]);
         assert!(result.is_err(), "expected conflict error");
     }
+
+    #[test]
+    fn add_accepts_no_verify_flag() {
+        let cli = prinstall::cli::Cli::try_parse_from([
+            "prinstall", "add", "192.168.1.100", "--no-verify",
+        ])
+        .unwrap();
+        match cli.command {
+            Some(prinstall::cli::Commands::Add { no_verify, .. }) => assert!(no_verify),
+            _ => panic!("wrong command"),
+        }
+    }
+
+    #[test]
+    fn add_no_verify_defaults_to_false() {
+        let cli = prinstall::cli::Cli::try_parse_from([
+            "prinstall", "add", "192.168.1.100",
+        ])
+        .unwrap();
+        match cli.command {
+            Some(prinstall::cli::Commands::Add { no_verify, .. }) => assert!(!no_verify),
+            _ => panic!("wrong command"),
+        }
+    }
 }
