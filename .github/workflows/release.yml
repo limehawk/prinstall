@@ -12,6 +12,13 @@ jobs:
   build:
     runs-on: windows-latest
 
+    # Hoist secrets to job-level env so step-level `if: env.X != ''` guards
+    # can see them. Secrets aren't available in `if:` conditions directly,
+    # but env vars derived from secrets are.
+    env:
+      CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+      CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
+
     steps:
       - uses: actions/checkout@v6
 
@@ -32,6 +39,78 @@ jobs:
 
       - name: Run tests
         run: cargo test --release --target x86_64-pc-windows-msvc
+
+      # ---------- Code signing (optional — see docs/selfsign-setup.md) ----------
+      # All signing steps no-op if CODESIGN_PFX_BASE64 secret isn't set, so the
+      # release still ships (unsigned) during the initial setup window before
+      # Watson uploads the secrets.
+
+      - name: Resolve signtool.exe path
+        id: signtool
+        if: env.CODESIGN_PFX_BASE64 != ''
+        shell: pwsh
+        run: |
+          # Try PATH first, then fall back to scanning Windows SDK install dirs.
+          # The SDK version in the runner image changes between releases, so we
+          # can't hard-code a path.
+          $signtool = (Get-Command signtool.exe -ErrorAction SilentlyContinue)?.Source
+          if (-not $signtool) {
+            $candidates = @(
+              "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
+              "${env:ProgramFiles}\Windows Kits\10\bin"
+            )
+            foreach ($root in $candidates) {
+              if (Test-Path $root) {
+                $hit = Get-ChildItem -Path $root -Recurse -Filter 'signtool.exe' -ErrorAction SilentlyContinue |
+                  Where-Object { $_.FullName -match '\\x64\\' } |
+                  Sort-Object FullName -Descending |
+                  Select-Object -First 1
+                if ($hit) { $signtool = $hit.FullName; break }
+              }
+            }
+          }
+          if (-not $signtool) { throw "signtool.exe not found on this runner" }
+          Write-Host "signtool: $signtool"
+          "path=$signtool" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Decode code signing PFX
+        if: env.CODESIGN_PFX_BASE64 != ''
+        shell: pwsh
+        run: |
+          $pfxBytes = [Convert]::FromBase64String($env:CODESIGN_PFX_BASE64)
+          [IO.File]::WriteAllBytes("codesign.pfx", $pfxBytes)
+          Write-Host "PFX written to codesign.pfx ($($pfxBytes.Length) bytes)"
+
+      - name: Sign default binary (prinstall.exe)
+        if: env.CODESIGN_PFX_BASE64 != ''
+        shell: pwsh
+        run: |
+          & "${{ steps.signtool.outputs.path }}" sign `
+            /f codesign.pfx /p $env:CODESIGN_PFX_PASSWORD `
+            /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
+            prinstall.exe
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed on prinstall.exe (exit $LASTEXITCODE)" }
+
+      - name: Sign lean binary (prinstall-nosdi.exe)
+        if: env.CODESIGN_PFX_BASE64 != ''
+        shell: pwsh
+        run: |
+          & "${{ steps.signtool.outputs.path }}" sign `
+            /f codesign.pfx /p $env:CODESIGN_PFX_PASSWORD `
+            /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
+            prinstall-nosdi.exe
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed on prinstall-nosdi.exe (exit $LASTEXITCODE)" }
+
+      - name: Wipe PFX from runner
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path codesign.pfx) {
+            Remove-Item codesign.pfx -Force
+            Write-Host "codesign.pfx removed"
+          }
+
+      # ---------- Package + upload ----------
 
       - name: Package
         run: 7z a prinstall-windows-amd64.zip prinstall.exe

@@ -619,20 +619,22 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
     }
 
     // 5. Universal drivers.
+    //
+    // The Manufacturer tier doesn't do HWID matching — it's a URL-based
+    // universal driver selected by vendor prefix. Tagging it "no HWID
+    // match" was misleading (implied the tier looked and found nothing),
+    // so Manufacturer rows render plainly and only the Local Store row
+    // keeps the qualifier since Windows' store lookup is HWID-aware.
     for dm in &results.universal {
-        let src = match dm.source {
-            DriverSource::LocalStore => "Local Store",
-            DriverSource::Manufacturer => "Manufacturer",
-        };
         let date_suffix = format_date_suffix(dm.driver_date.as_deref());
+        let evidence = match dm.source {
+            DriverSource::LocalStore => format!("{} \u{00B7} no HWID match{}", dim("Local Store"), date_suffix),
+            DriverSource::Manufacturer => format!("{}{}", dim("Manufacturer"), date_suffix),
+        };
         out.push(TreeCandidate {
             icon: TreeIcon::Fallback,
             name: dm.name.clone(),
-            evidence: vec![format!(
-                "{} \u{00B7} no HWID match{}",
-                dim(src),
-                date_suffix,
-            )],
+            evidence: vec![evidence],
             parsed_date: parse_normalized(dm.driver_date.as_deref()),
             verification: Verification::TrustedUnverified,
         });

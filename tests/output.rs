@@ -137,8 +137,74 @@ mod output_test {
         assert!(text.contains("\u{25CB}"), "expected open circle (\u{25CB}) for universal driver");
         // Evidence lines use the └ bullet.
         assert!(text.contains("\u{2514}"), "expected tree bullet \u{2514}");
-        // Universal evidence mentions HWID.
-        assert!(text.contains("no HWID match"));
+        // Manufacturer tier renders plainly — no misleading "no HWID match"
+        // qualifier (the tier doesn't HWID-match, it's a URL-based universal).
+        assert!(text.contains("Manufacturer"), "expected Manufacturer tier label");
+        assert!(
+            !text.contains("no HWID match"),
+            "Manufacturer tier must not claim 'no HWID match' — that's a lie"
+        );
+    }
+
+    #[test]
+    fn format_driver_results_manufacturer_row_has_no_hwid_qualifier() {
+        // Task 39 fix: manufacturer-tier rows used to render "Manufacturer · no HWID match",
+        // which was misleading because that tier doesn't do HWID matching.
+        let results = DriverResults {
+            printer_model: "HP LaserJet Pro MFP M428fdw".to_string(),
+            matched: vec![],
+            universal: vec![DriverMatch {
+                name: "HP Universal Print Driver PCL6".to_string(),
+                category: DriverCategory::Universal,
+                confidence: MatchConfidence::Universal,
+                source: DriverSource::Manufacturer,
+                score: 0,
+                driver_date: Some("2026-03-11".to_string()),
+            }],
+            device_id: None,
+            catalog: None,
+            bundle_candidates: Vec::new(),
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(
+            text.contains("Manufacturer"),
+            "expected plain 'Manufacturer' label:\n{text}"
+        );
+        assert!(
+            !text.contains("no HWID match"),
+            "Manufacturer rows must not contain 'no HWID match':\n{text}"
+        );
+    }
+
+    #[test]
+    fn format_driver_results_local_store_universal_keeps_hwid_qualifier() {
+        // Local Store universal rows DO surface "no HWID match" because the
+        // store's lookup is HWID-aware — a universal there is genuinely a
+        // non-HWID-matched fallback. Keep the qualifier on that row.
+        let results = DriverResults {
+            printer_model: "HP LaserJet Pro MFP M428fdw".to_string(),
+            matched: vec![],
+            universal: vec![DriverMatch {
+                name: "HP Universal Print Driver PCL6".to_string(),
+                category: DriverCategory::Universal,
+                confidence: MatchConfidence::Universal,
+                source: DriverSource::LocalStore,
+                score: 0,
+                driver_date: None,
+            }],
+            device_id: None,
+            catalog: None,
+            bundle_candidates: Vec::new(),
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(
+            text.contains("no HWID match"),
+            "Local Store universal row must keep 'no HWID match' qualifier:\n{text}"
+        );
     }
 
     #[test]

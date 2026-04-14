@@ -211,10 +211,29 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     // INF won't install reliably and we don't want the primary pipeline
     // to try it. PrinterOpResult::err gives us a placeholder failure to
     // fall through with.
+    //
+    // Prefer the actual driver name Windows registered from the INF over
+    // the manifest hint — see `collect_actual_driver_name` for the rationale.
+    let effective_driver_name: String = match &stage_outcome {
+        StageOutcome::StagedVerified {
+            actual_driver_name: Some(name),
+            ..
+        }
+        | StageOutcome::StagedUnverified {
+            actual_driver_name: Some(name),
+        } => name.clone(),
+        _ => driver_name.clone(),
+    };
     let primary_result = if manufacturer_verify_failed {
         PrinterOpResult::err("manufacturer pack rejected by verification gate".to_string())
     } else {
-        installer::install_printer(target, &driver_name, &printer_name, &model, verbose)
+        installer::install_printer(
+            target,
+            &effective_driver_name,
+            &printer_name,
+            &model,
+            verbose,
+        )
     };
 
     if primary_result.success {
@@ -222,24 +241,24 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         if driver_is_local {
             report
                 .resolution
-                .add_tier("Local store", TierStatus::Matched, &driver_name);
+                .add_tier("Local store", TierStatus::Matched, &effective_driver_name);
             report.source_annotation = Some("local driver store".into());
         } else {
             match &stage_outcome {
-                StageOutcome::StagedVerified { signer } => {
+                StageOutcome::StagedVerified { signer, .. } => {
                     let signer_tag = signer.as_deref().unwrap_or("unknown signer");
                     report.resolution.add_tier(
                         "Manufacturer",
                         TierStatus::Verified,
-                        &format!("{driver_name} [verified: {signer_tag}]"),
+                        &format!("{effective_driver_name} [verified: {signer_tag}]"),
                     );
                     report.source_annotation = Some("manufacturer [verified]".into());
                 }
-                StageOutcome::StagedUnverified => {
+                StageOutcome::StagedUnverified { .. } => {
                     report.resolution.add_tier(
                         "Manufacturer",
                         TierStatus::Matched,
-                        &format!("{driver_name} [UNVERIFIED]"),
+                        &format!("{effective_driver_name} [UNVERIFIED]"),
                     );
                     report.source_annotation = Some("manufacturer [unverified]".into());
                 }
@@ -247,14 +266,16 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
                 // the driver was found in the local store or the manufacturer tier
                 // didn't substantively contribute. Surface as a plain Matched.
                 _ => {
-                    report
-                        .resolution
-                        .add_tier("Manufacturer", TierStatus::Matched, &driver_name);
+                    report.resolution.add_tier(
+                        "Manufacturer",
+                        TierStatus::Matched,
+                        &effective_driver_name,
+                    );
                     report.source_annotation = Some("manufacturer".into());
                 }
             }
         }
-        populate_install_steps(&mut report, target, &driver_name, &printer_name, true);
+        populate_install_steps(&mut report, target, &effective_driver_name, &printer_name, true);
         report.success = true;
         report.elapsed = start.elapsed();
         report.render();
@@ -1011,8 +1032,22 @@ async fn run_usb_swap_driver(args: AddArgs<'_>) -> PrinterOpResult {
         return PrinterOpResult::err(format!("Manufacturer verification failed: {reason}"));
     }
 
+    // Prefer the actual driver name Windows registered over the manifest
+    // hint — matches the network-path behavior so `Set-Printer -DriverName`
+    // doesn't fail with 0x80070705 on a hint/INF spelling mismatch.
+    let effective_driver_name: String = match &stage_outcome {
+        StageOutcome::StagedVerified {
+            actual_driver_name: Some(name),
+            ..
+        }
+        | StageOutcome::StagedUnverified {
+            actual_driver_name: Some(name),
+        } => name.clone(),
+        _ => driver_name.clone(),
+    };
+
     // ── Call Set-Printer -DriverName ─────────────────────────────────────
-    installer::update_printer_driver(target, &driver_name, &model, verbose)
+    installer::update_printer_driver(target, &effective_driver_name, &model, verbose)
 }
 
 /// New USB flow for orphan devices without a queue. Matches the driver,
@@ -1070,6 +1105,22 @@ async fn run_usb_stage_and_install(
         return PrinterOpResult::err(format!("Manufacturer verification failed: {reason}"));
     }
 
+    // Prefer the actual driver name Windows registered when we have it.
+    // PnP picks the driver via HWID binding so this mostly affects the
+    // explicit Add-Printer fallback at the bottom of this function, but
+    // it also makes the installed queue's driver field reflect the true
+    // INF name rather than the manifest hint.
+    let effective_driver_name: String = match &stage_outcome {
+        StageOutcome::StagedVerified {
+            actual_driver_name: Some(name),
+            ..
+        }
+        | StageOutcome::StagedUnverified {
+            actual_driver_name: Some(name),
+        } => name.clone(),
+        _ => driver_name.clone(),
+    };
+
     // pnputil /add-driver + /scan-devices to make PnP pick it up.
     let executor = RealExecutor::new(verbose);
     let staging = crate::paths::staging_dir();
@@ -1090,7 +1141,7 @@ async fn run_usb_stage_and_install(
         if installer::powershell::printer_exists(&printer_name, verbose) {
             return PrinterOpResult::ok(InstallDetail {
                 printer_name,
-                driver_name,
+                driver_name: effective_driver_name,
                 port_name: "USB (PnP auto)".into(),
                 warning: None,
             });
@@ -1107,7 +1158,7 @@ async fn run_usb_stage_and_install(
     };
 
     let escaped_name = escape_ps_string(&printer_name);
-    let escaped_driver = escape_ps_string(&driver_name);
+    let escaped_driver = escape_ps_string(&effective_driver_name);
     let escaped_port = escape_ps_string(&port);
     // Wrap in single quotes to match the rest of the codebase (see
     // try_ipp_fallback for the pattern). escape_ps_string doubles any
@@ -1119,7 +1170,7 @@ async fn run_usb_stage_and_install(
     if ps_result.success {
         PrinterOpResult::ok(InstallDetail {
             printer_name,
-            driver_name,
+            driver_name: effective_driver_name,
             port_name: port,
             warning: Some(
                 "Installed via explicit Add-Printer fallback after PnP timeout".into(),
@@ -1194,11 +1245,20 @@ pub(crate) enum StageOutcome {
     /// from the manufacturer tier.
     NoManifestEntry,
     /// Package downloaded, verified, and staged. Signer extracted from
-    /// the .cat catalog chain.
-    StagedVerified { signer: Option<String> },
+    /// the .cat catalog chain. `actual_driver_name` is the name Windows
+    /// actually registered (parsed out of the INF's `[Models]` section)
+    /// — this is what `Add-PrinterDriver -Name` needs to succeed.
+    /// `None` when INF parsing produced no usable display names, in which
+    /// case the caller falls back to the manifest hint.
+    StagedVerified {
+        signer: Option<String>,
+        actual_driver_name: Option<String>,
+    },
     /// Package downloaded and staged without verification (user passed
     /// `--no-verify`). Surfaced as an UNVERIFIED audit marker.
-    StagedUnverified,
+    StagedUnverified {
+        actual_driver_name: Option<String>,
+    },
     /// Package downloaded, verification failed. Nothing was staged.
     /// Caller must skip the primary install and fall through to catalog.
     VerificationFailed { reason: String },
@@ -1279,6 +1339,7 @@ async fn stage_driver_if_needed(
 
     let mut any_stage_ok = false;
     let mut first_err: Option<String> = None;
+    let mut staged_infs: Vec<std::path::PathBuf> = Vec::new();
     for inf in &infs {
         if verbose {
             eprintln!("[add] Staging driver: {}", inf.display());
@@ -1289,6 +1350,7 @@ async fn stage_driver_if_needed(
         );
         if stage_result.success {
             any_stage_ok = true;
+            staged_infs.push(inf.clone());
         } else {
             let summary = stage_result.error_summary();
             eprintln!(
@@ -1308,11 +1370,75 @@ async fn stage_driver_if_needed(
         };
     }
 
+    // Discover the actual driver name Windows registered. `drivers.toml`
+    // carries a hint like "HP Universal Print Driver PCL6" but the INF's
+    // [Models] section may declare a slightly different spelling like
+    // "HP Universal Printing PCL 6" — `Add-PrinterDriver -Name` needs the
+    // INF version or it fails with 0x80070705 "Unknown printer driver".
+    let actual_driver_name = collect_actual_driver_name(&staged_infs, driver_name, verbose);
+
     if no_verify {
-        StageOutcome::StagedUnverified
+        StageOutcome::StagedUnverified { actual_driver_name }
     } else {
-        StageOutcome::StagedVerified { signer }
+        StageOutcome::StagedVerified {
+            signer,
+            actual_driver_name,
+        }
     }
+}
+
+/// Parse each staged INF's `[Models]` section and pick the display name that
+/// best matches the manifest hint.
+///
+/// Returns `None` when every INF fails to parse, carries no HWIDs, or the
+/// match algorithm produces nothing — the caller should fall back to the
+/// hint in those cases. Duplicates across multiple INFs (common in multi-INF
+/// packs that share a display name) are deduped before matching.
+fn collect_actual_driver_name(
+    staged_infs: &[std::path::PathBuf],
+    hint: &str,
+    verbose: bool,
+) -> Option<String> {
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut names: Vec<String> = Vec::new();
+    for inf in staged_infs {
+        match drivers::inf::parse_inf(inf) {
+            Ok(data) => {
+                for hw in &data.hwids {
+                    if !hw.display_name.is_empty() && seen.insert(hw.display_name.clone()) {
+                        names.push(hw.display_name.clone());
+                    }
+                }
+            }
+            Err(e) => {
+                if verbose {
+                    eprintln!(
+                        "[add] Could not parse INF {} for driver name discovery: {e}",
+                        inf.display()
+                    );
+                }
+            }
+        }
+    }
+    if names.is_empty() {
+        if verbose {
+            eprintln!(
+                "[add] No display names found in staged INFs — falling back to hint '{hint}'"
+            );
+        }
+        return None;
+    }
+    let picked = drivers::name_match::pick_best_driver_name(&names, hint);
+    if verbose && let Some(ref p) = picked {
+        if p != hint {
+            eprintln!(
+                "[add] Discovered actual driver name from INF: '{p}' (manifest hint was '{hint}')"
+            );
+        } else {
+            eprintln!("[add] INF confirms driver name '{p}' matches the hint");
+        }
+    }
+    picked
 }
 
 /// Run `verify_pack_directory` on a freshly-extracted manufacturer pack.
@@ -1846,10 +1972,37 @@ mod tests {
         // A verified staging result should NOT trigger the fall-through branch.
         let out = StageOutcome::StagedVerified {
             signer: Some("CN=HP Inc.".into()),
+            actual_driver_name: Some("HP Universal Printing PCL 6".into()),
         };
         assert!(!matches!(out, StageOutcome::VerificationFailed { .. }));
-        if let StageOutcome::StagedVerified { signer } = out {
+        if let StageOutcome::StagedVerified {
+            signer,
+            actual_driver_name,
+        } = out
+        {
             assert_eq!(signer.as_deref(), Some("CN=HP Inc."));
+            assert_eq!(
+                actual_driver_name.as_deref(),
+                Some("HP Universal Printing PCL 6")
+            );
+        } else {
+            panic!("expected StagedVerified");
+        }
+    }
+
+    #[test]
+    fn stage_outcome_staged_verified_without_actual_name_falls_back_to_hint() {
+        // INF parsing returned nothing usable — caller should see None and
+        // fall back to the manifest hint.
+        let out = StageOutcome::StagedVerified {
+            signer: None,
+            actual_driver_name: None,
+        };
+        if let StageOutcome::StagedVerified {
+            actual_driver_name, ..
+        } = out
+        {
+            assert!(actual_driver_name.is_none());
         } else {
             panic!("expected StagedVerified");
         }
@@ -1876,9 +2029,17 @@ mod tests {
         // StagedUnverified is the --no-verify success path. The report
         // caller should treat it as non-failing and emit the UNVERIFIED
         // audit marker.
-        let out = StageOutcome::StagedUnverified;
+        let out = StageOutcome::StagedUnverified {
+            actual_driver_name: Some("HP Universal Printing PCL 6".into()),
+        };
         assert!(!matches!(out, StageOutcome::VerificationFailed { .. }));
-        assert!(matches!(out, StageOutcome::StagedUnverified));
+        assert!(matches!(out, StageOutcome::StagedUnverified { .. }));
+        if let StageOutcome::StagedUnverified { actual_driver_name } = out {
+            assert_eq!(
+                actual_driver_name.as_deref(),
+                Some("HP Universal Printing PCL 6")
+            );
+        }
     }
 
     #[test]
