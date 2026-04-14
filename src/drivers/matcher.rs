@@ -35,6 +35,7 @@ pub fn match_drivers(model: &str, local_store_drivers: &[String]) -> DriverResul
                 _ => DriverSource::Manufacturer,
             },
             score: EXACT_SCORE,
+            driver_date: None,
         });
     }
 
@@ -52,6 +53,7 @@ pub fn match_drivers(model: &str, local_store_drivers: &[String]) -> DriverResul
                 confidence: MatchConfidence::Fuzzy,
                 source: DriverSource::LocalStore,
                 score,
+                driver_date: None,
             });
         }
     }
@@ -72,6 +74,7 @@ pub fn match_drivers(model: &str, local_store_drivers: &[String]) -> DriverResul
                     _ => DriverSource::Manufacturer,
                 },
                 score,
+                driver_date: None,
             });
         }
     }
@@ -93,6 +96,7 @@ pub fn match_drivers(model: &str, local_store_drivers: &[String]) -> DriverResul
                 confidence: MatchConfidence::Universal,
                 source: DriverSource::Manufacturer,
                 score: 0,
+                driver_date: None,
             });
         }
     }
@@ -106,6 +110,24 @@ pub fn match_drivers(model: &str, local_store_drivers: &[String]) -> DriverResul
         catalog: None,
         #[cfg(feature = "sdi")]
         sdi_candidates: Vec::new(),
+    }
+}
+
+/// Apply driver dates from a `(name → date)` map onto an existing
+/// `DriverResults`. Used by the `drivers` command to populate dates from
+/// the local driver store without reworking `match_drivers`'s signature.
+///
+/// Each `DriverMatch` whose `name` appears in `dates` has its `driver_date`
+/// field set to the provided value (overwrites any existing date). Missing
+/// names are left alone.
+pub fn enrich_with_dates(
+    results: &mut DriverResults,
+    dates: &std::collections::HashMap<String, Option<String>>,
+) {
+    for dm in results.matched.iter_mut().chain(results.universal.iter_mut()) {
+        if let Some(date) = dates.get(&dm.name) {
+            dm.driver_date = date.clone();
+        }
     }
 }
 

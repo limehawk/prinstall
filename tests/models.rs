@@ -33,6 +33,7 @@ mod models_test {
             confidence: MatchConfidence::Exact,
             source: DriverSource::LocalStore,
             score: 1000,
+            driver_date: None,
         };
         let json = serde_json::to_string(&dm).unwrap();
         assert!(json.contains("matched"));

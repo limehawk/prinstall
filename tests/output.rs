@@ -105,6 +105,7 @@ mod output_test {
                     confidence: MatchConfidence::Exact,
                     source: DriverSource::LocalStore,
                     score: 1000,
+                    driver_date: None,
                 },
             ],
             universal: vec![
@@ -114,6 +115,7 @@ mod output_test {
                     confidence: MatchConfidence::Universal,
                     source: DriverSource::Manufacturer,
                     score: 0,
+                    driver_date: None,
                 },
             ],
             device_id: None,
@@ -212,6 +214,7 @@ mod output_test {
                 confidence: MatchConfidence::Exact,
                 source: DriverSource::LocalStore,
                 score: 1000,
+                driver_date: None,
             }],
             universal: vec![],
             device_id: None,
@@ -276,15 +279,16 @@ mod output_test {
     }
 
     #[test]
-    fn format_list_results_shows_name_driver_port_and_default_marker() {
+    fn format_list_results_tree_layout_with_summary_and_icons() {
         let printers = vec![
+            // Deliberately NOT in rank order — the formatter should reorder.
             make_local_printer(
-                "Front Desk",
-                "HP Universal Printing PCL 6",
-                "IP_10.0.0.5",
+                "Microsoft Print to PDF",
+                "Microsoft Print To PDF",
+                "PORTPROMPT:",
                 PrinterSource::Installed,
-                true,
-                true,
+                false,
+                false,
             ),
             make_local_printer(
                 "Back Office",
@@ -295,39 +299,70 @@ mod output_test {
                 false,
             ),
             make_local_printer(
-                "Microsoft Print to PDF",
-                "Microsoft Print To PDF",
-                "PORTPROMPT:",
+                "Front Desk",
+                "HP Universal Printing PCL 6",
+                "IP_10.0.0.5",
                 PrinterSource::Installed,
-                false,
-                false,
+                true,
+                true,
             ),
         ];
         let text = output::format_list_results(&printers);
-        // Queue names
-        assert!(text.contains("Front Desk"));
-        assert!(text.contains("Back Office"));
-        assert!(text.contains("Microsoft Print to PDF"));
-        // Drivers
+
+        // Summary tokens at the top.
+        assert!(text.contains("3 printer(s)"), "expected '3 printer(s)' summary:\n{text}");
+        assert!(text.contains("1 network"), "expected '1 network' summary token:\n{text}");
+        assert!(text.contains("1 USB"), "expected '1 USB' summary token:\n{text}");
+        assert!(text.contains("1 default"), "expected '1 default' summary token:\n{text}");
+
+        // The summary line precedes any printer block.
+        let summary_pos = text.find("3 printer(s)").expect("summary present");
+        let front_desk_pos = text.find("Front Desk").expect("Front Desk present");
+        assert!(summary_pos < front_desk_pos, "summary should appear before printer blocks");
+
+        // Default printer leads with the star icon.
+        let star_line = text.lines().find(|l| l.contains("\u{2605}"))
+            .expect("expected at least one star line");
+        assert!(star_line.contains("Front Desk"),
+            "expected default printer 'Front Desk' on the star line, got: {star_line}");
+
+        // (no standalone dot here — the only network printer is the default,
+        // so it gets the star icon instead of the filled dot.)
+
+        // Drivers appear inline on evidence lines.
         assert!(text.contains("HP Universal Printing PCL 6"));
         assert!(text.contains("Brother Laser Type1 Class Driver"));
-        // Ports
-        assert!(text.contains("IP_10.0.0.5"));
-        assert!(text.contains("USB001"));
-        assert!(text.contains("PORTPROMPT:"));
-        // Shared column
-        assert!(text.contains("Yes"));
-        assert!(text.contains("No"));
-        // Summary footer
-        assert!(text.contains("3 printer(s)"));
-        assert!(text.contains("1 USB"));
-        assert!(text.contains("1 default"));
-        // Default marker
-        assert!(text.contains("* = Windows default printer"));
+
+        // Bare IP appears on the Front Desk block (not just inside IP_10.0.0.5).
+        let front_desk_block: String = text
+            .lines()
+            .skip_while(|l| !l.contains("Front Desk"))
+            .take(3)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(front_desk_block.contains("10.0.0.5"),
+            "expected bare IP '10.0.0.5' in Front Desk block:\n{front_desk_block}");
+
+        // Second evidence line has "Source · Status" format.
+        assert!(text.contains("USB \u{00B7} Ready"),
+            "expected 'USB · Ready' evidence line:\n{text}");
+        assert!(text.contains("Network \u{00B7} Ready") || text.contains("Installed \u{00B7} Ready"),
+            "expected 'Network · Ready' or 'Installed · Ready' line:\n{text}");
+
+        // Tree bullet present (└).
+        assert!(text.contains("\u{2514}"), "expected tree bullet \u{2514} in output");
+
+        // Default annotation visible as text (belt-and-suspenders for NO_COLOR).
+        assert!(text.contains("(default"),
+            "expected '(default' annotation text near default queue:\n{text}");
+
+        // Old table headers are gone.
+        assert!(!text.contains("* = Windows default printer"),
+            "old default marker footer should be gone");
     }
 
     #[test]
-    fn format_list_results_shows_ip_column_for_network_printers() {
+    fn format_list_results_network_printer_shows_bare_ip_with_dot_icon() {
         let printers = vec![
             make_local_printer(
                 "Front Desk",
@@ -347,16 +382,19 @@ mod output_test {
             ),
         ];
         let text = output::format_list_results(&printers);
-        // Dedicated IP column header (separate from the Port column).
-        let header_line = text.lines().find(|l| l.contains("Name") && l.contains("Driver")).expect("header row");
-        assert!(header_line.contains("IP"), "expected IP column header, got: {header_line}");
-        // Network printer's bare IP appears in its row independent of the Port cell.
-        let front_desk_line = text.lines().find(|l| l.contains("Front Desk")).expect("Front Desk row");
-        let ip_occurrences = front_desk_line.matches("10.0.0.5").count();
-        assert!(
-            ip_occurrences >= 2,
-            "expected IP in both dedicated column AND Port column (IP_10.0.0.5), got {ip_occurrences} in:\n{front_desk_line}"
-        );
+        // No defaults here — network queue should get the filled-dot icon.
+        assert!(text.contains("\u{25CF}"), "expected filled dot icon for network printer:\n{text}");
+        // Front Desk row carries the bare IP on an evidence line.
+        let front_desk_block: String = text
+            .lines()
+            .skip_while(|l| !l.contains("Front Desk"))
+            .take(3)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(front_desk_block.contains("10.0.0.5"),
+            "expected bare IP '10.0.0.5' in Front Desk block:\n{front_desk_block}");
+        // USB queue uses the open-circle icon.
+        assert!(text.contains("\u{25CB}"), "expected open-circle icon for USB printer:\n{text}");
     }
 
     #[test]
@@ -384,6 +422,7 @@ mod output_test {
                     hwid_match: "USB\\VID_03F0&PID_1D17".into(),
                     verification: "verified".into(),
                     signer: Some("Microsoft WHCP".into()),
+                    driver_date: None,
                 },
             ],
         };
@@ -423,6 +462,7 @@ mod output_test {
                     hwid_match: "USB\\VID_DEAD&PID_BEEF".into(),
                     verification: "unsigned (1/3)".into(),
                     signer: None,
+                    driver_date: None,
                 },
             ],
         };
@@ -455,6 +495,7 @@ mod output_test {
                     hwid_match: "USB\\VID_DEAD".into(),
                     verification: "unsigned (1/3)".into(),
                     signer: None,
+                    driver_date: None,
                 },
                 // ...but verified should render first in the output.
                 SdiDriverCandidate {
@@ -463,6 +504,7 @@ mod output_test {
                     hwid_match: "USB\\VID_BEEF".into(),
                     verification: "verified".into(),
                     signer: Some("CN=Trusted".into()),
+                    driver_date: None,
                 },
             ],
         };
@@ -488,5 +530,398 @@ mod output_test {
         let out = output::format_driver_results(&results);
         assert!(!out.contains("SDI Candidates"), "expected no SDI section header");
         assert!(!out.contains("\u{2605}"), "no candidates → no star icons");
+    }
+
+    #[test]
+    fn format_printer_id_shows_name() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: Some("Brother MFC-L2750DW series".to_string()),
+            serial: Some("XYZ1234567".to_string()),
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![DiscoveryMethod::Snmp, DiscoveryMethod::Ipp],
+            ports: vec![9100, 631],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("Brother MFC-L2750DW series"),
+            "expected printer model in output:\n{out}");
+        assert!(out.contains("\u{25CF}"), "expected ● icon (Ranked):\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_shows_ip_with_methods() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: Some("Brother MFC-L2750DW series".to_string()),
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![DiscoveryMethod::Snmp, DiscoveryMethod::Ipp],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("10.10.20.16"), "expected IP in output:\n{out}");
+        // Should contain both method labels joined with ·
+        assert!(out.contains("SNMP"), "expected SNMP method label:\n{out}");
+        assert!(out.contains("IPP"), "expected IPP method label:\n{out}");
+        assert!(out.contains("\u{00B7}"), "expected · separator:\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_shows_serial_when_present() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: Some("Brother MFC-L2750DW series".to_string()),
+            serial: Some("XYZ1234567".to_string()),
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("serial: XYZ1234567"),
+            "expected 'serial:' line in output:\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_shows_ports_when_present() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: Some("Brother MFC-L2750DW series".to_string()),
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![],
+            ports: vec![9100, 631],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("ports: 9100, 631"),
+            "expected 'ports:' line in output:\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_omits_serial_when_none() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: Some("Brother MFC-L2750DW series".to_string()),
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(!out.contains("serial:"),
+            "expected no 'serial:' line when None:\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_fallback_to_local_name() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: None,
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: Some("Brother-Printer".to_string()),
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("Brother-Printer"),
+            "expected local_name fallback in output:\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_unknown_printer_when_both_none() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: None,
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("(unknown printer)"),
+            "expected '(unknown printer)' fallback:\n{out}");
+        assert!(out.contains("\u{25CB}"), "expected ○ icon (Fallback):\n{out}");
+    }
+
+    // ── Task 26: dates and combined-score ranking ────────────────────────────
+
+    /// Build a `DriverMatch` with a specific date for ranking tests.
+    fn dm(name: &str, confidence: MatchConfidence, date: Option<&str>) -> DriverMatch {
+        DriverMatch {
+            name: name.to_string(),
+            category: match confidence {
+                MatchConfidence::Universal => DriverCategory::Universal,
+                _ => DriverCategory::Matched,
+            },
+            confidence,
+            source: DriverSource::LocalStore,
+            score: 500,
+            driver_date: date.map(|s| s.to_string()),
+        }
+    }
+
+    #[test]
+    fn normalize_date_handles_iso_mdy_and_driver_ver() {
+        assert_eq!(output::normalize_date("2024-03-15"), Some("2024-03-15".into()));
+        assert_eq!(output::normalize_date("3/15/2024"), Some("2024-03-15".into()));
+        assert_eq!(output::normalize_date("03/15/2024"), Some("2024-03-15".into()));
+        assert_eq!(
+            output::normalize_date("03/15/2024,1.0.0.0"),
+            Some("2024-03-15".into()),
+            "should strip version suffix from INF DriverVer"
+        );
+        assert_eq!(
+            output::normalize_date("2024-03-15T00:00:00"),
+            Some("2024-03-15".into()),
+            "should strip ISO time portion"
+        );
+        assert_eq!(output::normalize_date("gibberish"), None);
+        assert_eq!(output::normalize_date(""), None);
+    }
+
+    #[test]
+    fn format_driver_results_shows_date_on_matched_rows() {
+        let results = DriverResults {
+            printer_model: "Brother MFC-L2750DW series".to_string(),
+            matched: vec![dm(
+                "Brother Laser Type1 Class Driver",
+                MatchConfidence::Exact,
+                Some("2024-03-15"),
+            )],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(
+            text.contains("date: 2024-03-15"),
+            "expected 'date: 2024-03-15' on matched row:\n{text}"
+        );
+    }
+
+    #[test]
+    fn format_driver_results_shows_date_unknown_on_dateless_rows() {
+        let results = DriverResults {
+            printer_model: "Brother MFC-L2750DW series".to_string(),
+            matched: vec![dm(
+                "Brother Laser Type1 Class Driver",
+                MatchConfidence::Exact,
+                None,
+            )],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(
+            text.contains("date: unknown"),
+            "expected 'date: unknown' when no date is known:\n{text}"
+        );
+    }
+
+    #[test]
+    fn ranking_newer_verified_beats_older_verified() {
+        // Two verified drivers (same icon tier), different dates — newer wins.
+        let results = DriverResults {
+            printer_model: "Generic".to_string(),
+            matched: vec![
+                dm("Older Exact Match", MatchConfidence::Exact, Some("2020-01-01")),
+                dm("Newer Exact Match", MatchConfidence::Exact, Some("2024-03-15")),
+            ],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        let newer = text.find("Newer Exact Match").expect("newer present");
+        let older = text.find("Older Exact Match").expect("older present");
+        assert!(
+            newer < older,
+            "newer driver should rank above older:\n{text}"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "sdi")]
+    fn ranking_newer_unverified_beats_older_verified_sdi() {
+        use prinstall::models::SdiDriverCandidate;
+
+        // Verified 2018 driver: score = 0.0 * 0.6 + 1.0 * 0.4 = 0.4
+        // Unsigned 2025 driver: score = 1.0 * 0.6 + 0.1 * 0.4 = 0.64
+        // → unsigned newer should still rank above verified older.
+        let results = DriverResults {
+            printer_model: "Generic".into(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            sdi_candidates: vec![
+                SdiDriverCandidate {
+                    driver_name: "Old Verified Driver".into(),
+                    pack_name: "DP_Safe_00".into(),
+                    hwid_match: "USB\\VID_AAAA".into(),
+                    verification: "verified".into(),
+                    signer: Some("CN=Trusted".into()),
+                    driver_date: Some("2018-01-01".into()),
+                },
+                SdiDriverCandidate {
+                    driver_name: "Fresh Unsigned Driver".into(),
+                    pack_name: "DP_Sketchy_99".into(),
+                    hwid_match: "USB\\VID_BBBB".into(),
+                    verification: "unsigned (1/3)".into(),
+                    signer: None,
+                    driver_date: Some("2025-06-01".into()),
+                },
+            ],
+        };
+        let text = output::format_driver_results(&results);
+        let fresh = text.find("Fresh Unsigned Driver").expect("fresh present");
+        let old_ver = text.find("Old Verified Driver").expect("old present");
+        assert!(
+            fresh < old_ver,
+            "freshly-dated unsigned SDI should outrank older verified:\n{text}"
+        );
+    }
+
+    #[test]
+    fn ranking_dateless_driver_falls_to_midpoint() {
+        // oldest: 2020, middle: dateless (0.5 midpoint), newest: 2025
+        // Verification the same across all three → date alone decides.
+        // Expected order: newest, dateless, oldest.
+        let results = DriverResults {
+            printer_model: "Generic".to_string(),
+            matched: vec![
+                dm("Oldest", MatchConfidence::Fuzzy, Some("2020-01-01")),
+                dm("Dateless", MatchConfidence::Fuzzy, None),
+                dm("Newest", MatchConfidence::Fuzzy, Some("2025-01-01")),
+            ],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        let newest = text.find("Newest").expect("newest present");
+        let dateless = text.find("Dateless").expect("dateless present");
+        let oldest = text.find("Oldest").expect("oldest present");
+        assert!(
+            newest < dateless && dateless < oldest,
+            "expected newest < dateless < oldest, got:\n{text}"
+        );
+    }
+
+    #[test]
+    fn ranking_tiebreaker_preserves_insertion_order() {
+        // Two candidates with identical score (same verification, same date)
+        // must preserve insertion order (stable sort).
+        let results = DriverResults {
+            printer_model: "Generic".to_string(),
+            matched: vec![
+                dm("First", MatchConfidence::Fuzzy, Some("2023-01-01")),
+                dm("Second", MatchConfidence::Fuzzy, Some("2023-01-01")),
+                dm("Third", MatchConfidence::Fuzzy, Some("2023-01-01")),
+            ],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: None,
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        let first = text.find("First").expect("first present");
+        let second = text.find("Second").expect("second present");
+        let third = text.find("Third").expect("third present");
+        assert!(
+            first < second && second < third,
+            "equal-score candidates should preserve insertion order:\n{text}"
+        );
+    }
+
+    #[test]
+    fn catalog_last_updated_is_normalized_in_output() {
+        // Catalog often reports dates as "M/D/YYYY" or "YYYY-MM-DD". We
+        // normalize to ISO in the evidence line.
+        let results = DriverResults {
+            printer_model: "Brother MFC-L2750DW series".to_string(),
+            matched: vec![],
+            universal: vec![],
+            device_id: None,
+            windows_update: None,
+            catalog: Some(CatalogSearchResult {
+                query: "Brother MFC-L2750DW".to_string(),
+                updates: vec![CatalogEntry {
+                    title: "Brother Printer - 10.0.17119.1".to_string(),
+                    products: "Windows 10, version 1803 and later".to_string(),
+                    classification: "Drivers".to_string(),
+                    last_updated: "4/21/2009".to_string(),
+                    version: "10.0.17119.1".to_string(),
+                    size: "3.5 MB".to_string(),
+                    size_bytes: 3_500_000,
+                    guid: "abc".to_string(),
+                }],
+                error: None,
+            }),
+            #[cfg(feature = "sdi")]
+            sdi_candidates: vec![],
+        };
+        let text = output::format_driver_results(&results);
+        assert!(
+            text.contains("date: 2009-04-21"),
+            "expected normalized catalog date 'date: 2009-04-21':\n{text}"
+        );
     }
 }

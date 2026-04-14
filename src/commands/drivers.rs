@@ -67,8 +67,20 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
     };
 
     // ── Step 2: local-store match (existing scoring pipeline) ────────────────
-    let local_drivers = drivers_mod::local_store::list_drivers(verbose);
+    // Pull driver names *with* their DriverDate in one PS shot, then feed the
+    // names through the existing scorer and post-enrich matching rows with
+    // their dates. Keeping the matcher signature intact avoids rippling
+    // through `commands/add.rs`, which is a requirement for this task — the
+    // enrichment happens after the match.
+    let local_with_dates = drivers_mod::local_store::list_drivers_with_dates(verbose);
+    let local_drivers: Vec<String> =
+        local_with_dates.iter().map(|(n, _)| n.clone()).collect();
     let mut results = drivers_mod::matcher::match_drivers(&model, &local_drivers);
+    let date_map: std::collections::HashMap<String, Option<String>> = local_with_dates
+        .into_iter()
+        .map(|(n, d)| (n, d.and_then(|s| crate::output::normalize_date(&s))))
+        .collect();
+    drivers_mod::matcher::enrich_with_dates(&mut results, &date_map);
 
     // ── Step 3: IPP device ID for pre-flight visibility ──────────────────────
     if let Ok(ipv4) = args.ip.parse::<std::net::Ipv4Addr>() {
@@ -185,12 +197,22 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
                         ("not-extracted".to_string(), None)
                     };
 
+                    // Parse the date out of the INF's DriverVer string
+                    // (format `MM/DD/YYYY,version`). SDI indexes store that
+                    // whole string as `driver_version`; the leading date is
+                    // what we want for ranking.
+                    let driver_date = c
+                        .driver_version
+                        .as_deref()
+                        .and_then(crate::output::normalize_date);
+
                     SdiDriverCandidate {
                         driver_name: c.driver_name.clone(),
                         pack_name,
                         hwid_match,
                         verification,
                         signer,
+                        driver_date,
                     }
                 })
                 .collect();

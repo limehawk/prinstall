@@ -224,6 +224,39 @@ pub fn list_local_drivers(verbose: bool) -> Vec<String> {
         .collect()
 }
 
+/// List drivers from the local driver store with their `DriverDate` field.
+///
+/// Returns `(driver_name, normalized_yyyy_mm_dd_date)` pairs. The date is
+/// normalized inside the PS pipeline via `ToString('yyyy-MM-dd')` before
+/// `ConvertTo-Json` serializes it, so callers never see raw `/Date(ms)/`
+/// tokens or locale-flavored timestamps. Missing `DriverDate` values come
+/// back as `None` rather than empty strings.
+///
+/// When the PS call fails or returns no rows, returns an empty Vec —
+/// failure here is non-fatal, the drivers command still produces a working
+/// report, it just lacks date annotations on local-store rows.
+pub fn list_local_drivers_with_dates(verbose: bool) -> Vec<(String, Option<String>)> {
+    let cmd = "ConvertTo-Json -InputObject @(Get-PrinterDriver | Select-Object Name, @{Name='DriverDate';Expression={ if ($_.DriverDate) { $_.DriverDate.ToString('yyyy-MM-dd') } else { $null } }}) -Compress";
+    let result = run_ps(cmd, verbose);
+    if !result.success {
+        return Vec::new();
+    }
+    let stdout = result.stdout.trim();
+    if stdout.is_empty() {
+        return Vec::new();
+    }
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "PascalCase")]
+    struct Row {
+        name: String,
+        driver_date: Option<String>,
+    }
+    let rows: Vec<Row> = serde_json::from_str(stdout).unwrap_or_default();
+    rows.into_iter()
+        .map(|r| (r.name, r.driver_date))
+        .collect()
+}
+
 // ── Trait-executor wrappers (pnputil + USB port lookup) ──────────────────────
 
 /// Simple success/error result returned by pnputil wrappers.
