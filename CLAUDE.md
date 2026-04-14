@@ -341,5 +341,9 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
       `Set-PrintConfiguration`
 - [ ] `prinstall health <ip>` — toner/drum/tray status via SNMP Printer MIB
 - [ ] Batch install mode (multiple IPs in one shot)
-- [ ] SignPath.io code signing for SmartScreen trust
+- [ ] SignPath.io code signing for SmartScreen trust — Deferred. See
+      `docs/selfsign-setup.md` for the $0 interim self-signed path that
+      works for MSP-managed fleets (fleet-scoped trust via a push-to-
+      TrustedPublisher rollout script in rmm-scripts). Public GitHub
+      downloads still hit SAC until we ship with a publicly-trusted CA.
 - [ ] Interactive TUI rework (lazygit-style panels)
