@@ -48,7 +48,6 @@ mod models_test {
             matched: vec![],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],

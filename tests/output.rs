@@ -61,7 +61,6 @@ mod output_test {
             matched: vec![],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
@@ -82,7 +81,6 @@ mod output_test {
             device_id: Some(
                 "MFG:Brother;CMD:PJL,PCL;MDL:MFC-L2750DW series;CLS:PRINTER;CID:Brother Laser Type1;URF:W8,CP1".to_string()
             ),
-            windows_update: None,
             catalog: None,
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
@@ -119,7 +117,6 @@ mod output_test {
                 },
             ],
             device_id: None,
-            windows_update: None,
             catalog: None,
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
@@ -158,7 +155,6 @@ mod output_test {
             matched: vec![],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: Some(CatalogSearchResult {
                 query: "Brother MFC-L2750DW".to_string(),
                 updates: vec![
@@ -195,37 +191,12 @@ mod output_test {
             matched: vec![],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
         };
         let text = output::format_driver_results(&results);
         assert!(text.contains("No drivers found for this printer."));
-    }
-
-    #[test]
-    fn format_driver_results_renders_wu_probe_error_as_footer() {
-        let results = DriverResults {
-            printer_model: "Brother MFC-L2750DW series".to_string(),
-            matched: vec![DriverMatch {
-                name: "Brother Laser Type1 Class Driver".to_string(),
-                category: DriverCategory::Matched,
-                confidence: MatchConfidence::Exact,
-                source: DriverSource::LocalStore,
-                score: 1000,
-                driver_date: None,
-            }],
-            universal: vec![],
-            device_id: None,
-            windows_update: Some(WindowsUpdateProbe::failure("HRESULT 0x80070032")),
-            catalog: None,
-            #[cfg(feature = "sdi")]
-            sdi_candidates: vec![],
-        };
-        let text = output::format_driver_results(&results);
-        assert!(text.contains("Windows Update probe:"), "expected WU probe footer line:\n{text}");
-        assert!(text.contains("0x80070032"));
     }
 
     #[test]
@@ -413,7 +384,6 @@ mod output_test {
             matched: vec![],
             universal: vec![],
             device_id: Some("USB\\VID_03F0&PID_1D17".into()),
-            windows_update: None,
             catalog: None,
             sdi_candidates: vec![
                 SdiDriverCandidate {
@@ -453,7 +423,6 @@ mod output_test {
             matched: vec![],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             sdi_candidates: vec![
                 SdiDriverCandidate {
@@ -485,7 +454,6 @@ mod output_test {
             matched: vec![],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             sdi_candidates: vec![
                 // Unsigned first in the vec...
@@ -523,7 +491,6 @@ mod output_test {
             matched: vec![],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             sdi_candidates: vec![],
         };
@@ -731,7 +698,6 @@ mod output_test {
             )],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
@@ -754,7 +720,6 @@ mod output_test {
             )],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
@@ -777,7 +742,6 @@ mod output_test {
             ],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
@@ -804,7 +768,6 @@ mod output_test {
             matched: vec![],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             sdi_candidates: vec![
                 SdiDriverCandidate {
@@ -848,7 +811,6 @@ mod output_test {
             ],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
@@ -876,7 +838,6 @@ mod output_test {
             ],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: None,
             #[cfg(feature = "sdi")]
             sdi_candidates: vec![],
@@ -900,7 +861,6 @@ mod output_test {
             matched: vec![],
             universal: vec![],
             device_id: None,
-            windows_update: None,
             catalog: Some(CatalogSearchResult {
                 query: "Brother MFC-L2750DW".to_string(),
                 updates: vec![CatalogEntry {
