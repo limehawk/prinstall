@@ -79,9 +79,11 @@ website/docs iterations between cuts. See "Branching & release workflow" below.
 
 ```
 prinstall                                  Launch interactive TUI
-prinstall scan [SUBNET]                    Multi-method subnet scan
+prinstall scan [SUBNET]                    Multi-method subnet scan + USB enum
+prinstall scan --network-only              Skip USB enumeration
+prinstall scan --usb-only                  Skip network scan
 prinstall id <IP>                          Identify a printer via SNMP
-prinstall drivers <IP>                     Show matched + universal drivers + WU probe
+prinstall drivers <IP>                     Show matched drivers (also: `driver`)
 prinstall add <IP>                         Install a network printer
 prinstall add <QUEUE-NAME> --usb           Swap driver on an existing USB printer queue
 prinstall remove <IP|QUEUE-NAME>           Remove printer + orphaned driver + port
@@ -123,6 +125,7 @@ src/
 │   ├── port_scan.rs         9100/631/515 parallel probe
 │   ├── local.rs             Get-Printer via PS
 │   ├── subnet.rs            CIDR + auto-detect from NIC
+│   ├── usb.rs               Get-PnpDevice enumeration + queue cross-ref
 │   └── mod.rs               scan_subnet / full_discovery orchestration
 ├── drivers/
 │   ├── matcher.rs           Numeric scoring 0-1000 (model-num + overlap + subseq)
@@ -160,23 +163,26 @@ assets/
     ├── tile/{16,32,48,64,96,128,256}.png
     └── glyph/{16,32,48,64,96,128,256}.png
 tests/
-├── cli_parse.rs             11 tests
+├── cli_parse.rs             15 tests
 ├── matcher.rs               13 tests
 ├── models.rs                9 tests
-├── output.rs                6 tests
+├── output.rs                9 tests
 ├── manifest.rs              5 tests
 ├── known_matches.rs         3 tests
-├── local_enum.rs            5 tests
+├── local_enum.rs            8 tests
 ├── port_scan.rs             5 tests
 ├── ipp.rs                   4 tests
 ├── subnet_parse.rs          13 tests
 ├── cab_extraction.rs        6 tests
+├── usb_discovery.rs         2 tests
 ├── sdi_index.rs             6 tests  [sdi feature]
 ├── sdi_pack.rs              7 tests  [sdi feature]
 ├── sdi_cache.rs             17 tests [sdi feature]
 └── sdi_fetcher.rs           10 tests [sdi feature]
-# Plus ~60 inline lib tests in src/commands/*.rs, src/core/*.rs, src/drivers/*.rs.
-# Total: 100 tests without SDI, 132+ with --features sdi.
+# Plus 118 inline lib tests (150 with --features sdi) in src/commands/*.rs,
+# src/core/*.rs, src/drivers/*.rs, src/discovery/*.rs, etc.
+# Total: 210 tests without SDI (118 lib + 92 integration),
+#        282 with --features sdi (150 lib + 92 non-SDI integration + 40 SDI integration).
 # All run on Linux via MockExecutor (no Windows required for CI).
 ```
 
@@ -320,6 +326,13 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 - [x] `prinstall sdi verify` — Authenticode .cat signature verification
 - [x] Duplicate printer detection (`--force` to reinstall)
 
+**Shipped (v0.4.1):**
+- [x] USB printer discovery via Get-PnpDevice (scan shows USB-attached devices + yellow-bang orphans)
+- [x] USB stage-and-install flow via pnputil (for legacy printers like HP LaserJet 1320)
+- [x] `prinstall list` shows IP column for network-attached queues
+- [x] `driver` accepted as alias for `drivers` command
+- [x] Scan flags: `--network-only`, `--usb-only`
+
 **Open:**
 - [ ] Authenticode verification at install time — only offer SDI drivers whose
       .cat passes signature check, then promote SDI to default (no feature flag)
@@ -331,3 +344,6 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 - [ ] Batch install mode (multiple IPs in one shot)
 - [ ] SignPath.io code signing for SmartScreen trust
 - [ ] Interactive TUI rework (lazygit-style panels)
+- [ ] Feature-gate tests/sdi_*.rs properly — they fail to compile under `cargo test`
+      (without `--features sdi`). Either add `#![cfg(feature = "sdi")]` at the top of
+      each file, or configure CI to always pass `--features sdi`.
