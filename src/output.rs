@@ -711,29 +711,54 @@ pub fn format_scan_guidance(subnet: &str, candidates: usize, _identified: usize)
 
 /// Format a single printer identification.
 pub fn format_printer_id(printer: &Printer) -> String {
-    let mut out = String::new();
-    out.push_str(&format!("\nPrinter at {}\n", printer.display_ip()));
-    out.push_str(&format!("  Model:  {}\n", printer.model.as_deref().unwrap_or("Unknown")));
-    out.push_str(&format!("  Serial: {}\n", printer.serial.as_deref().unwrap_or("N/A")));
-    out.push_str(&format!("  Status: {}\n", printer.status));
+    let name = printer
+        .model
+        .as_deref()
+        .or(printer.local_name.as_deref())
+        .map(|s| s.to_string());
+
+    let mut evidence: Vec<String> = Vec::new();
+
+    // Line 1: ip · methods
+    let ip_str = printer.display_ip();
+    let methods: Vec<&str> = printer
+        .discovery_methods
+        .iter()
+        .map(method_label)
+        .collect();
+    let line1 = if methods.is_empty() {
+        ip_str.clone()
+    } else {
+        format!("{} \u{00B7} {}", ip_str, methods.join(" \u{00B7} "))
+    };
+    if !line1.trim().is_empty() && ip_str != "Unknown" {
+        evidence.push(line1);
+    }
+
+    if let Some(ref s) = printer.serial {
+        evidence.push(format!("serial: {}", s));
+    }
+
     if !printer.ports.is_empty() {
-        let ports_str: Vec<String> = printer.ports.iter().map(|p| p.to_string()).collect();
-        out.push_str(&format!("  Ports:  {}\n", ports_str.join(", ")));
+        let ports: Vec<String> = printer.ports.iter().map(|p| p.to_string()).collect();
+        evidence.push(format!("ports: {}", ports.join(", ")));
     }
-    if !printer.discovery_methods.is_empty() {
-        let methods: Vec<&str> = printer.discovery_methods.iter().map(|m| match m {
-            crate::models::DiscoveryMethod::PortScan => "Port Scan",
-            crate::models::DiscoveryMethod::Ipp => "IPP",
-            crate::models::DiscoveryMethod::Snmp => "SNMP",
-            crate::models::DiscoveryMethod::Local => "Local",
-            crate::models::DiscoveryMethod::Mdns => "mDNS",
-        }).collect();
-        out.push_str(&format!("  Found:  {}\n", methods.join(" + ")));
-    }
-    if let Some(ref name) = printer.local_name {
-        out.push_str(&format!("  Name:   {}\n", name));
-    }
-    out
+
+    let candidate = if let Some(n) = name {
+        TreeCandidate {
+            icon: TreeIcon::Ranked,
+            name: n,
+            evidence,
+        }
+    } else {
+        TreeCandidate {
+            icon: TreeIcon::Fallback,
+            name: dim("(unknown printer)"),
+            evidence,
+        }
+    };
+
+    render_tree(&[candidate])
 }
 
 /// Format the result of an install/add operation for human-readable output.

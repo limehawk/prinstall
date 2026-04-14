@@ -524,4 +524,156 @@ mod output_test {
         assert!(!out.contains("SDI Candidates"), "expected no SDI section header");
         assert!(!out.contains("\u{2605}"), "no candidates → no star icons");
     }
+
+    #[test]
+    fn format_printer_id_shows_name() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: Some("Brother MFC-L2750DW series".to_string()),
+            serial: Some("XYZ1234567".to_string()),
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![DiscoveryMethod::Snmp, DiscoveryMethod::Ipp],
+            ports: vec![9100, 631],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("Brother MFC-L2750DW series"),
+            "expected printer model in output:\n{out}");
+        assert!(out.contains("\u{25CF}"), "expected ● icon (Ranked):\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_shows_ip_with_methods() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: Some("Brother MFC-L2750DW series".to_string()),
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![DiscoveryMethod::Snmp, DiscoveryMethod::Ipp],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("10.10.20.16"), "expected IP in output:\n{out}");
+        // Should contain both method labels joined with ·
+        assert!(out.contains("SNMP"), "expected SNMP method label:\n{out}");
+        assert!(out.contains("IPP"), "expected IPP method label:\n{out}");
+        assert!(out.contains("\u{00B7}"), "expected · separator:\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_shows_serial_when_present() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: Some("Brother MFC-L2750DW series".to_string()),
+            serial: Some("XYZ1234567".to_string()),
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("serial: XYZ1234567"),
+            "expected 'serial:' line in output:\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_shows_ports_when_present() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: Some("Brother MFC-L2750DW series".to_string()),
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![],
+            ports: vec![9100, 631],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("ports: 9100, 631"),
+            "expected 'ports:' line in output:\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_omits_serial_when_none() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: Some("Brother MFC-L2750DW series".to_string()),
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(!out.contains("serial:"),
+            "expected no 'serial:' line when None:\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_fallback_to_local_name() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: None,
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: Some("Brother-Printer".to_string()),
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("Brother-Printer"),
+            "expected local_name fallback in output:\n{out}");
+    }
+
+    #[test]
+    fn format_printer_id_unknown_printer_when_both_none() {
+        let printer = Printer {
+            ip: Some("10.10.20.16".parse().unwrap()),
+            model: None,
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![],
+            ports: vec![],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        };
+        let out = output::format_printer_id(&printer);
+        assert!(out.contains("(unknown printer)"),
+            "expected '(unknown printer)' fallback:\n{out}");
+        assert!(out.contains("\u{25CB}"), "expected ○ icon (Fallback):\n{out}");
+    }
 }
