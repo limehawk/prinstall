@@ -815,53 +815,123 @@ pub fn format_remove_result(result: &PrinterOpResult) -> String {
     out
 }
 
-/// Render a full ScanResult as plain text with Network + USB sections.
-/// Orphan USB devices (no queue, has_error = true) get a `hint:` line
-/// with the exact `prinstall add --usb` command to install them.
+/// Render a full ScanResult as plain text using the tree layout shared
+/// with `drivers` and `list`. Network and USB appear as two minimal
+/// labeled blocks separated by a blank line. Orphan USB devices (no
+/// queue) get a `hint:` child row with the exact `prinstall add --usb`
+/// command to install them.
 pub fn format_scan_result_plain(result: &ScanResult) -> String {
     let mut out = String::new();
 
-    out.push_str("Network printers\n");
-    out.push_str("----------------\n");
-    if result.network.is_empty() {
-        out.push_str("  (none discovered)\n");
-    } else {
-        for p in &result.network {
-            out.push_str(&format!(
-                "  {:<15}  {}\n",
-                p.display_ip(),
-                p.model.as_deref().unwrap_or("(unknown model)")
-            ));
-        }
-    }
-    out.push('\n');
-
-    out.push_str("USB-attached printers\n");
-    out.push_str("---------------------\n");
-    if result.usb.is_empty() {
-        out.push_str("  (none detected)\n");
+    if result.network.is_empty() && result.usb.is_empty() {
+        out.push_str("(no printers discovered)\n");
         return out;
     }
-    for dev in &result.usb {
-        out.push_str(&format_usb_device_line(dev));
+
+    // ── Network block ────────────────────────────────────────────────────
+    if !result.network.is_empty() {
+        let candidates: Vec<TreeCandidate> = result
+            .network
+            .iter()
+            .map(network_tree_candidate)
+            .collect();
+        out.push_str(&header("Network"));
+        out.push('\n');
+        out.push_str(&render_tree(&candidates));
     }
+
+    // ── USB block ────────────────────────────────────────────────────────
+    if !result.usb.is_empty() {
+        if !result.network.is_empty() {
+            out.push('\n');
+        }
+        let candidates: Vec<TreeCandidate> =
+            result.usb.iter().map(usb_tree_candidate).collect();
+        out.push_str(&header("USB"));
+        out.push('\n');
+        out.push_str(&render_tree(&candidates));
+    }
+
     out
 }
 
-fn format_usb_device_line(dev: &UsbDevice) -> String {
-    let name = dev.friendly_name.as_deref().unwrap_or("(unknown device)");
-    let state = match (&dev.queue_name, dev.has_error) {
-        (Some(q), _) => format!("queue: {q}"),
-        (None, true) => "NO QUEUE (driver missing)".to_string(),
-        (None, false) => "NO QUEUE".to_string(),
-    };
-    let mut line = format!("  {name}  [{state}]\n");
-    if dev.queue_name.is_none() {
-        line.push_str(&format!(
-            "    hint: run 'prinstall add --usb \"{name}\"' to install\n"
-        ));
+/// Human-readable tag for each discovery method, joined with ` · ` in
+/// the evidence line.
+fn method_label(m: &DiscoveryMethod) -> &'static str {
+    match m {
+        DiscoveryMethod::PortScan => "Port",
+        DiscoveryMethod::Ipp => "IPP",
+        DiscoveryMethod::Snmp => "SNMP",
+        DiscoveryMethod::Local => "Local",
+        DiscoveryMethod::Mdns => "mDNS",
     }
-    line
+}
+
+/// Build a network printer row: `● <ip>  <model>` with a single
+/// evidence line listing discovery methods and probed ports.
+fn network_tree_candidate(p: &Printer) -> TreeCandidate {
+    let ip_str = p.display_ip();
+    let name = if let Some(ref model) = p.model {
+        format!("{}  {}", ip_str, model)
+    } else {
+        format!("{}  {}", ip_str, dim("(unknown model)"))
+    };
+
+    let methods: Vec<&'static str> = p.discovery_methods.iter().map(method_label).collect();
+    let mut evidence_line = String::new();
+    if !methods.is_empty() {
+        evidence_line.push_str(&dim(&methods.join(" \u{00B7} ")));
+    }
+    if !p.ports.is_empty() {
+        if !evidence_line.is_empty() {
+            evidence_line.push_str("  ");
+        }
+        let port_word = if p.ports.len() == 1 { "port" } else { "ports" };
+        let port_list = p
+            .ports
+            .iter()
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        evidence_line.push_str(&dim(&format!("{port_word} {port_list}")));
+    }
+
+    let evidence = if evidence_line.is_empty() {
+        Vec::new()
+    } else {
+        vec![evidence_line]
+    };
+
+    TreeCandidate {
+        icon: TreeIcon::Ranked,
+        name,
+        evidence,
+    }
+}
+
+/// Build a USB device row. Working queues get `●` with a dim
+/// `(queue: X)` suffix and no child row. Orphans get `○` with an
+/// inline `NO QUEUE` marker (colored if `has_error`) plus a `hint:`
+/// child row carrying the exact install command.
+fn usb_tree_candidate(dev: &UsbDevice) -> TreeCandidate {
+    let friendly = dev.friendly_name.as_deref().unwrap_or("(unknown device)");
+    match &dev.queue_name {
+        Some(q) => TreeCandidate {
+            icon: TreeIcon::Ranked,
+            name: format!("{friendly} {}", dim(&format!("(queue: {q})"))),
+            evidence: Vec::new(),
+        },
+        None => {
+            let marker = if dev.has_error { warn("NO QUEUE") } else { dim("NO QUEUE") };
+            TreeCandidate {
+                icon: TreeIcon::Fallback,
+                name: format!("{friendly}  {marker}"),
+                evidence: vec![dim(&format!(
+                    "hint: prinstall add --usb \"{friendly}\""
+                ))],
+            }
+        }
+    }
 }
 
 /// Render a ScanResult as pretty JSON.
@@ -872,11 +942,31 @@ pub fn format_scan_result_json(result: &ScanResult) -> String {
 #[cfg(test)]
 mod scan_result_print_tests {
     use super::*;
-    use crate::models::{ScanResult, UsbDevice};
+    use crate::models::{DiscoveryMethod, Printer, PrinterSource, PrinterStatus, ScanResult, UsbDevice};
+
+    fn network_printer(ip: &str, model: Option<&str>) -> Printer {
+        Printer {
+            ip: ip.parse().ok(),
+            model: model.map(|s| s.to_string()),
+            serial: None,
+            status: PrinterStatus::Ready,
+            discovery_methods: vec![DiscoveryMethod::Snmp, DiscoveryMethod::Ipp],
+            ports: vec![9100, 631],
+            source: PrinterSource::Network,
+            local_name: None,
+            port_name: None,
+            driver_name: None,
+            shared: None,
+            is_default: None,
+        }
+    }
 
     fn sample_result() -> ScanResult {
         ScanResult {
-            network: vec![],
+            network: vec![network_printer(
+                "192.168.1.50",
+                Some("Brother MFC-L2750DW series"),
+            )],
             usb: vec![
                 UsbDevice {
                     hardware_id: "USB\\VID_03F0&PID_1D17\\ABC".into(),
@@ -895,22 +985,66 @@ mod scan_result_print_tests {
     }
 
     #[test]
-    fn plain_output_has_usb_section_header() {
+    fn plain_output_renders_both_section_labels() {
         let out = format_scan_result_plain(&sample_result());
-        assert!(out.contains("USB-attached printers"));
+        assert!(out.contains("Network"), "missing Network label:\n{out}");
+        assert!(out.contains("USB"), "missing USB label:\n{out}");
+        // The old section-header divider style must be gone.
+        assert!(!out.contains("----"), "dashed divider should be gone:\n{out}");
+        assert!(!out.contains("Network printers"));
+        assert!(!out.contains("USB-attached printers"));
     }
 
     #[test]
-    fn plain_output_shows_orphan_install_hint() {
+    fn plain_output_renders_network_icon_and_row() {
         let out = format_scan_result_plain(&sample_result());
-        assert!(out.contains("hint:"));
-        assert!(out.contains("prinstall add"));
-        assert!(out.contains("--usb"));
-        assert!(out.contains("HP LaserJet 1320"));
+        // ● icon precedes the IP + model on the same line.
+        assert!(
+            out.contains("\u{25CF} 192.168.1.50"),
+            "expected ● with IP, got:\n{out}"
+        );
+        assert!(out.contains("Brother MFC-L2750DW series"));
     }
 
     #[test]
-    fn plain_output_omits_hint_when_queue_exists() {
+    fn plain_output_shows_discovery_methods_child() {
+        let out = format_scan_result_plain(&sample_result());
+        // Methods joined with ` · `
+        assert!(
+            out.contains("SNMP \u{00B7} IPP"),
+            "expected joined methods, got:\n{out}"
+        );
+        // Port list appears with the word `ports`.
+        assert!(out.contains("ports 9100, 631"), "expected port list:\n{out}");
+    }
+
+    #[test]
+    fn plain_output_usb_orphan_has_no_queue_marker_and_hint() {
+        let out = format_scan_result_plain(&sample_result());
+        // ○ icon precedes the friendly name for orphan.
+        assert!(
+            out.contains("\u{25CB} HP LaserJet 1320"),
+            "expected ○ orphan row, got:\n{out}"
+        );
+        // `NO QUEUE` appears inline on the same row.
+        assert!(out.contains("NO QUEUE"));
+        // Install hint appears as a child.
+        assert!(out.contains("hint: prinstall add --usb \"HP LaserJet 1320\""));
+    }
+
+    #[test]
+    fn plain_output_usb_working_queue_has_queue_suffix() {
+        let out = format_scan_result_plain(&sample_result());
+        // ● icon for working queue + `(queue: X)` annotation.
+        assert!(
+            out.contains("\u{25CF} Brother MFC"),
+            "expected ● for working queue, got:\n{out}"
+        );
+        assert!(out.contains("(queue: Brother MFC)"));
+    }
+
+    #[test]
+    fn plain_output_working_queue_has_no_hint_child() {
         let result = ScanResult {
             network: vec![],
             usb: vec![UsbDevice {
@@ -921,7 +1055,53 @@ mod scan_result_print_tests {
             }],
         };
         let out = format_scan_result_plain(&result);
-        assert!(!out.contains("hint:"));
+        assert!(!out.contains("hint:"), "working queue should have no hint:\n{out}");
+    }
+
+    #[test]
+    fn plain_output_both_empty_shows_friendly_message() {
+        let result = ScanResult {
+            network: vec![],
+            usb: vec![],
+        };
+        let out = format_scan_result_plain(&result);
+        assert!(out.contains("(no printers discovered)"));
+        assert!(!out.contains("Network"));
+        assert!(!out.contains("USB"));
+    }
+
+    #[test]
+    fn plain_output_usb_only_omits_network_label() {
+        let result = ScanResult {
+            network: vec![],
+            usb: vec![UsbDevice {
+                hardware_id: "USB\\VID_03F0&PID_1D17\\ABC".into(),
+                friendly_name: Some("HP LaserJet 1320".into()),
+                queue_name: None,
+                has_error: true,
+            }],
+        };
+        let out = format_scan_result_plain(&result);
+        assert!(out.contains("USB"));
+        // Network label should be absent on a USB-only result.
+        assert!(
+            !out.lines().any(|l| l.trim() == "Network"),
+            "Network label leaked on USB-only result:\n{out}"
+        );
+    }
+
+    #[test]
+    fn plain_output_network_only_omits_usb_label() {
+        let result = ScanResult {
+            network: vec![network_printer("10.10.20.16", Some("HP LaserJet Pro"))],
+            usb: vec![],
+        };
+        let out = format_scan_result_plain(&result);
+        assert!(out.lines().any(|l| l.trim() == "Network"));
+        assert!(
+            !out.lines().any(|l| l.trim() == "USB"),
+            "USB label leaked on network-only result:\n{out}"
+        );
     }
 }
 
