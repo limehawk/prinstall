@@ -36,8 +36,10 @@
  REQUIRED INPUTS
 
    Public installer — no hardcoded inputs to edit before running.
-   Optional parameter:
+   Optional parameters:
      - -Version vX.Y.Z : Install a specific release tag instead of latest
+     - -Uninstall      : Remove the install dir, firewall rule, and PATH
+                         entry. All other parameters are ignored.
 
  SETTINGS
 
@@ -139,6 +141,9 @@
 --------------------------------------------------------------------------------
  CHANGELOG
 --------------------------------------------------------------------------------
+ 2026-04-15 v1.1.0 Add -Uninstall switch — reverses everything the install
+                   path does (removes install dir, firewall rule, and the
+                   Machine PATH entry). Install mode unchanged.
  2026-04-11 v1.0.0 Initial public installer. Installs to
                    C:\ProgramData\prinstall, adds to Machine PATH, and
                    creates the mDNS firewall rule on UDP 5353. Prefers
@@ -155,7 +160,8 @@
 # needs a real user-facing -Version knob.
 [CmdletBinding()]
 param(
-    [string]$Version
+    [string]$Version,
+    [switch]$Uninstall
 )
 
 $ErrorActionPreference = 'Stop'
@@ -220,6 +226,72 @@ if ($errorOccurred) {
     Write-Section error 'ERROR OCCURRED'
     Write-Host $errorText
     exit 1
+}
+
+# ============================================================================
+# UNINSTALL PATH
+# ============================================================================
+# -Uninstall reverses everything the install path does. Short-circuit here
+# before the staging dir / download flow — uninstall needs no network access.
+if ($Uninstall) {
+    Write-Host "Elevation       : Admin"
+    Write-Host "Mode            : Uninstall"
+    Write-Host "Install dir     : $installDir"
+    Write-Host "Inputs validated successfully"
+
+    Write-Section run 'UNINSTALL'
+
+    if (Test-Path $installDir) {
+        try {
+            Remove-Item -Path $installDir -Recurse -Force
+            Write-Host "[OK]  Removed $installDir"
+        } catch {
+            Write-Section error 'ERROR OCCURRED'
+            Write-Host "Could not remove $installDir. Close any running prinstall and re-run."
+            Write-Host "Error : $($_.Exception.Message)"
+            exit 1
+        }
+    } else {
+        Write-Host "[OK]  $installDir does not exist, nothing to remove"
+    }
+
+    $existingRule = Get-NetFirewallRule -DisplayName $firewallRuleName -ErrorAction SilentlyContinue
+    if ($existingRule) {
+        try {
+            Remove-NetFirewallRule -DisplayName $firewallRuleName
+            Write-Host "[OK]  Removed firewall rule '$firewallRuleName'"
+        } catch {
+            Write-Host "[WARN] Could not remove firewall rule: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Host "[OK]  Firewall rule '$firewallRuleName' not present"
+    }
+
+    # Strip the install dir from the Machine PATH. Case-insensitive compare
+    # and trailing-slash tolerant so an install + uninstall round-trip leaves
+    # no residue, even if the PATH entry got touched by an external tool.
+    try {
+        $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+        if (-not $machinePath) { $machinePath = '' }
+        $entries  = $machinePath -split ';' | Where-Object { $_ -ne '' }
+        $target   = $installDir.TrimEnd('\')
+        $filtered = @($entries | Where-Object { $_.TrimEnd('\') -ine $target })
+        if ($entries.Count -ne $filtered.Count) {
+            [Environment]::SetEnvironmentVariable('Path', ($filtered -join ';'), 'Machine')
+            Write-Host "[OK]  Removed $installDir from Machine PATH"
+        } else {
+            Write-Host "[OK]  $installDir not on Machine PATH"
+        }
+    } catch {
+        Write-Host "[WARN] Could not update Machine PATH: $($_.Exception.Message)"
+    }
+
+    Write-Section ok 'FINAL STATUS'
+    Write-Host "Status          : Success"
+    Write-Host "Action          : Prinstall uninstalled"
+
+    Write-Section ok 'SCRIPT COMPLETED'
+    exit 0
 }
 
 Write-Host "Elevation       : Admin"
