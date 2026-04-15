@@ -1,0 +1,99 @@
+name: Bug report
+description: Something doesn't work — a command errors out, an install fails, output is wrong
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The faster you can paste in the raw `--verbose`
+        output, the faster this gets fixed. Don't paraphrase — PowerShell
+        error text carries HRESULT codes we need.
+
+  - type: input
+    id: prinstall_version
+    attributes:
+      label: prinstall version
+      description: Output of `prinstall version` (or `prinstall --version`)
+      placeholder: "prinstall 0.4.17"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: windows_version
+    attributes:
+      label: Windows version
+      options:
+        - Windows 10
+        - Windows 11
+        - Windows Server 2016
+        - Windows Server 2019
+        - Windows Server 2022
+        - Windows Server 2025
+        - Other (note in description)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build
+    attributes:
+      label: Which binary
+      options:
+        - "prinstall.exe (default, includes SDI)"
+        - "prinstall-nosdi.exe (lean)"
+        - "Built from source"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command you ran
+      description: The exact `prinstall ...` invocation. Include flags.
+      placeholder: "prinstall add 192.168.1.50 --verbose"
+      render: powershell
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Full output
+      description: |
+        Paste **everything** — the structured report, any PS errors, the final status.
+        Use `--verbose` if you haven't already. Redact IPs/hostnames you don't want public.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: input
+    id: printer_model
+    attributes:
+      label: Printer model (if relevant)
+      description: From the printer's web UI or the sticker on the back
+      placeholder: "HP LaserJet Pro MFP M428fdw"
+
+  - type: textarea
+    id: printer_ip_scan
+    attributes:
+      label: "`prinstall scan` / `prinstall id <ip>` output (if relevant)"
+      description: Helps us see what prinstall discovered about the target
+      render: text
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmation
+      options:
+        - label: I've removed any secrets / customer-identifying data from the output I pasted
+          required: true
+        - label: I've searched existing issues and this isn't a duplicate
+          required: true

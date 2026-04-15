@@ -1,0 +1,83 @@
+name: New driver / bad match
+description: prinstall picked the wrong driver, or can't find a driver for your printer
+title: "drivers: "
+labels: ["drivers"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most useful kind of report — real driver data from real
+        printers is what makes prinstall work in the field.
+
+        If you're comfortable editing a TOML file directly, you can skip this
+        form and open a PR instead. See
+        [docs/contributing-drivers.md](../blob/main/docs/contributing-drivers.md).
+
+  - type: dropdown
+    id: what_happened
+    attributes:
+      label: What happened
+      options:
+        - "prinstall picked the wrong driver (I had to specify --driver manually)"
+        - "prinstall couldn't find any matching driver"
+        - "prinstall matched but the install failed"
+        - "I want to add a manufacturer universal driver URL"
+    validations:
+      required: true
+
+  - type: input
+    id: printer_model
+    attributes:
+      label: Printer model
+      description: Exact model string from `prinstall id <ip>` (not the sticker — the SNMP/IPP string)
+      placeholder: "HP LaserJet Enterprise M607"
+    validations:
+      required: true
+
+  - type: input
+    id: correct_driver
+    attributes:
+      label: Correct Windows driver name (if you know it)
+      description: The exact `Name` from `Get-PrinterDriver` after you installed it manually
+      placeholder: "HP LaserJet Enterprise M607-M608-M609 PCL 6"
+
+  - type: textarea
+    id: prinstall_output
+    attributes:
+      label: "`prinstall drivers <ip> --verbose` output"
+      description: |
+        Paste the full output so we can see what prinstall matched and why.
+        Shows the scoring pipeline — critical for fixing bad matches.
+      render: text
+
+  - type: textarea
+    id: prinstall_id
+    attributes:
+      label: "`prinstall id <ip> --json` output"
+      description: Captures the exact SNMP/IPP model + device-id strings
+      render: json
+
+  - type: input
+    id: manufacturer_url
+    attributes:
+      label: Manufacturer universal driver URL (if applicable)
+      description: |
+        Only if you're submitting a new manufacturer entry for drivers.toml.
+        Must be a direct .zip or .cab link — no forms, no cookies.
+      placeholder: "https://..."
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Notes about the printer, the driver, or what you ended up doing manually
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmation
+      options:
+        - label: I actually installed this driver successfully (so the match I'm reporting is verified)
+          required: true
+        - label: I've removed any secrets / customer-identifying data
+          required: true

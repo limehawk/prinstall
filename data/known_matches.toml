@@ -2,7 +2,12 @@
 # These are exact matches — when SNMP returns a model string that matches
 # a key here, the corresponding driver name is the confirmed correct driver.
 #
-# Add entries as installs are confirmed to work.
+# Add entries as installs are confirmed to work. See
+# docs/contributing-drivers.md for the schema walkthrough.
+#
+# Contributions welcome — if prinstall picked the wrong driver for a printer
+# you just installed, adding an entry here fixes it for every future user
+# with that model.
 
 [[matches]]
 model = "HP LaserJet Pro MFP M428fdw"

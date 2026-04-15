@@ -139,9 +139,20 @@ If you want zero SDI code in your binary — some regulated environments prefer 
 
 Data, history, and driver staging live under `C:\ProgramData\prinstall\`.
 
+## Contributing
+
+**Your printer didn't match? That's a contribution waiting to happen.**
+
+Two tracks, wildly different bars to entry:
+
+- **Driver data (no Rust required).** [`data/drivers.toml`](data/drivers.toml) and [`data/known_matches.toml`](data/known_matches.toml) are the embedded driver knowledge. If you just installed a printer and prinstall picked the wrong driver — open a [driver issue](../../issues/new?template=new_driver.yml) or submit a 3-line PR against those TOMLs. Full walkthrough: [`docs/contributing-drivers.md`](docs/contributing-drivers.md).
+- **Code (Rust).** See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, testing, and style. The `PsExecutor` trait + `MockExecutor` pattern means the whole test suite runs on Linux without a Windows VM.
+
+Bugs, feature requests, and driver-match debugging all have [issue templates](../../issues/new/choose) — the raw `--verbose` output you paste is what makes fixes land fast.
+
 ## License
 
-MIT. Built by [limehawk](https://limehawk.io).
+MIT. See [LICENSE](LICENSE). Built by [limehawk](https://limehawk.io).
 
 ---
 

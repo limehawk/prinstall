@@ -2,6 +2,11 @@
 # Maps manufacturers to their universal driver packages and download URLs.
 # V1 supports ZIP and CAB formats only.
 #
+# Contributions welcome — if you know of a stable direct-download URL for a
+# vendor not listed here, see docs/contributing-drivers.md for the schema
+# and submission guide. URLs must 200 OK on a HEAD request without cookies
+# or form submission.
+#
 # Vendors with verified direct-download URLs:
 #   - HP    (PCL6 + PS, version-in-filename URLs — need to bump on UPD updates.
 #            HP tracks PCL and PS as independent version streams.)
