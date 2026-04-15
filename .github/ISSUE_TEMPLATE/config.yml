@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Getting started
+    url: https://github.com/limehawk/prinstall/wiki/Getting-Started
+    about: First time with prinstall? Start here.
+  - name: Command reference
+    url: https://github.com/limehawk/prinstall/wiki/CLI-Reference
+    about: Full list of subcommands and flags.
+  - name: Discussions
+    url: https://github.com/limehawk/prinstall/discussions
+    about: Questions, ideas, driver-match debugging — anything that isn't a concrete bug or feature request.
+  - name: Contributing driver data
+    url: https://github.com/limehawk/prinstall/blob/main/docs/contributing-drivers.md
+    about: Add a printer model to known_matches.toml or a manufacturer URL to drivers.toml. No Rust required.

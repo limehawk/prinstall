@@ -1,0 +1,49 @@
+name: Feature request
+description: Propose a new feature or command
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        prinstall is a focused MSP tool — not every feature belongs here. The
+        best requests come with a real user story: "I'm doing X and I keep
+        getting stuck on Y." That tells us where the pain actually is.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe your workflow and where it breaks down today
+      placeholder: |
+        When I'm deploying printers across 30 clients I have to run prinstall
+        add on each machine individually. I'd like a batch mode where I can
+        feed a list of IP/name pairs and have prinstall loop through them.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would the feature look like?
+      description: Your best guess at the command shape or flag. Doesn't have to be final.
+      placeholder: |
+        prinstall add --batch printers.csv
+
+        Where printers.csv is: ip,name,driver
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried or considered?
+      description: How do you work around this today?
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      description: These aren't blockers but they help us decide priority
+      options:
+        - label: This would benefit more than just my workflow
+        - label: This could ship as a CLI flag / subcommand (not a whole new subsystem)
+        - label: I'd be willing to help test a PR
