@@ -28,11 +28,25 @@ struct QueueRow {
     port_name: Option<String>,
 }
 
+// Filter matches three USB-printing enumeration cases Windows can report:
+//   1. `USBPRINT\*` — working USB print-class devices. This is how
+//      driver-bound printers show up in `Get-PnpDevice`. Missing this
+//      prefix was the original bug — scan --usb-only returned empty
+//      even with a working printer attached.
+//   2. `USB\*` + `Class -eq 'Printer'` / `'USBPrint'` — raw USB devices
+//      that PnP has classified as printers but didn't shift onto the
+//      USBPRINT bus (rare, some vendor-specific bindings).
+//   3. `USB\*` + `Status -eq 'Error'` + vendor keyword in FriendlyName —
+//      yellow-bang orphans where PnP couldn't load a driver. These are
+//      what `add --usb` targets for stage-and-install.
 const PNP_CMD: &str = "ConvertTo-Json -InputObject @(\
     Get-PnpDevice -PresentOnly | \
-    Where-Object { $_.InstanceId -like 'USB\\*' -and \
-        ($_.Class -eq 'Printer' -or $_.Class -eq 'USBPrint' -or \
-         ($_.Status -eq 'Error' -and $_.FriendlyName -match 'print|LaserJet|DeskJet|OfficeJet|Brother|Canon|Epson|Kyocera|Lexmark|Xerox|Ricoh|HP')) } | \
+    Where-Object { \
+        ($_.InstanceId -like 'USBPRINT\\*') -or \
+        ($_.InstanceId -like 'USB\\*' -and \
+            ($_.Class -eq 'Printer' -or $_.Class -eq 'USBPrint' -or \
+             ($_.Status -eq 'Error' -and $_.FriendlyName -match 'print|LaserJet|DeskJet|OfficeJet|Brother|Canon|Epson|Kyocera|Lexmark|Xerox|Ricoh|HP'))) \
+    } | \
     Select-Object FriendlyName, InstanceId, Status)";
 
 const QUEUE_CMD: &str = "ConvertTo-Json -InputObject @(\
@@ -140,5 +154,31 @@ mod tests {
             .stub_contains("Get-Printer", ok("[]"));
         let devices = enumerate(&mock, false).await;
         assert!(devices.is_empty());
+    }
+
+    /// Regression: working USB printers have `USBPRINT\...` InstanceIds
+    /// (the USB Print Class bus), not `USB\...`. The filter must accept
+    /// that prefix or scan --usb-only misses every driver-bound printer.
+    #[tokio::test]
+    async fn accepts_usbprint_prefix_for_working_printers() {
+        let pnp_json = r#"[
+            {"FriendlyName":"Brother MFC-L2750DW","InstanceId":"USBPRINT\\BROTHERMFC-L2750DW_SERIES7A4C\\7&312E9F27&0&USB001","Status":"OK","Class":"USBPrint"}
+        ]"#;
+        let queues_json = r#"[{"Name":"Brother MFC-L2750DW","PortName":"USB001"}]"#;
+        let mock = MockExecutor::new()
+            .stub_contains("Get-PnpDevice", ok(pnp_json))
+            .stub_contains("Get-Printer", ok(queues_json));
+        let devices = enumerate(&mock, false).await;
+        assert_eq!(devices.len(), 1);
+        assert_eq!(
+            devices[0].friendly_name.as_deref(),
+            Some("Brother MFC-L2750DW")
+        );
+        assert_eq!(
+            devices[0].queue_name.as_deref(),
+            Some("Brother MFC-L2750DW"),
+            "queue cross-ref should still work with USBPRINT\\ prefix"
+        );
+        assert!(!devices[0].has_error);
     }
 }

@@ -354,6 +354,9 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 **Shipped (v0.4.16):**
 - [x] `prinstall setup install` and `prinstall setup uninstall` — self-bootstrap subcommands. `install` copies the running `prinstall.exe` into `C:\ProgramData\prinstall\` (or `--dir PATH`), adds the install dir to Machine PATH, and creates the `Prinstall (mDNS discovery)` firewall rule for UDP 5353. Idempotent: no-op when the running exe is already at the target. `uninstall` reverses all three. Warns when the running exe is inside the install dir (Windows file lock) but still cleans up PATH + firewall. Both require admin. The external PowerShell `scripts/prinstall_setup.ps1` stays for the `iwr | iex` fresh-box bootstrap; the built-in command covers every round-trip after the exe is on the box.
 
+**Shipped (v0.4.17):**
+- [x] Fix `scan --usb-only` returning empty on boxes with a working USB printer. The `discovery/usb.rs` Get-PnpDevice filter required `InstanceId -like 'USB\*'`, which excludes driver-bound USB printers — Windows assigns them `USBPRINT\...` InstanceIds (the USB Print Class bus), not `USB\...`. Filter now accepts `USBPRINT\*` as a first-class branch (no Class check needed — the bus itself implies it's a print device). `USB\*` + Class or yellow-bang-error branch still covers raw composite devices and orphans.
+
 **Open:**
 - [ ] Lexmark Universal Print Driver URL — needs .exe extraction support
       (InstallShield wrapper, not zip/cab)
