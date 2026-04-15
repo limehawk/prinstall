@@ -180,10 +180,12 @@ mod cli_parse_test {
         ]);
         match cli.command {
             Some(prinstall::cli::Commands::Driver { action }) => match action {
-                prinstall::cli::DriverAction::Add { path, no_verify } => {
-                    assert_eq!(path, "C:\\test\\driver");
+                prinstall::cli::DriverAction::Add { target, driver, no_verify } => {
+                    assert_eq!(target, "C:\\test\\driver");
+                    assert!(driver.is_none());
                     assert!(!no_verify);
                 }
+                _ => panic!("expected DriverAction::Add"),
             },
             _ => panic!("expected Driver::Add"),
         }
@@ -199,8 +201,95 @@ mod cli_parse_test {
                 prinstall::cli::DriverAction::Add { no_verify, .. } => {
                     assert!(no_verify);
                 }
+                _ => panic!("expected DriverAction::Add"),
             },
             _ => panic!("expected Driver::Add"),
+        }
+    }
+
+    #[test]
+    fn driver_add_parses_with_model_and_explicit_driver() {
+        let cli = prinstall::cli::Cli::parse_from([
+            "prinstall", "driver", "add", "hp 1320",
+            "--driver", "HP Universal Print Driver PCL6",
+        ]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Driver { action }) => match action {
+                prinstall::cli::DriverAction::Add { target, driver, .. } => {
+                    assert_eq!(target, "hp 1320");
+                    assert_eq!(driver.as_deref(), Some("HP Universal Print Driver PCL6"));
+                }
+                _ => panic!("expected DriverAction::Add"),
+            },
+            _ => panic!("expected Driver::Add"),
+        }
+    }
+
+    #[test]
+    fn version_subcommand_parses() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "version"]);
+        assert!(matches!(cli.command, Some(prinstall::cli::Commands::Version)));
+    }
+
+    #[test]
+    fn driver_remove_parses() {
+        let cli = prinstall::cli::Cli::parse_from([
+            "prinstall", "driver", "remove", "HP Universal Print Driver PCL6",
+        ]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Driver { action }) => match action {
+                prinstall::cli::DriverAction::Remove { target, force } => {
+                    assert_eq!(target, "HP Universal Print Driver PCL6");
+                    assert!(!force);
+                }
+                _ => panic!("expected DriverAction::Remove"),
+            },
+            _ => panic!("expected Driver"),
+        }
+    }
+
+    #[test]
+    fn driver_remove_with_force_parses() {
+        let cli = prinstall::cli::Cli::parse_from([
+            "prinstall", "driver", "remove", "hp 1320", "--force",
+        ]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Driver { action }) => match action {
+                prinstall::cli::DriverAction::Remove { target, force } => {
+                    assert_eq!(target, "hp 1320");
+                    assert!(force);
+                }
+                _ => panic!("expected DriverAction::Remove"),
+            },
+            _ => panic!("expected Driver"),
+        }
+    }
+
+    #[test]
+    fn driver_list_parses() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "driver", "list"]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Driver { action }) => {
+                assert!(matches!(action, prinstall::cli::DriverAction::List));
+            }
+            _ => panic!("expected Driver"),
+        }
+    }
+
+    #[test]
+    fn driver_show_parses_with_ip() {
+        let cli = prinstall::cli::Cli::parse_from([
+            "prinstall", "driver", "show", "192.168.1.100",
+        ]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Driver { action }) => match action {
+                prinstall::cli::DriverAction::Show { ip, model } => {
+                    assert_eq!(ip, "192.168.1.100");
+                    assert!(model.is_none());
+                }
+                _ => panic!("expected DriverAction::Show"),
+            },
+            _ => panic!("expected Driver"),
         }
     }
 }

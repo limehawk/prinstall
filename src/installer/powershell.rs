@@ -236,7 +236,16 @@ pub fn list_local_drivers(verbose: bool) -> Vec<String> {
 /// failure here is non-fatal, the drivers command still produces a working
 /// report, it just lacks date annotations on local-store rows.
 pub fn list_local_drivers_with_dates(verbose: bool) -> Vec<(String, Option<String>)> {
-    let cmd = "ConvertTo-Json -InputObject @(Get-PrinterDriver | Select-Object Name, @{Name='DriverDate';Expression={ if ($_.DriverDate) { $_.DriverDate.ToString('yyyy-MM-dd') } else { $null } }}) -Compress";
+    // Get-PrinterDriver's DriverDate is unpopulated for many class drivers
+    // and for most third-party drivers registered via Add-PrinterDriver —
+    // the whole column ends up "unknown" in practice. Fallback chain:
+    //   1. Use $_.DriverDate when the year is sane (>1980). The default
+    //      DateTime for an unset field is `01/01/0001` which looks truthy
+    //      to PS but is useless to us.
+    //   2. Otherwise, grep the INF's [Version] DriverVer line and parse
+    //      its MM/DD/YYYY prefix. That's always present in a valid INF.
+    //   3. If both fail, emit $null so the caller shows "unknown".
+    let cmd = r#"ConvertTo-Json -Compress -InputObject @(Get-PrinterDriver | ForEach-Object { $d = $null; if ($_.DriverDate -and $_.DriverDate.Year -gt 1980) { $d = $_.DriverDate.ToString('yyyy-MM-dd') } elseif ($_.InfPath -and (Test-Path -LiteralPath $_.InfPath)) { $line = Get-Content -LiteralPath $_.InfPath -ErrorAction SilentlyContinue | Select-String -Pattern 'DriverVer' -SimpleMatch | Select-Object -First 1; if ($line -and $line.Line -match '=\s*(\d+)/(\d+)/(\d+)') { $d = '{0:D4}-{1:D2}-{2:D2}' -f [int]$Matches[3], [int]$Matches[1], [int]$Matches[2] } }; [pscustomobject]@{ Name = $_.Name; DriverDate = $d } })"#;
     let result = run_ps(cmd, verbose);
     if !result.success {
         return Vec::new();

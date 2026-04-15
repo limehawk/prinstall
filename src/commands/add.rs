@@ -154,6 +154,22 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
         }
     }
 
+    // ── Step 2.5: fail fast if target doesn't look like a printer ────────
+    // A device that: (a) gave no IPP device-id, (b) isn't listening on 631,
+    // and (c) has a scanner-family model name is almost certainly a
+    // standalone document scanner (Brother ADS-*, Fujitsu fi-*, Epson DS-*,
+    // etc.). Running all four tiers against it just produces a 7-second
+    // "all tiers exhausted" failure with a confusing HRESULT, so refuse
+    // here with a clearer message. `--force` bypasses for rare edge
+    // cases (firmware quirks, oddly-configured scanner MFPs).
+    let ipp_ok = ipp_reachable(target).await;
+    if !args.force && device_id.is_none() && !ipp_ok && is_likely_scanner(&model) {
+        return PrinterOpResult::err(format!(
+            "'{model}' looks like a document scanner, not a printer — no IPP response and no print protocol detected. \
+             prinstall only installs print drivers. Use --force to attempt anyway."
+        ));
+    }
+
     // ── Step 3: resolve the driver ────────────────────────────────────────
     let local_drivers = drivers::local_store::list_drivers(verbose);
     let driver_name = match resolve_driver(&args, &model, &local_drivers, verbose) {
@@ -579,7 +595,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     }
 
     // ── Step 7: IPP Class Driver fallback ────────────────────────────────
-    if !ipp_reachable(target).await {
+    if !ipp_ok {
         report.resolution.add_tier("IPP Class Driver", TierStatus::Failed, "port 631 not reachable");
         report.success = false;
         report.error = Some("all tiers exhausted, no fallback available".into());
@@ -1394,7 +1410,7 @@ async fn stage_driver_if_needed(
 /// match algorithm produces nothing — the caller should fall back to the
 /// hint in those cases. Duplicates across multiple INFs (common in multi-INF
 /// packs that share a display name) are deduped before matching.
-fn collect_actual_driver_name(
+pub(crate) fn collect_actual_driver_name(
     staged_infs: &[std::path::PathBuf],
     hint: &str,
     verbose: bool,
@@ -1764,6 +1780,32 @@ async fn try_bundle_install_usb(
     None
 }
 
+/// Detect document-scanner model names so we can bail out before running
+/// the full printer-install tier cascade against them.
+///
+/// The heuristic is intentionally narrow: scanner product lines have
+/// distinctive prefixes that printers almost never share. False positives
+/// here refuse an install that would have succeeded, so we err on the side
+/// of missing scanners (return `false`) rather than mis-classifying printers.
+/// `--force` bypasses this check entirely for the rare firmware quirk.
+fn is_likely_scanner(model: &str) -> bool {
+    let m = model.to_lowercase();
+    const SCANNER_PATTERNS: &[&str] = &[
+        "brother ads-",
+        "fujitsu fi-",
+        "fujitsu scansnap",
+        "scansnap",
+        "epson ds-",
+        "epson workforce ds-",
+        "epson workforce es-",
+        "canon dr-",
+        "canon imageformula",
+        "xerox documate",
+        "panasonic kv-s",
+    ];
+    SCANNER_PATTERNS.iter().any(|p| m.contains(p))
+}
+
 /// Check whether port 631 (IPP) is open on the target. Short timeout — this is
 /// a fallback eligibility check, not a full scan.
 async fn ipp_reachable(ip: &str) -> bool {
@@ -2052,6 +2094,47 @@ mod tests {
     fn stage_outcome_no_manifest_entry_does_not_skip_install() {
         let out = StageOutcome::NoManifestEntry;
         assert!(!matches!(out, StageOutcome::VerificationFailed { .. }));
+    }
+
+    #[test]
+    fn is_likely_scanner_catches_brother_ads() {
+        assert!(is_likely_scanner("Brother ADS-4700W"));
+        assert!(is_likely_scanner("brother ads-2700W"));
+    }
+
+    #[test]
+    fn is_likely_scanner_catches_fujitsu_fi_and_scansnap() {
+        assert!(is_likely_scanner("Fujitsu fi-7160"));
+        assert!(is_likely_scanner("Fujitsu ScanSnap iX1500"));
+        assert!(is_likely_scanner("ScanSnap S1300i"));
+    }
+
+    #[test]
+    fn is_likely_scanner_catches_epson_ds() {
+        assert!(is_likely_scanner("Epson DS-530"));
+        assert!(is_likely_scanner("Epson WorkForce DS-870"));
+        assert!(is_likely_scanner("Epson WorkForce ES-400"));
+    }
+
+    #[test]
+    fn is_likely_scanner_catches_canon_dr() {
+        assert!(is_likely_scanner("Canon DR-C225"));
+        assert!(is_likely_scanner("Canon imageFORMULA DR-M260"));
+    }
+
+    #[test]
+    fn is_likely_scanner_rejects_regular_printers() {
+        assert!(!is_likely_scanner("Brother MFC-L2750DW"));
+        assert!(!is_likely_scanner("HP LaserJet 1320"));
+        assert!(!is_likely_scanner("Epson WorkForce Pro WF-3720"));
+        assert!(!is_likely_scanner("Canon imageCLASS MF644Cdw"));
+        assert!(!is_likely_scanner("Xerox WorkCentre 6515"));
+    }
+
+    #[test]
+    fn is_likely_scanner_rejects_empty_and_short() {
+        assert!(!is_likely_scanner(""));
+        assert!(!is_likely_scanner("HP"));
     }
 }
 

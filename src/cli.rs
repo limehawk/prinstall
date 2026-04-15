@@ -124,7 +124,11 @@ pub enum Commands {
         ip: String,
     },
 
-    /// Show matched drivers for a printer
+    /// [DEPRECATED] Show matched drivers for a printer (use `driver show`)
+    ///
+    /// Retained as a top-level alias for backward compatibility with RMM
+    /// scripts. Prefer `prinstall driver show <IP>` — same behavior, lives
+    /// under the `driver` noun group with `add` / `remove` / `list`.
     ///
     /// Identifies the printer via SNMP (or --model), then searches for
     /// compatible drivers in the local driver store and curated database.
@@ -132,14 +136,8 @@ pub enum Commands {
     /// Universal Drivers (always available for the manufacturer).
     #[command(
         after_help = "EXAMPLES:\n  \
-            prinstall drivers 192.168.1.100\n  \
-            prinstall drivers 192.168.1.100 --json\n  \
-            prinstall drivers 192.168.1.100 --model \"HP LaserJet Pro MFP M428fdw\"\n\n\
-            HOW IT WORKS:\n  \
-            1. Identifies printer model via SNMP (or uses --model)\n  \
-            2. Checks local driver store (pnputil) for staged drivers\n  \
-            3. Matches against curated driver database\n  \
-            4. Shows universal drivers for the manufacturer\n\n\
+            prinstall drivers 192.168.1.100                (deprecated)\n  \
+            prinstall driver show 192.168.1.100            (preferred)\n\n\
             CONFIDENCE LEVELS:\n  \
             ★ exact  — curated match from known database\n  \
             ● fuzzy  — name similarity match\n  \
@@ -334,24 +332,152 @@ pub enum Commands {
     #[cfg(feature = "sdi")]
     #[command(subcommand)]
     Sdi(SdiAction),
+
+    /// Print version information (alias for --version)
+    Version,
+
+    /// Install or uninstall prinstall itself (self-bootstrap)
+    ///
+    /// `setup install` copies the currently-running prinstall.exe into
+    /// `C:\ProgramData\prinstall\`, adds that directory to the Machine
+    /// PATH, and creates a Windows Firewall rule for mDNS multicast
+    /// (UDP 5353) so `prinstall scan --method mdns` works out of the box.
+    /// Idempotent — running it again overwrites the existing binary
+    /// silently.
+    ///
+    /// `setup uninstall` reverses all three: removes the install dir,
+    /// the firewall rule, and the PATH entry.
+    ///
+    /// Both require admin. Run this from a copy of the exe OUTSIDE the
+    /// install dir (e.g., your Downloads folder) so the self-delete on
+    /// uninstall doesn't hit the running-exe file lock.
+    #[command(
+        after_help = "EXAMPLES:\n  \
+            .\\prinstall.exe setup install                    Install to C:\\ProgramData\\prinstall\\\n  \
+            .\\prinstall.exe setup install --dir C:\\Tools\\prinstall\n  \
+            .\\prinstall.exe setup uninstall                  Remove install dir, firewall rule, PATH entry\n\n\
+            REQUIRES: Administrator privileges."
+    )]
+    Setup {
+        #[command(subcommand)]
+        action: SetupAction,
+    },
+}
+
+/// Actions for the `prinstall setup` subcommand group.
+#[derive(Debug, Clone, clap::Subcommand)]
+pub enum SetupAction {
+    /// Copy this exe into the install dir, set up PATH + firewall rule
+    Install {
+        /// Install directory (default: `C:\ProgramData\prinstall`)
+        #[arg(long)]
+        dir: Option<String>,
+    },
+    /// Remove the install dir, PATH entry, and firewall rule
+    Uninstall {
+        /// Install directory to remove (default: `C:\ProgramData\prinstall`)
+        #[arg(long)]
+        dir: Option<String>,
+    },
 }
 
 /// Actions for the `prinstall driver` subcommand group.
 #[derive(Debug, Clone, clap::Subcommand)]
 pub enum DriverAction {
-    /// Stage a driver into the Windows driver store (pnputil /add-driver)
+    /// Stage a driver into the Windows driver store
     ///
-    /// Accepts either a single INF file path or a folder containing INFs
-    /// (recursed via `/subdirs`). When verification is enabled (default),
-    /// runs `Get-AuthenticodeSignature` on any `.cat` files in the path
-    /// before staging — same gate as `prinstall add`. Pass `--no-verify`
-    /// to bypass with an UNVERIFIED audit marker.
+    /// Accepts one of:
+    ///   • an INF file path (e.g. `C:\Drivers\brother.inf`)
+    ///   • a folder containing INFs (e.g. `C:\Drivers\HP_M404`)
+    ///   • a model string (e.g. `"HP LaserJet 1320"`) — searches embedded
+    ///     driver sources, downloads a match from the manufacturer, and
+    ///     stages it via pnputil
+    ///
+    /// For a model string: if a curated exact match exists (from
+    /// `known_matches.toml`), the top match is auto-staged. Otherwise the
+    /// command prints ranked candidates and requires `--driver "<name>"`
+    /// to pick one explicitly.
+    ///
+    /// When verification is enabled (the default), runs
+    /// `Get-AuthenticodeSignature` on any `.cat` files before staging —
+    /// same gate as `prinstall add`. Pass `--no-verify` to bypass with
+    /// an `[UNVERIFIED]` audit marker.
     Add {
-        /// Path to an INF file or a folder containing INFs
-        path: String,
-        /// Skip Authenticode .cat signature verification
+        /// Path (INF file / folder) OR a model string to match against
+        /// embedded driver sources.
+        target: String,
+        /// When `target` is a model string and multiple candidates match,
+        /// pick this driver name explicitly. Ignored when `target` is a path.
+        #[arg(long)]
+        driver: Option<String>,
+        /// Skip Authenticode .cat signature verification.
         #[arg(long)]
         no_verify: bool,
+    },
+
+    /// Remove a driver from the Windows driver store
+    ///
+    /// `target` is either:
+    ///   • an exact driver name as shown in `prinstall driver list` /
+    ///     `Get-PrinterDriver`, e.g. `"HP Universal Print Driver PCL6"`
+    ///   • a model/fuzzy string that matches one staged driver, e.g.
+    ///     `"hp 1320"` → resolves to whichever installed driver scores best
+    ///
+    /// If the driver is currently bound to a printer queue, the command
+    /// refuses with the blocking queue names and an action message. Pass
+    /// `--force` to cascade: each dependent queue is removed first (via
+    /// the same pipeline as `prinstall remove`), then the driver.
+    ///
+    /// Windows system drivers (Microsoft IPP Class Driver, etc.) are
+    /// never removable and are skipped with a clear warning.
+    #[command(
+        after_help = "EXAMPLES:\n  \
+            prinstall driver remove \"HP Universal Print Driver PCL6\"\n  \
+            prinstall driver remove \"hp 1320\"                        # fuzzy\n  \
+            prinstall driver remove \"Brother MFC\" --force            # cascade queues\n\n\
+            REQUIRES:\n  \
+            Administrator privileges."
+    )]
+    Remove {
+        /// Exact driver name OR a model/fuzzy string.
+        target: String,
+        /// Cascade: remove dependent printer queues first, then the driver.
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// List drivers currently in the Windows driver store
+    ///
+    /// Pretty-prints every driver name from `Get-PrinterDriver` along with
+    /// its manufacturer and version. Useful before `driver remove` to find
+    /// the exact name of a staged driver, or to audit what's on a machine.
+    #[command(
+        after_help = "EXAMPLES:\n  \
+            prinstall driver list                 Show all staged drivers\n  \
+            prinstall driver list --json          JSON output (for scripting)\n\n\
+            NOTE: unlike `prinstall list` (printer queues), this enumerates the\n\
+            driver store — including drivers not currently bound to any queue."
+    )]
+    List,
+
+    /// Show matched drivers for a printer (by IP)
+    ///
+    /// Identifies the printer via SNMP (or `--model`), then searches the
+    /// local driver store, curated database, bundle directory, Microsoft
+    /// Update Catalog, and (when built with `sdi`) the SDI cache for
+    /// compatible drivers. Ranked by match confidence.
+    #[command(
+        after_help = "EXAMPLES:\n  \
+            prinstall driver show 192.168.1.100\n  \
+            prinstall driver show 192.168.1.100 --json\n  \
+            prinstall driver show 192.168.1.100 --model \"HP LaserJet Pro MFP M428fdw\""
+    )]
+    Show {
+        /// Printer IP address
+        ip: String,
+        /// Manually specify printer model (bypass SNMP discovery)
+        #[arg(long)]
+        model: Option<String>,
     },
 }
 

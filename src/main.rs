@@ -25,13 +25,21 @@ async fn main() {
 }
 
 async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
-    // Privilege check for commands that mutate Windows state
+    // Privilege check for commands that mutate Windows state.
+    // `driver list` and `driver show` are read-only — skip the admin gate
+    // so techs can audit a machine from a non-elevated shell.
+    let driver_mutates = matches!(
+        cmd,
+        cli::Commands::Driver {
+            action: cli::DriverAction::Add { .. } | cli::DriverAction::Remove { .. }
+        }
+    );
     let needs_admin = matches!(
         cmd,
         cli::Commands::Add { .. }
             | cli::Commands::Remove { .. }
-            | cli::Commands::Driver { .. }
-    );
+            | cli::Commands::Setup { .. }
+    ) || driver_mutates;
     if needs_admin && !privilege::is_elevated() {
         eprintln!("Error: Administrator privileges required for this command.");
         eprintln!("Run this command from an elevated terminal or RMM shell.");
@@ -59,22 +67,60 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
         }
         cli::Commands::List => cmd_list(cli).await,
         cli::Commands::Driver { action } => cmd_driver(action, cli).await,
+        cli::Commands::Version => {
+            println!("prinstall {}", env!("CARGO_PKG_VERSION"));
+        }
+        cli::Commands::Setup { action } => cmd_setup(action, cli).await,
         #[cfg(feature = "sdi")]
         cli::Commands::Sdi(action) => cmd_sdi(action, cli).await,
     }
 }
 
+async fn cmd_setup(action: &cli::SetupAction, cli: &cli::Cli) {
+    let executor = RealExecutor::new(cli.verbose);
+    let exit = match action {
+        cli::SetupAction::Install { dir } => {
+            commands::setup::install(&executor, dir.as_deref(), cli.verbose, cli.json).await
+        }
+        cli::SetupAction::Uninstall { dir } => {
+            commands::setup::uninstall(&executor, dir.as_deref(), cli.verbose, cli.json).await
+        }
+    };
+    std::process::exit(exit);
+}
+
 async fn cmd_driver(action: &cli::DriverAction, cli: &cli::Cli) {
     match action {
-        cli::DriverAction::Add { path, no_verify } => {
+        cli::DriverAction::Add { target, driver, no_verify } => {
             let exit_code = commands::driver::add(commands::driver::DriverAddArgs {
-                path,
+                target,
+                driver: driver.as_deref(),
                 no_verify: *no_verify,
                 verbose: cli.verbose,
                 json: cli.json,
             })
             .await;
             std::process::exit(exit_code);
+        }
+        cli::DriverAction::Remove { target, force } => {
+            let exit_code = commands::driver::remove(commands::driver::DriverRemoveArgs {
+                target,
+                force: *force,
+                verbose: cli.verbose,
+                json: cli.json,
+            })
+            .await;
+            std::process::exit(exit_code);
+        }
+        cli::DriverAction::List => {
+            let exit_code = commands::driver::list(commands::driver::DriverListArgs {
+                verbose: cli.verbose,
+                json: cli.json,
+            });
+            std::process::exit(exit_code);
+        }
+        cli::DriverAction::Show { ip, model } => {
+            cmd_drivers(ip, model.as_deref(), cli).await;
         }
     }
 }
