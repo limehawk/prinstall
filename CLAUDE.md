@@ -231,6 +231,13 @@ See `assets/icon-previews/` for reference renders at all standard sizes.
 - Existing tests against PowerShell-adjacent code (install, remove, drivers) all
   run on Linux because the executor trait abstracts away the actual PS call.
   Real PS tests happen only via manual testing on a Windows VM.
+- **Current baselines:** 247 lib tests (default build) / 206 lib tests (lean
+  build). Drop below that on a PR = test regression. Integration test counts
+  vary; the lib count is the sanity number.
+- **Validate PS scripts on Linux** before committing any `scripts/` or
+  `rmm-scripts/scripts/` change:
+  `pwsh -NoProfile -Command "[scriptblock]::Create((Get-Content -Raw PATH)) | Out-Null"`
+  catches syntax errors without executing.
 
 ## Dev loop (against a real Windows VM)
 
@@ -246,7 +253,7 @@ See `assets/icon-previews/` for reference renders at all standard sizes.
 6. `.\prinstall.exe --version` / `.\prinstall.exe add <ip> --verbose` / etc.
 
 Version-bump `Cargo.toml` on every dev build so you can distinguish builds in
-the VM (currently `0.4.0`).
+the VM (e.g., bump `0.4.17` → `0.4.18` for the next dev loop before re-copying).
 
 ## Branching & release workflow
 
@@ -291,6 +298,49 @@ deleted after it merges or gets abandoned.
   the same PR flow but don't need a version bump or a tag — they just
   fast-forward `main`.
 
+**The command sequence** (for a code release — after `Cargo.toml` is bumped
+and your dev work is committed on `dev`):
+
+```bash
+# 1. Push dev to remote
+git push origin dev
+
+# 2. Open PR and merge (regular merge — NOT squash)
+gh pr create --base main --head dev --title "Release v0.4.X: ..." --body "..."
+gh pr merge <num> --merge
+
+# 3. Sync main locally + tag the release
+git checkout main && git pull --ff-only origin main
+git tag v0.4.X
+git push origin v0.4.X                # triggers the windows-latest release CI (~15 min)
+
+# 4. Back to dev for next work
+git checkout dev
+
+# 5. (Optional) watch the CI
+gh run list --workflow=release.yml --limit 2
+```
+
+Docs-only changes (touching `docs/`, `README.md`, `scripts/`, `CLAUDE.md`)
+skip steps 3–4: merge the PR, fast-forward `main`, done. No tag, no version bump.
+
+### rmm-scripts coordination
+
+The `~/dev/rmm-scripts/` sibling repo holds SuperOps-flavored wrappers and
+lives on `main` (no `dev` branch). Wrapper versions track the prinstall app
+version they target. Two quirks worth knowing:
+
+- SuperOps auto-syncs script changes upstream via a bot, so `git push origin main`
+  can be rejected mid-session with "Updates were rejected because the remote
+  contains work that you do not have locally" when a `sync: update N script(s)
+  in SuperOps` commit landed while you were working. Recover with `git pull
+  --rebase` and re-push.
+- Before `git pull --rebase`, stash any uncommitted yaml/CLAUDE.md edits —
+  Watson's WIP often sits there:
+  `git stash push -m "WIP" -- CLAUDE.md scripts/*.yaml`. Leave the stash
+  intact after the push succeeds; those are Watson's edits to reconcile,
+  not ours to apply blindly.
+
 ## Spec & Plan
 
 Design spec and implementation plan are in the rmm-scripts repo (gitignored there):
@@ -308,6 +358,17 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 - **SMB exe loader cache** — running an exe from `\\host.lan\Data\` caches the
   binary in Windows' SMB client, so overwriting the file doesn't evict the
   running exe. Always `Copy-Item ... -Force` to a local path before running.
+- **USB printer InstanceId prefix** — driver-bound USB printers use `USBPRINT\...`
+  InstanceIds (the USB Print Class bus), NOT `USB\...`. A `Get-PnpDevice` filter
+  that only matches `USB\*` will miss every working USB printer. See the
+  comment block on the filter in `src/discovery/usb.rs`.
+- **WDAC / AppLocker error signature** — Windows wraps policy denials in a
+  `NativeCommandException` whose message contains `Application Control`,
+  `AppLocker`, or `blocked this file`. Any RMM script that shells out to
+  prinstall should detect this pattern explicitly — swallowing it as a
+  warning and reporting "Success" hides real deployment failures on
+  signed-binary-enforced fleets. See `rmm-scripts/scripts/prinstall_setup.ps1`
+  for the reference detection + recovery-message pattern.
 
 ## Current backlog
 
