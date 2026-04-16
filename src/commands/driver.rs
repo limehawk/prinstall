@@ -421,15 +421,34 @@ async fn add_from_model(args: &DriverAddArgs<'_>) -> i32 {
 ///
 /// * `--driver <name>` wins. Still verified against the manifest before
 ///   returning.
+/// * If the user's input string equals a candidate's display name
+///   (case-insensitive), that's an unambiguous pick — auto-select it.
+///   Catches `prinstall driver add "HP Universal Print Driver PS"`.
 /// * Otherwise pick the top curated (exact) match from `known_matches.toml`.
-/// * Otherwise (fuzzy / universal / nothing) — print the ranked list and
-///   bail with exit 1, so the user re-runs with `--driver`.
+/// * Otherwise, if there are no matched candidates and exactly one universal
+///   driver, auto-pick the universal — single viable option.
+/// * Otherwise (multiple candidates, no clear winner) — print the ranked list
+///   and bail with exit 1, so the user re-runs with `--driver`.
 fn resolve_driver_pick(
     args: &DriverAddArgs<'_>,
     results: &crate::models::DriverResults,
 ) -> Result<String, i32> {
     if let Some(explicit) = args.driver {
         return Ok(explicit.to_string());
+    }
+
+    // Verbatim name match against any candidate — covers users who type the
+    // exact display name they saw in a previous `driver show` or candidate list.
+    if let Some(named) = results
+        .matched
+        .iter()
+        .chain(results.universal.iter())
+        .find(|m| m.name.eq_ignore_ascii_case(args.target))
+    {
+        if !args.json {
+            println!("★ Exact name match: {}", named.name);
+        }
+        return Ok(named.name.clone());
     }
 
     // Auto-pick the top curated match (score 1000, from known_matches.toml).
@@ -444,7 +463,17 @@ fn resolve_driver_pick(
         return Ok(exact.name.clone());
     }
 
-    // No exact match — surface candidates and force an explicit pick.
+    // No matched candidates, only one universal — auto-pick. Prevents the
+    // "you have one option, please type it back" loop.
+    if results.matched.is_empty() && results.universal.len() == 1 {
+        let only = &results.universal[0];
+        if !args.json {
+            println!("★ Only universal candidate: {}", only.name);
+        }
+        return Ok(only.name.clone());
+    }
+
+    // Ambiguous — surface candidates and force an explicit pick.
     if args.json {
         emit_candidates_json(args.target, results);
     } else {
@@ -1055,5 +1084,126 @@ mod tests {
     fn driver_list_args_shape() {
         let args = DriverListArgs { verbose: false, json: false };
         assert!(!args.verbose);
+    }
+
+    // ── resolve_driver_pick tests ─────────────────────────────────────────
+
+    fn pick_args<'a>(target: &'a str, driver: Option<&'a str>) -> DriverAddArgs<'a> {
+        DriverAddArgs { target, driver, no_verify: true, verbose: false, json: true }
+    }
+
+    fn make_results(
+        matched: Vec<(&str, MatchConfidence)>,
+        universal: Vec<&str>,
+    ) -> crate::models::DriverResults {
+        use crate::models::{DriverCategory, DriverMatch, DriverResults, DriverSource};
+        DriverResults {
+            printer_model: "test".to_string(),
+            matched: matched
+                .into_iter()
+                .map(|(name, conf)| DriverMatch {
+                    name: name.to_string(),
+                    category: DriverCategory::Matched,
+                    confidence: conf,
+                    source: DriverSource::Manufacturer,
+                    score: 0,
+                    driver_date: None,
+                })
+                .collect(),
+            universal: universal
+                .into_iter()
+                .map(|name| DriverMatch {
+                    name: name.to_string(),
+                    category: DriverCategory::Universal,
+                    confidence: MatchConfidence::Universal,
+                    source: DriverSource::Manufacturer,
+                    score: 0,
+                    driver_date: None,
+                })
+                .collect(),
+            device_id: None,
+            catalog: None,
+            bundle_candidates: Vec::new(),
+            #[cfg(feature = "sdi")]
+            sdi_candidates: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn resolve_pick_explicit_driver_wins() {
+        let args = pick_args("HP 1320", Some("My Driver"));
+        let results = make_results(vec![], vec!["HP UPD PCL6", "HP UPD PS"]);
+        assert_eq!(resolve_driver_pick(&args, &results).unwrap(), "My Driver");
+    }
+
+    #[test]
+    fn resolve_pick_exact_name_match_against_universal() {
+        let args = pick_args("HP Universal Print Driver PS", None);
+        let results = make_results(
+            vec![],
+            vec!["HP Universal Print Driver PCL6", "HP Universal Print Driver PS"],
+        );
+        assert_eq!(
+            resolve_driver_pick(&args, &results).unwrap(),
+            "HP Universal Print Driver PS"
+        );
+    }
+
+    #[test]
+    fn resolve_pick_exact_name_match_is_case_insensitive() {
+        let args = pick_args("hp universal print driver ps", None);
+        let results = make_results(vec![], vec!["HP Universal Print Driver PS"]);
+        assert_eq!(
+            resolve_driver_pick(&args, &results).unwrap(),
+            "HP Universal Print Driver PS"
+        );
+    }
+
+    #[test]
+    fn resolve_pick_curated_exact_beats_fuzzy() {
+        let args = pick_args("HP 1320", None);
+        let results = make_results(
+            vec![
+                ("HP LaserJet 1320 PCL 5e", MatchConfidence::Exact),
+                ("HP LaserJet 1320 PCL 6", MatchConfidence::Fuzzy),
+            ],
+            vec![],
+        );
+        assert_eq!(
+            resolve_driver_pick(&args, &results).unwrap(),
+            "HP LaserJet 1320 PCL 5e"
+        );
+    }
+
+    #[test]
+    fn resolve_pick_single_universal_auto_picks() {
+        let args = pick_args("Acme 9000", None);
+        let results = make_results(vec![], vec!["Acme Universal Print Driver"]);
+        assert_eq!(
+            resolve_driver_pick(&args, &results).unwrap(),
+            "Acme Universal Print Driver"
+        );
+    }
+
+    #[test]
+    fn resolve_pick_multiple_universals_no_auto() {
+        let args = pick_args("HP 1320", None);
+        let results = make_results(
+            vec![],
+            vec!["HP Universal Print Driver PCL6", "HP Universal Print Driver PS"],
+        );
+        assert_eq!(resolve_driver_pick(&args, &results).unwrap_err(), 1);
+    }
+
+    #[test]
+    fn resolve_pick_fuzzy_only_does_not_auto_universal() {
+        // Single universal exists but matched is non-empty (fuzzy hits) — user
+        // should still see the candidate list and pick.
+        let args = pick_args("HP 1320", None);
+        let results = make_results(
+            vec![("HP LaserJet 1320 PCL 5e", MatchConfidence::Fuzzy)],
+            vec!["HP Universal Print Driver PCL6"],
+        );
+        assert_eq!(resolve_driver_pick(&args, &results).unwrap_err(), 1);
     }
 }

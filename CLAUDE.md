@@ -418,6 +418,9 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 **Shipped (v0.4.17):**
 - [x] Fix `scan --usb-only` returning empty on boxes with a working USB printer. The `discovery/usb.rs` Get-PnpDevice filter required `InstanceId -like 'USB\*'`, which excludes driver-bound USB printers — Windows assigns them `USBPRINT\...` InstanceIds (the USB Print Class bus), not `USB\...`. Filter now accepts `USBPRINT\*` as a first-class branch (no Class check needed — the bus itself implies it's a print device). `USB\*` + Class or yellow-bang-error branch still covers raw composite devices and orphans.
 
+**Shipped (v0.4.18):**
+- [x] `prinstall driver add` auto-picks when the input is unambiguous. Two new branches in `resolve_driver_pick` (src/commands/driver.rs): (1) verbatim case-insensitive name match against any candidate in `matched ∪ universal` — `prinstall driver add "HP Universal Print Driver PS"` no longer asks the user to retype the name they just typed; (2) when `matched` is empty and `universal` has exactly one entry, auto-pick it. Curated `MatchConfidence::Exact` branch unchanged. 7 new unit tests cover the positive and negative cases (multiple universals still prompts, fuzzy-with-single-universal still prompts).
+
 **Open:**
 - [ ] Lexmark Universal Print Driver URL — needs .exe extraction support
       (InstallShield wrapper, not zip/cab)
