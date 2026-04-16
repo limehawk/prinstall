@@ -117,6 +117,14 @@ Use the issue templates:
 The bug template asks for `prinstall --verbose` output and the exact PS error.
 The more raw output you paste, the faster the fix lands.
 
+## Questions and community
+
+- [Discussions](../../discussions) — Q&A, show-and-tell (field stories, fleet-wide
+  deploys, weird printer setups), and early-stage ideas. Good for anything that
+  isn't a concrete bug report or feature ask.
+- [Discussions → Q&A](../../discussions/categories/q-a) — accepted-answer format
+  for how-tos. Search here before opening an issue.
+
 ---
 
 ## License

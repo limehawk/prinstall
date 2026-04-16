@@ -148,7 +148,10 @@ Two tracks, wildly different bars to entry:
 - **Driver data (no Rust required).** [`data/drivers.toml`](data/drivers.toml) and [`data/known_matches.toml`](data/known_matches.toml) are the embedded driver knowledge. If you just installed a printer and prinstall picked the wrong driver — open a [driver issue](../../issues/new?template=new_driver.yml) or submit a 3-line PR against those TOMLs. Full walkthrough: [`docs/contributing-drivers.md`](docs/contributing-drivers.md).
 - **Code (Rust).** See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, testing, and style. The `PsExecutor` trait + `MockExecutor` pattern means the whole test suite runs on Linux without a Windows VM.
 
-Bugs, feature requests, and driver-match debugging all have [issue templates](../../issues/new/choose) — the raw `--verbose` output you paste is what makes fixes land fast.
+### Where to go
+
+- 🐛 [**Issues**](../../issues/new/choose) — bugs, driver-match problems, feature requests. Structured templates capture the `--verbose` output that makes fixes land fast.
+- 💬 [**Discussions**](../../discussions) — Q&A, show-and-tell, early-stage ideas. Good for "how do I do X" or "I used prinstall to deploy 40 printers across 8 clients in a morning" stories.
 
 ## License
 
