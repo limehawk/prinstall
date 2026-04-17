@@ -421,6 +421,9 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 **Shipped (v0.4.18):**
 - [x] `prinstall driver add` auto-picks when the input is unambiguous. Two new branches in `resolve_driver_pick` (src/commands/driver.rs): (1) verbatim case-insensitive name match against any candidate in `matched ∪ universal` — `prinstall driver add "HP Universal Print Driver PS"` no longer asks the user to retype the name they just typed; (2) when `matched` is empty and `universal` has exactly one entry, auto-pick it. Curated `MatchConfidence::Exact` branch unchanged. 7 new unit tests cover the positive and negative cases (multiple universals still prompts, fuzzy-with-single-universal still prompts).
 
+**Shipped (v0.4.19):**
+- [x] Quiet verbose stdout dump. `run_ps` (src/installer/powershell.rs) used to echo full PS stdout for every call — fine for short JSON but catastrophic for `Get-AuthenticodeSignature | ConvertTo-Json -Depth N` where the serialized cert chain is ~30KB of OID dumps per cat file. New behavior: on success, drop stdout entirely (the parsed result surfaces through proper output anyway); on failure, truncate stdout to 500 chars with a `(N chars omitted)` suffix. `[PS] <command>` and cleaned stderr unchanged. New `truncate()` helper is char-safe (won't split multibyte UTF-8). 4 new unit tests cover pass-through, clipping, multibyte, and exact-boundary.
+
 **Open:**
 - [ ] Lexmark Universal Print Driver URL — needs .exe extraction support
       (InstallShield wrapper, not zip/cab)

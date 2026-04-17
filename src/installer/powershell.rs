@@ -41,6 +41,17 @@ pub fn escape_ps_string(s: &str) -> String {
     s.replace('\'', "''")
 }
 
+/// Truncate a string to at most `max` chars, appending a hint about how
+/// many were dropped. Operates on chars, not bytes — safe for any UTF-8.
+fn truncate(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let head: String = s.chars().take(max).collect();
+    let dropped = s.chars().count() - max;
+    format!("{head}... ({dropped} chars omitted)")
+}
+
 /// Run a PowerShell command and return the result.
 pub fn run_ps(command: &str, verbose: bool) -> PsResult {
     if verbose {
@@ -55,9 +66,15 @@ pub fn run_ps(command: &str, verbose: bool) -> PsResult {
         Ok(o) => {
             let stdout = String::from_utf8_lossy(&o.stdout).trim().to_string();
             let stderr = String::from_utf8_lossy(&o.stderr).trim().to_string();
+            let success = o.status.success();
             if verbose {
-                if !stdout.is_empty() {
-                    eprintln!("{} {stdout}", crate::output::vpfx("PS stdout"));
+                // On success, drop stdout entirely — the parsed result is
+                // surfaced through proper output and the raw blob is just
+                // noise (the cert chain from Get-AuthenticodeSignature is
+                // ~30KB of OID dumps per cat file, drowns the log).
+                // On failure, dump truncated stdout for diagnostics.
+                if !success && !stdout.is_empty() {
+                    eprintln!("{} {}", crate::output::vpfx("PS stdout"), truncate(&stdout, 500));
                 }
                 if !stderr.is_empty() {
                     // Route through ps_error::clean() so the verbose log
@@ -68,11 +85,7 @@ pub fn run_ps(command: &str, verbose: bool) -> PsResult {
                     eprintln!("{} {}", crate::output::vpfx("PS stderr"), ps_error::clean(&stderr));
                 }
             }
-            PsResult {
-                success: o.status.success(),
-                stdout,
-                stderr,
-            }
+            PsResult { success, stdout, stderr }
         }
         Err(e) => PsResult {
             success: false,
@@ -432,5 +445,33 @@ mod pnputil_tests {
         );
         let port = find_usb_port_for_device(&mock, "HP LaserJet 1320", false).await;
         assert!(port.is_none());
+    }
+
+    #[test]
+    fn truncate_passes_through_short_strings() {
+        assert_eq!(truncate("hello", 500), "hello");
+        assert_eq!(truncate("", 500), "");
+    }
+
+    #[test]
+    fn truncate_clips_long_strings_with_count() {
+        let long = "x".repeat(1000);
+        let out = truncate(&long, 500);
+        assert!(out.starts_with(&"x".repeat(500)));
+        assert!(out.ends_with("(500 chars omitted)"));
+    }
+
+    #[test]
+    fn truncate_handles_multibyte_safely() {
+        // 4 chars, 8 bytes (each ★ is 3 bytes UTF-8). Cap at 2 chars.
+        let s = "★★★★";
+        let out = truncate(s, 2);
+        assert_eq!(out, "★★... (2 chars omitted)");
+    }
+
+    #[test]
+    fn truncate_at_exact_boundary_passes_through() {
+        let s = "hello";
+        assert_eq!(truncate(s, 5), "hello");
     }
 }
