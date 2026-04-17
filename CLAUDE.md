@@ -424,6 +424,9 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 **Shipped (v0.4.19):**
 - [x] Quiet verbose stdout dump. `run_ps` (src/installer/powershell.rs) used to echo full PS stdout for every call — fine for short JSON but catastrophic for `Get-AuthenticodeSignature | ConvertTo-Json -Depth N` where the serialized cert chain is ~30KB of OID dumps per cat file. New behavior: on success, drop stdout entirely (the parsed result surfaces through proper output anyway); on failure, truncate stdout to 500 chars with a `(N chars omitted)` suffix. `[PS] <command>` and cleaned stderr unchanged. New `truncate()` helper is char-safe (won't split multibyte UTF-8). 4 new unit tests cover pass-through, clipping, multibyte, and exact-boundary.
 
+**Shipped (v0.4.20):**
+- [x] `prinstall driver remove` round-trips the `add` rename. `add "HP Universal Print Driver PS"` stages under the INF's actual display name `HP Universal Printing PS` (collect_actual_driver_name picks the real spooler name), but `remove "HP Universal Print Driver PS"` used to fail with "no staged driver matches" because the 3/4-token-overlap score (225) fell below `match_drivers`'s `MIN_FUZZY_SCORE = 250`. Fix: `resolve_remove_target` (src/commands/driver.rs) now scores local drivers directly against the target with a dedicated `REMOVE_MIN_FUZZY_SCORE = 150` — lower than `add` because false positives are contained (only scoring against drivers already on this box, and ambiguity still triggers the multi-match prompt). New regression test covers the exact symptom.
+
 **Open:**
 - [ ] Lexmark Universal Print Driver URL — needs .exe extraction support
       (InstallShield wrapper, not zip/cab)
