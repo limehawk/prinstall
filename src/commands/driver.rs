@@ -680,20 +680,27 @@ fn resolve_remove_target(
         return Ok(hit.clone());
     }
 
-    // Fuzzy match against the local store.
-    let results = drivers::matcher::match_drivers(target, local);
-    // Consider only LocalStore matches — we can't remove something not staged.
-    let local_matches: Vec<&crate::models::DriverMatch> = results
-        .matched
+    // Fuzzy match against the local store, with a lower threshold than
+    // the `add` path's MIN_FUZZY_SCORE = 250. False positives are contained
+    // here: we only score against drivers already staged on this box (small
+    // set), `add` often renames a driver during staging (manifest hint vs
+    // the INF's actual [Models] display name — "HP Universal Print Driver
+    // PS" gets registered as "HP Universal Printing PS" by the spooler) so
+    // the user's original name falls short of 250 on the round-trip, and
+    // any ambiguity still trips the prompt below.
+    const REMOVE_MIN_FUZZY_SCORE: u32 = 150;
+    let mut scored: Vec<(String, u32)> = local
         .iter()
-        .filter(|m| matches!(m.source, crate::models::DriverSource::LocalStore))
+        .map(|d| (d.clone(), drivers::matcher::score_driver(target, d)))
+        .filter(|(_, s)| *s >= REMOVE_MIN_FUZZY_SCORE)
         .collect();
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
 
-    if let [only] = local_matches.as_slice() {
-        return Ok(only.name.clone());
+    if let [only] = scored.as_slice() {
+        return Ok(only.0.clone());
     }
 
-    if local_matches.is_empty() {
+    if scored.is_empty() {
         if json {
             println!(
                 r#"{{"success":false,"error":"no staged driver matches '{}'","target":"{}"}}"#,
@@ -713,16 +720,16 @@ fn resolve_remove_target(
             "success": false,
             "error": "ambiguous — multiple staged drivers match",
             "target": target,
-            "matches": local_matches.iter().map(|m| serde_json::json!({
-                "name": m.name,
-                "score": m.score,
+            "matches": scored.iter().map(|(name, score)| serde_json::json!({
+                "name": name,
+                "score": score,
             })).collect::<Vec<_>>(),
         });
         println!("{payload}");
     } else {
         println!("Multiple staged drivers match '{target}':");
-        for m in &local_matches {
-            println!("  ● {}  (score: {})", m.name, m.score);
+        for (name, score) in &scored {
+            println!("  ● {name}  (score: {score})");
         }
         println!();
         println!("Rerun with the exact driver name:");
@@ -1036,6 +1043,21 @@ mod tests {
         let local = vec!["HP LaserJet 1320 PCL 5e".to_string()];
         let out = resolve_remove_target("hp 1320", &local, true);
         assert_eq!(out.unwrap(), "HP LaserJet 1320 PCL 5e");
+    }
+
+    #[test]
+    fn resolve_remove_target_handles_add_rename_asymmetry() {
+        // Regression: `add "HP Universal Print Driver PS"` stages under the
+        // INF's actual display name `HP Universal Printing PS`. The round-trip
+        // `remove "HP Universal Print Driver PS"` used to fail because the
+        // 3/4 token overlap (225) fell below the `add` path's 250 threshold.
+        let local = vec![
+            "HP Universal Printing PS".to_string(),
+            "Brother HL-L2460DW Printer".to_string(),
+            "Microsoft Print To PDF".to_string(),
+        ];
+        let out = resolve_remove_target("HP Universal Print Driver PS", &local, true);
+        assert_eq!(out.unwrap(), "HP Universal Printing PS");
     }
 
     #[test]
