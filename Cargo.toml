@@ -24,7 +24,7 @@ fuzzy-matcher = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 zip = "8"
 cab = "0.6"
-sevenz-rust2 = { version = "0.20", default-features = false, features = ["compress"], optional = true }
+sevenz-rust2 = { version = "0.21", default-features = false, features = ["compress"], optional = true }
 lzma-rs = { version = "0.3", optional = true }
 sha2 = { version = "0.11", optional = true }
 indicatif = { version = "0.18", optional = true }
