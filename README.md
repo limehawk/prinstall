@@ -49,8 +49,8 @@ Each release ships two binaries:
 
 | Binary | Size | SDI | Use case |
 |---|---|---|---|
-| `prinstall.exe` | ~9 MB | Yes | Default — Tiers 1–4 + IPP fallback, .cat signature verification on SDI |
-| `prinstall-nosdi.exe` | ~8 MB | No | Lean — Tiers 1–3 + IPP fallback, zero SDI code |
+| `prinstall.exe` | ~9 MB | Yes | Default — Tiers 1–5 + IPP fallback, .cat signature verification on SDI |
+| `prinstall-nosdi.exe` | ~8 MB | No | Lean — Tiers 1–4 + IPP fallback, zero SDI code |
 
 **Windows (PowerShell one-liner):**
 
@@ -58,7 +58,7 @@ Each release ships two binaries:
 # Default (includes SDI with signature verification)
 iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe
 
-# Lean (no SDI — Tiers 1–3 only)
+# Lean (no SDI — Tiers 1–4 only)
 iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-nosdi.exe -OutFile prinstall.exe
 ```
 
@@ -277,7 +277,7 @@ The top-level `prinstall drivers <IP>` is a deprecated alias for `driver show <I
 ### `prinstall sdi` — SDI driverpack cache (default build only)
 
 Manages the [Snappy Driver Installer Origin](https://www.glenn.delahoy.com/snappy-driver-installer-origin/)
-cache used by Tier 4 of the driver pipeline. Not present in `prinstall-nosdi.exe`.
+cache used by Tier 5 of the driver pipeline. Not present in `prinstall-nosdi.exe`.
 
 ```powershell
 prinstall sdi status                  # cache contents, total size, mirror URL
@@ -289,7 +289,7 @@ prinstall sdi verify                  # Authenticode-verify every cached pack's 
 ```
 
 Cache lives at `C:\ProgramData\prinstall\sdi\`. Run `refresh` then `prefetch`
-on a freshly-deployed box to enable Tier 4 for everyone.
+on a freshly-deployed box to enable Tier 5 for everyone.
 
 ### `prinstall setup` — Self-bootstrap
 
@@ -314,23 +314,62 @@ Alias for `prinstall --version`. Matches the muscle memory from `git`, `cargo`,
 
 ```
   TIER 1   Local driver store         Reuse what's already installed
-  TIER 2   Manufacturer download      HP, Xerox, Kyocera — stable direct URLs
-  TIER 3   Update Catalog + HWID      Search by IPP CID, download CAB, parse INF, match HWID
-  TIER 4   SDI Origin (verified)      Community driver packs — Brother, Canon, Epson, Ricoh
-  TIER 5   IPP Class Driver           The always-works safety net (Windows 8+)
+  TIER 2   Local bundle               Drivers dropped alongside the exe (see below)
+  TIER 3   Manufacturer download      HP, Xerox, Kyocera — stable direct URLs
+  TIER 4   Update Catalog + HWID      Search by IPP CID, download CAB, parse INF, match HWID
+  TIER 5   SDI Origin (verified)      Community driver packs — Brother, Canon, Epson, Ricoh
+  TIER 6   IPP Class Driver           The always-works safety net (Windows 8+)
 ```
 
-Tier 3 is the default workhorse — it scrapes the Microsoft Update Catalog, downloads a candidate CAB, parses the INF, and confirms a `1284_CID_*` hardware-ID match **before** installing. No gambling on model names.
+Tier 4 is the default workhorse — it scrapes the Microsoft Update Catalog, downloads a candidate CAB, parses the INF, and confirms a `1284_CID_*` hardware-ID match **before** installing. No gambling on model names.
 
-Tier 4 (SDI) runs by default. Every SDI driverpack has its `.cat` Authenticode signature verified against Microsoft's certificate chain before install — unsigned or tampered packs are skipped and the pipeline falls through to Tier 5. Use `--no-default-features` at build time to drop SDI entirely (see `prinstall-nosdi.exe`).
+Tier 5 (SDI) runs by default. Every SDI driverpack has its `.cat` Authenticode signature verified against Microsoft's certificate chain before install — unsigned or tampered packs are skipped and the pipeline falls through to Tier 6. Use `--no-default-features` at build time to drop SDI entirely (see `prinstall-nosdi.exe`).
+
+### Bundled drivers (Tier 2)
+
+Drop a folder of extracted vendor driver packs next to `prinstall.exe` and the
+bundle tier picks them up automatically — useful for air-gapped fleets,
+high-latency sites, or pre-staged RMM payloads where you don't want the tool
+reaching out to the internet for a driver you already have.
+
+**Resolution order** — first directory that contains a matching INF wins:
+
+1. `PRINSTALL_BUNDLE_DIR` environment variable (verbatim path)
+2. `drivers/` adjacent to the running `prinstall.exe`
+3. `C:\ProgramData\prinstall\drivers\` (fallback)
+
+**Layout** — one subfolder per driver pack, each containing the extracted INF
++ payload + the `.cat` catalog:
+
+```
+prinstall.exe
+drivers\
+├── hp-laserjet-m404\
+│   ├── hppcl6.inf
+│   ├── hppcl6.cat
+│   └── ...
+├── brother-mfc-l2750dw\
+│   ├── brimg18a.inf
+│   ├── brimg18a.cat
+│   └── ...
+└── ...
+```
+
+**How it works:** `prinstall add` synthesizes hardware IDs from the printer's
+device-id (IPP `MFG:..;CID:..` or the USB `VID/PID`), scans every INF in the
+bundle dir for a match, and verifies the matching pack's `.cat` against
+Microsoft's certificate chain — same gate every other tier uses. Matches show
+up in `prinstall driver show <ip>` so you can confirm what would install
+without running `add`. No flag needed; the tier always runs, and an empty
+bundle dir is a no-op.
 
 ### SDI Origin integration
 
-Tier 4 of the driver pipeline uses [Snappy Driver Installer Origin](https://www.glenn.delahoy.com/snappy-driver-installer-origin/) driver packs for vendors the Update Catalog doesn't reliably carry — Brother, Canon, Epson, Ricoh, and others.
+Tier 5 of the driver pipeline uses [Snappy Driver Installer Origin](https://www.glenn.delahoy.com/snappy-driver-installer-origin/) driver packs for vendors the Update Catalog doesn't reliably carry — Brother, Canon, Epson, Ricoh, and others.
 
 **Why we include it by default:**
 
-SDIO packs contain real vendor binaries with valid Microsoft-chained Authenticode signatures. Prinstall verifies every `.cat` catalog file in a pack before trusting it — if any signature is missing, mismatched, or not chain-trusted, the pack is skipped and the pipeline falls through to Tier 5 (IPP Class Driver). This means unsigned or tampered packs can't install, whether an attacker slipped them into a mirror or the pack author forgot to sign them.
+SDIO packs contain real vendor binaries with valid Microsoft-chained Authenticode signatures. Prinstall verifies every `.cat` catalog file in a pack before trusting it — if any signature is missing, mismatched, or not chain-trusted, the pack is skipped and the pipeline falls through to Tier 6 (IPP Class Driver). This means unsigned or tampered packs can't install, whether an attacker slipped them into a mirror or the pack author forgot to sign them.
 
 **What SDI adds:**
 
@@ -343,13 +382,13 @@ SDIO packs contain real vendor binaries with valid Microsoft-chained Authenticod
 
 1. Run `prinstall sdi refresh` to download the SDI index files (~1 MB) from the configured mirror
 2. Run `prinstall sdi prefetch` to cache the printer driver pack (~1.5 GB one-time download)
-3. `prinstall add <ip>` searches the SDI index when Tiers 1–3 come up empty, verifies the pack's `.cat` signatures, and installs only if they pass
+3. `prinstall add <ip>` searches the SDI index when Tiers 1–4 come up empty, verifies the pack's `.cat` signatures, and installs only if they pass
 
 The SDI pack is cached at `C:\ProgramData\prinstall\sdi\` and only needs to be downloaded once.
 
 **Opting out:**
 
-If you want zero SDI code in your binary — some regulated environments prefer a reviewed-and-pinned binary with no third-party pack support at all — use the lean `prinstall-nosdi.exe` release, or build with `cargo build --release --no-default-features`. Everything above Tier 4 still works.
+If you want zero SDI code in your binary — some regulated environments prefer a reviewed-and-pinned binary with no third-party pack support at all — use the lean `prinstall-nosdi.exe` release, or build with `cargo build --release --no-default-features`. Everything above Tier 5 still works.
 
 **The supply chain note:**
 
