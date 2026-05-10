@@ -30,7 +30,7 @@ One command. The right vendor driver, pulled from the Microsoft Update Catalog. 
 
 MSP technicians burn hours on printer installs. Find the IP, hunt the driver, wrestle `Add-Printer`, paste the wrong universal PCL6 again, curse, repeat on the next site visit. Then the printer breaks a week later and you get to do it all over again.
 
-`prinstall` collapses the whole workflow into a single ~9 MB binary. Scan a subnet, add a printer, remove it cleanly, audit what's installed. Works over SSH, RMM remote shells, or any local terminal with a clean CLI (`--json` on every command).
+`prinstall` collapses the whole workflow into a single binary. Scan a subnet, add a printer, remove it cleanly, audit what's installed. Works over SSH, RMM remote shells, or any local terminal with a clean CLI (`--json` on every command).
 
 ## Features
 
@@ -47,10 +47,10 @@ MSP technicians burn hours on printer installs. Find the IP, hunt the driver, wr
 
 Each release ships two binaries:
 
-| Binary | Size | SDI | Use case |
-|---|---|---|---|
-| `prinstall.exe` | ~9 MB | Yes | Default — Tiers 1–5 + IPP fallback, .cat signature verification on SDI |
-| `prinstall-nosdi.exe` | ~8 MB | No | Lean — Tiers 1–4 + IPP fallback, zero SDI code |
+| Binary | SDI | Use case |
+|---|---|---|
+| `prinstall.exe` | Yes | Default — Tiers 1–5 + IPP fallback, .cat signature verification on SDI |
+| `prinstall-nosdi.exe` | No | Lean — Tiers 1–4 + IPP fallback, zero SDI code |
 
 **Windows (PowerShell one-liner):**
 
@@ -427,6 +427,6 @@ MIT. See [LICENSE](LICENSE). Built by [limehawk](https://limehawk.io).
 
 <div align="center">
 
-*Built in Rust  ·  ~9 MB binary  ·  Designed for techs who just want the printer to work*
+*Built in Rust  ·  single binary  ·  Designed for techs who just want the printer to work*
 
 </div>
