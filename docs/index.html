@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>prinstall · Discover. Match. Add. Remove.</title>
-  <meta name="description" content="A Rust CLI and TUI for nuking printer setup pain on Windows. Scan a subnet, match a driver from the Microsoft Update Catalog, install a printer — single 8 MB binary." />
+  <meta name="description" content="A Rust CLI and TUI for nuking printer setup pain on Windows. Scan a subnet, match a driver from the Microsoft Update Catalog, install a printer — single binary." />
   <meta name="theme-color" content="#0a0e14" />
 
   <!-- Open Graph -->
@@ -905,6 +905,7 @@
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#pipeline">Pipeline</a>
+        <a href="#commands">Commands</a>
         <a href="#roadmap">Roadmap</a>
         <a href="#install">Install</a>
         <a href="https://github.com/limehawk/prinstall">GitHub</a>
@@ -939,7 +940,7 @@
         </div>
         <div class="meta sfw-flex">
           <span>built in Rust</span>
-          <span>8 MB binary</span>
+          <span>single binary</span>
           <span>scriptable</span>
           <span>MIT licensed</span>
         </div>
@@ -1034,7 +1035,7 @@
 
     <section id="pipeline">
       <div class="container">
-        <h2><span class="sfw">Five tiers, one command</span><span class="nsfw">Five ways to find your driver, because printers are assholes</span></h2>
+        <h2><span class="sfw">Six tiers, one command</span><span class="nsfw">Six ways to find your driver, because printers are assholes</span></h2>
         <p class="subtitle"><span class="sfw">prinstall add walks the pipeline in priority order — only escalates when the previous tier comes up empty.</span><span class="nsfw">If one source fails, it tries the next. Then the next. Then the next. It will NOT give up before you do.</span></p>
         <div class="pipeline">
           <div class="tier">
@@ -1044,23 +1045,93 @@
           </div>
           <div class="tier">
             <div class="tier-num">TIER 02</div>
+            <h4><span class="sfw">Local bundle</span><span class="nsfw">Drivers you already shipped</span></h4>
+            <p><span class="sfw">Drop a folder of extracted vendor packs next to <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall.exe</code> (or set <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">PRINSTALL_BUNDLE_DIR</code>) and the bundle tier finds them by HWID. Air-gapped fleets, pre-staged RMM payloads, anything offline. Same <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">.cat</code> signature gate as every other tier.</span><span class="nsfw">Pushed prinstall out via your RMM with a <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">drivers/</code> folder right next to it? It finds them. Air-gapped site? It finds them. Tech dropped a vendor pack in ProgramData last Tuesday? It finds that too. Zero network, zero excuses.</span></p>
+          </div>
+          <div class="tier">
+            <div class="tier-num">TIER 03</div>
             <h4><span class="sfw">Manufacturer download</span><span class="nsfw">Straight from the source</span></h4>
             <p><span class="sfw">Pull from the embedded URL manifest — HP, Xerox, and Kyocera have stable direct links. More vendors coming.</span><span class="nsfw">HP, Xerox, Kyocera — their download URLs are hardcoded because someone had to memorize the paths these vendors bury 14 clicks deep on their godforsaken support sites.</span></p>
           </div>
           <div class="tier">
-            <div class="tier-num">TIER 03</div>
+            <div class="tier-num">TIER 04</div>
             <h4><span class="sfw">Update Catalog + INF HWID</span><span class="nsfw">Microsoft's secret driver stash</span></h4>
             <p><span class="sfw">Search by IPP CID, download a candidate CAB, parse the INF, match the synthesized hardware ID. Deterministic.</span><span class="nsfw">Microsoft has a whole catalog of drivers they don't tell you about. We scrape it, crack open the CAB, match the hardware ID, and stage the INF. Microsoft couldn't make this easy, so we did.</span></p>
           </div>
           <div class="tier highlight">
-            <div class="tier-num">TIER 04</div>
+            <div class="tier-num">TIER 05</div>
             <h4><span class="sfw">SDI Origin driver packs</span><span class="nsfw">The nuclear option</span></h4>
-            <p><span class="sfw">Search SDIO's printer driver pack index by hardware ID. Covers Brother, Canon, Epson, Ricoh, Lexmark, and every other vendor SDIO carries — the brands the Update Catalog often misses.</span><span class="nsfw">A community-maintained archive of every printer driver known to humanity. Brother, Canon, Epson, Ricoh — the vendors that make you download a 200 MB "setup utility" just to get a damn INF file. We bypass all of it.</span></p>
+            <p><span class="sfw">Search SDIO's printer driver pack index by hardware ID. Covers Brother, Canon, Epson, Ricoh, and every other vendor SDIO carries — the brands the Update Catalog often misses. Every pack's <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">.cat</code> Authenticode signature is verified against Microsoft's certificate chain before install.</span><span class="nsfw">A community-maintained archive of every printer driver known to humanity. Brother, Canon, Epson, Ricoh — the vendors that make you download a 200 MB "setup utility" just to get a damn INF file. We bypass all of it. Unsigned packs get nuked, so nobody's slipping malware in.</span></p>
           </div>
           <div class="tier">
-            <div class="tier-num">TIER 05</div>
+            <div class="tier-num">TIER 06</div>
             <h4><span class="sfw">IPP Class Driver</span><span class="nsfw">The "fuck it, just print" fallback</span></h4>
             <p><span class="sfw">The always-works safety net for any printer that speaks IPP Everywhere (Windows 8+).</span><span class="nsfw">If literally nothing else works, Microsoft's built-in IPP driver will at least let you print. No duplex, no trays, no fancy stuff — but the paper comes out. Sometimes that's all you need at 5 PM on a Friday.</span></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="commands">
+      <div class="container">
+        <h2><span class="sfw">Every command, at a glance</span><span class="nsfw">The whole damn toolkit</span></h2>
+        <p class="subtitle"><span class="sfw">Each subcommand has its own <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--help</code>. Global flags <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code>, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--verbose</code>, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--community</code>, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--force</code> work everywhere.</span><span class="nsfw">Six discovery commands, four driver commands, six SDI commands, two bootstrap commands. <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> and <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--verbose</code> on every single one of them.</span></p>
+        <div class="features">
+          <div class="feature">
+            <div class="icon">01</div>
+            <h3><span class="sfw">Discovery</span><span class="nsfw">Find the damn printer</span></h3>
+            <p>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall scan [SUBNET]</code> — TCP + IPP + SNMP + mDNS in parallel.<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall id &lt;IP&gt;</code> — identify one host via SNMP.<br>
+              <span class="sfw">Flags: <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--method</code> (all/snmp/port/mdns), <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--timeout</code>, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--network-only</code>, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--usb-only</code>.</span><span class="nsfw">Throws SNMP, IPP, port probes, and mDNS at every IP in parallel. Anything that beeps shows up.</span>
+            </p>
+          </div>
+          <div class="feature">
+            <div class="icon">02</div>
+            <h3><span class="sfw">Install &amp; remove</span><span class="nsfw">Add it. Nuke it.</span></h3>
+            <p>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall add &lt;IP&gt;</code> — network install, full pipeline cascade.<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall add &lt;QUEUE&gt; --usb</code> — swap driver on a USB printer.<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall remove &lt;IP|QUEUE&gt;</code> — queue + driver + port cleanup.<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall list</code> — every queue Windows knows about.
+            </p>
+          </div>
+          <div class="feature">
+            <div class="icon">03</div>
+            <h3><span class="sfw">Driver management</span><span class="nsfw">Stage 'em, kill 'em</span></h3>
+            <p>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall driver add &lt;PATH|model&gt;</code> — stage from INF folder, INF file, or model string.<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall driver remove &lt;name|fuzzy&gt;</code> — unstage; <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--force</code> cascades dependent queues.<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall driver list</code> — every staged driver, no admin needed.<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall driver show &lt;IP&gt;</code> — ranked match candidates for a printer.
+            </p>
+          </div>
+          <div class="feature">
+            <div class="icon">04</div>
+            <h3><span class="sfw">SDI cache</span><span class="nsfw">The driver pack vault</span></h3>
+            <p>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall sdi refresh</code> — pull the latest pack index.<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall sdi prefetch</code> — download every printer pack (~1.5 GB, one time).<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall sdi verify</code> — Authenticode-check every cached <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">.cat</code>.<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall sdi status / list / clean</code> — inspect, list, LRU-prune.
+            </p>
+          </div>
+          <div class="feature">
+            <div class="icon">05</div>
+            <h3><span class="sfw">Self-bootstrap</span><span class="nsfw">Plant it on the box</span></h3>
+            <p>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall setup install</code> — copy to <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">C:\ProgramData\prinstall\</code>, add to Machine PATH, open UDP 5353 for mDNS.<br>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall setup uninstall</code> — reverses all three. Idempotent.<br>
+              <span class="sfw">Run from a copy outside the install dir so uninstall doesn't hit the running-exe file lock.</span><span class="nsfw">Idempotent. Run it twice, run it ten times. Nothing breaks.</span>
+            </p>
+          </div>
+          <div class="feature">
+            <div class="icon">06</div>
+            <h3><span class="sfw">Interactive TUI</span><span class="nsfw">The two-panel cockpit</span></h3>
+            <p>
+              <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">prinstall</code> (no args) — launches a ratatui two-panel layout: printer list + detail pane.<br>
+              <span class="sfw">Vim keys: <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">j/k</code> move, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">h/l</code> swap panels, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">Enter</code> install, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">s</code> rescan, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">?</code> help, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">q</code> quit.</span><span class="nsfw">Vim keys, no mouse, no wizards. <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">j/k</code> to move, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">Enter</code> to install, <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">q</code> to bail. That's it.</span>
+            </p>
           </div>
         </div>
       </div>
@@ -1116,7 +1187,7 @@
     <section id="install">
       <div class="container">
         <h2><span class="sfw">Install</span><span class="nsfw">Get this thing</span></h2>
-        <p class="subtitle"><span class="sfw">Single 8 MB binary. Drop it on PATH and go.</span><span class="nsfw">8 MB. One file. No installer. No .NET runtime. No "please restart your computer." Just copy and run.</span></p>
+        <p class="subtitle"><span class="sfw">Single binary. Drop it on PATH and go.</span><span class="nsfw">One file. No installer. No .NET runtime. No "please restart your computer." Just copy and run.</span></p>
         <div class="install-block">
           <div class="install-step">
             <div class="install-step-num">1</div>
