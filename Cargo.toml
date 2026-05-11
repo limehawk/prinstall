@@ -28,7 +28,7 @@ sevenz-rust2 = { version = "0.21", default-features = false, features = ["compre
 lzma-rs = { version = "0.3", optional = true }
 sha2 = { version = "0.11", optional = true }
 indicatif = { version = "0.18", optional = true }
-scraper = "0.26"
+scraper = "0.27"
 regex = "1"
 mdns-sd = "0.19"
 
