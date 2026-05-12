@@ -268,6 +268,108 @@ iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-nos
 <span class="c"># First-run setup — copy to C:\ProgramData\prinstall\, add to PATH, open UDP 5353</span>
 .\prinstall.exe setup install</pre>
 
+      <h2>RMM scripts</h2>
+      <p class="lede">SuperOps-flavored PowerShell wrappers around each prinstall command. Structured stdout, exit codes for RMM dispatch, README headers inline. Source: <a href="https://github.com/limehawk/rmm-scripts">limehawk/rmm-scripts</a>. Click to expand and copy.</p>
+
+      <details class="script" data-script="prinstall_setup.ps1">
+        <summary><span class="name">prinstall_setup.ps1</span><span class="desc">— bootstrap a box: download prinstall.exe, install to <code>C:\ProgramData\prinstall\</code>, add to PATH, open UDP 5353</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_setup.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_scan.ps1">
+        <summary><span class="name">prinstall_scan.ps1</span><span class="desc">— multi-method subnet scan (TCP + IPP + SNMP + mDNS)</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_scan.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_id.ps1">
+        <summary><span class="name">prinstall_id.ps1</span><span class="desc">— SNMP query one host: model, serial, status</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_id.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_add.ps1">
+        <summary><span class="name">prinstall_add.ps1</span><span class="desc">— install a network or USB printer via the full pipeline cascade</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_add.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_remove.ps1">
+        <summary><span class="name">prinstall_remove.ps1</span><span class="desc">— remove queue + orphan driver + orphan port, idempotent</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_remove.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_list.ps1">
+        <summary><span class="name">prinstall_list.ps1</span><span class="desc">— enumerate every printer queue on the box</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_list.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_driver_add.ps1">
+        <summary><span class="name">prinstall_driver_add.ps1</span><span class="desc">— stage a driver into the Windows driver store</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_driver_add.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_driver_remove.ps1">
+        <summary><span class="name">prinstall_driver_remove.ps1</span><span class="desc">— unstage a driver; <code>--force</code> cascades dependent queues</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_driver_remove.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_driver_list.ps1">
+        <summary><span class="name">prinstall_driver_list.ps1</span><span class="desc">— list every driver in the Windows driver store</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_driver_list.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_drivers.ps1">
+        <summary><span class="name">prinstall_drivers.ps1</span><span class="desc">— show ranked driver-match candidates for a printer IP</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_drivers.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_trust_codesign.ps1">
+        <summary><span class="name">prinstall_trust_codesign.ps1</span><span class="desc">— push the limehawk self-signed cert to the box's TrustedPublisher store (fleet trust rollout)</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_trust_codesign.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
       <h2>Commands</h2>
       <table>
         <thead>
@@ -607,108 +709,6 @@ prinstall scan --json | ConvertFrom-Json | ForEach-Object {
 <span class="c"># RMM remote shell — no color, JSON only</span>
 $env:NO_COLOR = "1"
 .\prinstall.exe scan --json</pre>
-
-      <h2>RMM scripts</h2>
-      <p class="lede">SuperOps-flavored PowerShell wrappers around each prinstall command. Structured stdout, exit codes for RMM dispatch, README headers inline. Source: <a href="https://github.com/limehawk/rmm-scripts">limehawk/rmm-scripts</a>. Click to expand and copy.</p>
-
-      <details class="script" data-script="prinstall_setup.ps1">
-        <summary><span class="name">prinstall_setup.ps1</span><span class="desc">— bootstrap a box: download prinstall.exe, install to <code>C:\ProgramData\prinstall\</code>, add to PATH, open UDP 5353</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_setup.ps1">View on GitHub</a></p>
-        </div>
-      </details>
-
-      <details class="script" data-script="prinstall_scan.ps1">
-        <summary><span class="name">prinstall_scan.ps1</span><span class="desc">— multi-method subnet scan (TCP + IPP + SNMP + mDNS)</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_scan.ps1">View on GitHub</a></p>
-        </div>
-      </details>
-
-      <details class="script" data-script="prinstall_id.ps1">
-        <summary><span class="name">prinstall_id.ps1</span><span class="desc">— SNMP query one host: model, serial, status</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_id.ps1">View on GitHub</a></p>
-        </div>
-      </details>
-
-      <details class="script" data-script="prinstall_add.ps1">
-        <summary><span class="name">prinstall_add.ps1</span><span class="desc">— install a network or USB printer via the full pipeline cascade</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_add.ps1">View on GitHub</a></p>
-        </div>
-      </details>
-
-      <details class="script" data-script="prinstall_remove.ps1">
-        <summary><span class="name">prinstall_remove.ps1</span><span class="desc">— remove queue + orphan driver + orphan port, idempotent</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_remove.ps1">View on GitHub</a></p>
-        </div>
-      </details>
-
-      <details class="script" data-script="prinstall_list.ps1">
-        <summary><span class="name">prinstall_list.ps1</span><span class="desc">— enumerate every printer queue on the box</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_list.ps1">View on GitHub</a></p>
-        </div>
-      </details>
-
-      <details class="script" data-script="prinstall_driver_add.ps1">
-        <summary><span class="name">prinstall_driver_add.ps1</span><span class="desc">— stage a driver into the Windows driver store</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_driver_add.ps1">View on GitHub</a></p>
-        </div>
-      </details>
-
-      <details class="script" data-script="prinstall_driver_remove.ps1">
-        <summary><span class="name">prinstall_driver_remove.ps1</span><span class="desc">— unstage a driver; <code>--force</code> cascades dependent queues</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_driver_remove.ps1">View on GitHub</a></p>
-        </div>
-      </details>
-
-      <details class="script" data-script="prinstall_driver_list.ps1">
-        <summary><span class="name">prinstall_driver_list.ps1</span><span class="desc">— list every driver in the Windows driver store</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_driver_list.ps1">View on GitHub</a></p>
-        </div>
-      </details>
-
-      <details class="script" data-script="prinstall_drivers.ps1">
-        <summary><span class="name">prinstall_drivers.ps1</span><span class="desc">— show ranked driver-match candidates for a printer IP</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_drivers.ps1">View on GitHub</a></p>
-        </div>
-      </details>
-
-      <details class="script" data-script="prinstall_trust_codesign.ps1">
-        <summary><span class="name">prinstall_trust_codesign.ps1</span><span class="desc">— push the limehawk self-signed cert to the box's TrustedPublisher store (fleet trust rollout)</span></summary>
-        <div class="script-wrap">
-          <button class="copy-btn" type="button">Copy</button>
-          <pre><code>Loading…</code></pre>
-          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_trust_codesign.ps1">View on GitHub</a></p>
-        </div>
-      </details>
 
       <footer>
         <span>limehawk</span>
