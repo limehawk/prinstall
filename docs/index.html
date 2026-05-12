@@ -56,6 +56,12 @@
       max-width: 880px;
       margin: 0 auto;
       padding: 0 20px;
+      /* iOS notch / Android cutout safe area */
+      padding-left: max(20px, env(safe-area-inset-left));
+      padding-right: max(20px, env(safe-area-inset-right));
+    }
+    @media (max-width: 480px) {
+      .container { padding: 0 16px; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
     }
 
     a { color: var(--accent); }
@@ -218,6 +224,19 @@
       overflow-x: auto;
       padding: 16px 18px;
       line-height: 1.55;
+      /* Visual hint that horizontal scrolling is possible on narrow viewports */
+      background-image:
+        linear-gradient(to right, var(--bg-subtle) 30%, rgba(15,22,32,0)),
+        linear-gradient(to right, rgba(15,22,32,0), var(--bg-subtle) 70%) 100% 0,
+        linear-gradient(to right, var(--border-bright), var(--border-bright)),
+        linear-gradient(to right, var(--border-bright), var(--border-bright));
+      background-repeat: no-repeat;
+      background-size: 24px 100%, 24px 100%, 1px 100%, 1px 100%;
+      background-position: 0 0, 100% 0, 0 0, 100% 0;
+      background-attachment: local, local, scroll, scroll;
+    }
+    @media (max-width: 480px) {
+      .terminal { padding: 12px 14px; font-size: 12px; }
     }
     .terminal .t-line { display: block; white-space: pre; }
     .t-prompt { color: var(--green); }
@@ -319,6 +338,17 @@
       padding: 2px 7px;
       cursor: pointer;
       line-height: 1.5;
+    }
+    /* On touch devices, expand the tap region to the WCAG 2.5.5 AA minimum
+       (24px target) without changing the visual chip size — extra padding
+       grows the hit area while the chip background stays tight. */
+    @media (pointer: coarse) {
+      .copy-btn {
+        min-width: 32px;
+        min-height: 26px;
+        padding: 4px 10px;
+        font-size: 11px;
+      }
     }
     .copy-btn:hover { color: var(--accent); }
     .copy-btn.is-copied { color: var(--green); }
