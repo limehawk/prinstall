@@ -3,23 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>prinstall · Because fuck printers.</title>
-  <meta name="description" content="A Rust CLI that discovers network printers, matches them to the right vendor driver, and installs them. One binary. No wizard. No crying." />
+  <title>prinstall — because fuck printers.</title>
+  <meta name="description" content="One binary. Scans the subnet. Matches the driver. Installs the printer. No wizard, no 200 MB setup utility, no crying." />
   <meta name="theme-color" content="#0a0e14" />
 
-  <!-- Open Graph -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="prinstall — Because fuck printers." />
-  <meta property="og:description" content="Discover printers, match drivers, install. One command. No wizard. No crying." />
+  <meta property="og:title" content="prinstall — because fuck printers." />
+  <meta property="og:description" content="One binary. Scans the subnet. Matches the driver. Installs the printer." />
   <meta property="og:url" content="https://prinstall.limehawk.io" />
   <meta property="og:image" content="https://prinstall.limehawk.io/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
 
-  <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="prinstall — Because fuck printers." />
-  <meta name="twitter:description" content="Discover printers, match drivers, install. One command. No wizard. No crying." />
+  <meta name="twitter:title" content="prinstall — because fuck printers." />
+  <meta name="twitter:description" content="One binary. Scans the subnet. Matches the driver. Installs the printer." />
   <meta name="twitter:image" content="https://prinstall.limehawk.io/og-image.png" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect x='16' y='82' width='480' height='264' rx='30' ry='30' fill='%231e293b'/%3E%3Crect x='64' y='118' width='384' height='24' rx='6' ry='6' fill='%23475569'/%3E%3Crect x='64' y='346' width='384' height='84' rx='12' ry='12' fill='%23f8fafc'/%3E%3Crect x='64' y='346' width='384' height='18' fill='%23cbd5e1'/%3E%3Ccircle cx='424' cy='190' r='15' fill='%2322c55e'/%3E%3C/svg%3E" />
@@ -56,54 +54,37 @@
       font-family: var(--sans);
       background: var(--bg);
       color: var(--text);
-      line-height: 1.6;
+      line-height: 1.7;
       min-height: 100vh;
       min-height: 100dvh;
       -webkit-font-smoothing: antialiased;
     }
 
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
-      background-size: 32px 32px;
-      opacity: 0.25;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    body::after {
-      content: "";
-      position: fixed;
-      top: -20%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 80%;
-      height: 60%;
-      background: radial-gradient(ellipse at center, var(--accent-dim) 0%, transparent 70%);
-      pointer-events: none;
-      z-index: 0;
-    }
-
     main { position: relative; z-index: 1; }
 
-    .container {
-      max-width: 1080px;
+    /* Prose container — readable line length */
+    .prose {
+      max-width: 680px;
       margin: 0 auto;
       padding: 0 24px;
     }
 
-    /* Nav */
+    /* Wide container — for the terminal demo */
+    .wide {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Nav — just the logo and one link */
     nav {
       padding: 24px 0;
       border-bottom: 1px solid var(--border);
     }
-    nav .container {
+    nav .prose {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
     }
     .logo {
       font-family: var(--mono);
@@ -111,211 +92,111 @@
       font-size: 18px;
       color: var(--text);
       text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 8px;
     }
-    .logo-mark {
-      display: inline-block;
-      width: 28px;
-      height: 28px;
-      flex-shrink: 0;
-    }
-    .nav-links {
-      display: flex;
-      gap: 28px;
+    nav a.nav-link {
+      font-family: var(--mono);
       font-size: 14px;
-    }
-    .nav-links a {
       color: var(--text-dim);
       text-decoration: none;
-      transition: color 0.15s;
     }
-    .nav-links a:hover { color: var(--text); }
+    nav a.nav-link:hover { color: var(--text); }
 
     /* Hero */
     .hero {
-      padding: 120px 0 96px;
-      text-align: center;
+      padding: 120px 0 80px;
     }
-    .hero .hero-title {
-      font-size: clamp(40px, 4vw + 1rem, 88px);
+    .hero h1 {
+      font-size: clamp(36px, 5vw + 0.5rem, 72px);
       font-weight: 800;
-      letter-spacing: -0.028em;
-      line-height: 1.02;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
       margin-bottom: 40px;
-      color: var(--text);
     }
-    .hero .hero-title .line-1 {
+    .hero h1 span {
       display: block;
     }
-    .hero .hero-title .line-2 {
-      display: block;
-      margin-top: 0.12em;
-    }
-    .hero .hero-title .brand {
-      font-family: var(--mono);
-      font-weight: 700;
-      letter-spacing: -0.01em;
-    }
-    .hero .hero-title .accent {
+    .hero h1 .hl {
       color: var(--accent);
-      text-shadow: 0 0 40px rgba(255, 107, 53, 0.35);
     }
-    .hero .hero-body {
-      font-size: clamp(16px, 0.95rem + 0.5vw, 20px);
+    .hero p {
+      font-size: clamp(17px, 1rem + 0.4vw, 20px);
       color: var(--text-dim);
-      max-width: 640px;
-      margin: 0 auto 48px;
-      line-height: 1.55;
+      line-height: 1.65;
+      margin-bottom: 40px;
     }
-
-    /* CTA */
-    .cta {
-      display: flex;
-      gap: 16px;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-bottom: 24px;
-    }
-    .btn {
+    .hero .cta {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 28px;
+      padding: 16px 32px;
       font-family: var(--mono);
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 600;
       text-decoration: none;
       border-radius: 8px;
-      border: 1px solid transparent;
-      transition: transform 0.15s, background 0.15s, border 0.15s;
-      cursor: pointer;
-    }
-    .btn-primary {
       background: var(--accent);
       color: var(--bg);
+      transition: background 0.15s;
     }
-    .btn-primary:hover {
-      background: var(--accent-bright);
-      transform: translateY(-1px);
-    }
-    .btn .arrow { transition: transform 0.15s; }
-    .btn:hover .arrow { transform: translateX(2px); }
+    .hero .cta:hover { background: var(--accent-bright); }
 
-    .btn-github-stars {
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 22px 14px 24px;
-      font-family: var(--mono);
-      font-size: 14px;
-      font-weight: 600;
-      text-decoration: none;
-      color: var(--text);
-      background: var(--bg-elevated);
-      border: 1px solid var(--border-bright);
-      border-radius: 8px;
-      transition: border-color 0.15s, transform 0.15s;
+    /* Section dividers */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 80px auto;
+      max-width: 680px;
     }
-    .btn-github-stars:hover {
-      border-color: var(--accent);
-      transform: translateY(-1px);
+
+    /* Prose body */
+    .body-section {
+      padding: 0 0 20px;
     }
-    .btn-github-stars svg {
-      width: 18px;
-      height: 18px;
-      flex-shrink: 0;
-    }
-    .btn-github-stars .count-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 11px;
-      background: var(--accent-dim);
-      color: var(--accent);
-      border: 1px solid rgba(255, 107, 53, 0.25);
-      border-radius: 9999px;
-      font-size: 12px;
+    .body-section h2 {
+      font-size: clamp(22px, 1.2rem + 0.8vw, 32px);
       font-weight: 700;
-      line-height: 1;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+      line-height: 1.2;
     }
-
-    .meta {
-      display: flex;
-      gap: 8px;
-      justify-content: center;
+    .body-section p {
+      font-size: clamp(16px, 0.95rem + 0.2vw, 18px);
+      color: var(--text-dim);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+    .body-section p:last-child { margin-bottom: 0; }
+    .body-section strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .body-section code {
       font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text-subtle);
-      flex-wrap: wrap;
-    }
-    .meta span {
-      display: flex;
-      align-items: center;
-      padding: 2px 7px;
-      background: var(--bg-subtle);
-      border: 1px solid var(--border);
+      font-size: 0.88em;
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 2px 6px;
       border-radius: 3px;
     }
 
-    /* Sections */
-    section { padding: 80px 0; }
-    section h2 {
-      font-size: clamp(24px, 1.4rem + 1vw, 34px);
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      margin-bottom: 8px;
-      text-align: center;
-    }
-    section .subtitle {
-      text-align: center;
-      color: var(--text-dim);
-      font-family: var(--mono);
-      font-size: 14px;
-      margin-bottom: 56px;
-    }
-
-    /* Feature grid */
-    .features {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
-      gap: 20px;
-    }
-    .feature {
-      background: var(--bg-elevated);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 24px;
-      transition: border-color 0.15s, transform 0.15s;
-    }
-    .feature:hover {
-      border-color: var(--accent);
-      transform: translateY(-2px);
-    }
-    .feature .icon {
-      font-family: var(--mono);
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--accent);
-      margin-bottom: 12px;
-      display: inline-block;
-      padding: 6px 10px;
-      background: var(--accent-dim);
-      border-radius: 6px;
-    }
-    .feature h3 {
-      font-size: 17px;
-      font-weight: 600;
-      margin-bottom: 10px;
-    }
-    .feature p {
-      font-size: 14px;
-      color: var(--text-dim);
-      line-height: 1.6;
-    }
-
     /* Terminal demo */
+    .terminal-section {
+      padding: 80px 0;
+    }
+    .terminal-section h2 {
+      font-size: clamp(22px, 1.2rem + 0.8vw, 32px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .terminal-section .sub {
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 14px;
+      color: var(--text-subtle);
+      margin-bottom: 40px;
+    }
     .terminal {
       background: var(--bg-subtle);
       border: 1px solid var(--border);
@@ -323,9 +204,7 @@
       overflow: hidden;
       font-family: var(--mono);
       font-size: 13px;
-      max-width: 900px;
-      margin: 0 auto;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 80px rgba(255, 107, 53, 0.08);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     }
     .terminal-header {
       display: flex;
@@ -336,9 +215,7 @@
       border-bottom: 1px solid var(--border);
     }
     .terminal-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
+      width: 12px; height: 12px; border-radius: 50%;
     }
     .terminal-dot:nth-child(1) { background: #ff5f57; }
     .terminal-dot:nth-child(2) { background: #febc2e; }
@@ -358,16 +235,14 @@
     }
     .t-prompt { color: var(--green); }
     .t-cmd { color: var(--text); font-weight: 600; }
-    .t-flag { color: var(--cyan); }
     .t-dim { color: var(--text-subtle); }
-    .t-tag { color: var(--yellow); }
-    .t-ok { color: var(--green); font-weight: 600; }
     .t-accent { color: var(--accent); font-weight: 600; }
     .t-section { color: var(--cyan); font-weight: 600; }
     .t-check { color: var(--green); }
     .t-fail { color: var(--text-subtle); }
     .t-star { color: var(--accent); font-weight: 600; }
     .t-label { color: var(--cyan); }
+    .t-ok { color: var(--green); font-weight: 600; }
     .t-line { display: block; white-space: pre; min-height: 1.65em; }
     .t-line.is-pending { opacity: 0; }
     .t-caret {
@@ -377,59 +252,38 @@
       vertical-align: text-bottom;
       background: var(--accent);
       margin-left: 2px;
-      animation: t-blink 1s steps(2, end) infinite;
+      animation: blink 1s steps(2, end) infinite;
     }
-    @keyframes t-blink { 50% { opacity: 0; } }
+    @keyframes blink { 50% { opacity: 0; } }
 
-    /* Install block */
-    .install-block {
-      max-width: 720px;
-      margin: 0 auto;
+    /* Install code block */
+    .install-section {
+      padding: 0 0 20px;
     }
-    .install-step {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 20px;
-      align-items: flex-start;
-    }
-    .install-step-num {
-      flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: var(--accent-dim);
-      color: var(--accent);
-      font-family: var(--mono);
-      font-size: 13px;
+    .install-section h2 {
+      font-size: clamp(22px, 1.2rem + 0.8vw, 32px);
       font-weight: 700;
-      text-align: center;
-      line-height: 28px;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
     }
-    .install-step-body {
-      flex: 1;
-      min-width: 0;
-    }
-    .install-step-body p {
+    .install-section p {
+      font-size: clamp(16px, 0.95rem + 0.2vw, 18px);
       color: var(--text-dim);
-      font-size: 14px;
-      margin-bottom: 10px;
+      margin-bottom: 20px;
+      line-height: 1.7;
     }
-    .install-step-body .install-alt {
-      margin-top: 14px;
-      font-size: 13px;
-      color: var(--text-subtle);
-    }
-    .install-step-body .code-wrap {
+    .code-wrap {
       position: relative;
+      margin-bottom: 16px;
     }
-    .install-step-body code {
+    .code-wrap code {
       display: block;
       font-family: var(--mono);
       font-size: 13px;
       background: var(--bg-subtle);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 12px 64px 12px 16px;
+      padding: 14px 64px 14px 16px;
       color: var(--text);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -446,12 +300,11 @@
       border-radius: 6px;
       padding: 4px 10px;
       cursor: pointer;
-      transition: color 150ms, border-color 150ms, background 150ms;
+      transition: color 150ms, border-color 150ms;
     }
     .copy-btn:hover {
       color: var(--accent);
       border-color: var(--accent);
-      background: var(--bg);
     }
     .copy-btn.is-copied {
       color: var(--green);
@@ -467,208 +320,112 @@
       }
     }
 
+    /* Bottom CTA */
+    .bottom-cta {
+      text-align: center;
+      padding: 80px 0;
+    }
+    .bottom-cta a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 32px;
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: var(--bg);
+      transition: background 0.15s;
+    }
+    .bottom-cta a:hover { background: var(--accent-bright); }
+    .bottom-cta p {
+      margin-top: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-subtle);
+    }
+
     /* Footer */
     footer {
-      padding: 48px 0 32px;
+      padding: 32px 0;
       border-top: 1px solid var(--border);
-      margin-top: 60px;
       text-align: center;
       font-family: var(--mono);
       font-size: 13px;
       color: var(--text-subtle);
     }
-    footer .footer-links {
-      display: flex;
-      gap: 24px;
-      justify-content: center;
-      margin-bottom: 16px;
-    }
-    footer .footer-links a {
+    footer a {
       color: var(--text-dim);
-      text-decoration: none;
+      text-decoration: underline;
     }
-    footer .footer-links a:hover { color: var(--accent); }
+    footer a:hover { color: var(--accent); }
 
     /* ── Responsive ── */
 
-    @media (max-width: 700px) {
-      .container { padding: 0 18px; }
-      nav { padding: 18px 0; }
-      nav .container {
-        flex-wrap: wrap;
-        row-gap: 12px;
-        justify-content: center;
-      }
-      .logo { flex: 1 1 auto; }
-      .nav-links {
-        flex: 1 1 100%;
-        justify-content: center;
-        gap: 18px;
-        font-size: 13px;
-      }
-      .hero { padding: 72px 0 52px; }
-      .hero .hero-title { margin-bottom: 28px; }
-      .hero .hero-body { margin-bottom: 32px; }
-      .btn { padding: 12px 22px; font-size: 13px; }
-      .btn-github-stars { padding: 12px 18px 12px 20px; font-size: 13px; }
-      .btn-github-stars svg { width: 16px; height: 16px; }
-      .btn-github-stars .count-badge { font-size: 11px; padding: 2px 9px; }
-      section { padding: 56px 0; }
-      section .subtitle { margin-bottom: 40px; }
-      .feature { padding: 22px; }
-      .meta { gap: 6px; font-size: 9px; }
-      .terminal-body { padding: 16px; font-size: 12px; }
-      footer .footer-links {
-        flex-wrap: wrap;
-        row-gap: 10px;
-        gap: 16px;
-      }
-    }
-
-    @media (max-width: 480px) {
-      .container { padding: 0 14px; }
-      .nav-links {
-        gap: 14px;
-        font-size: 12px;
-        flex-wrap: wrap;
-      }
-      .hero { padding: 56px 0 40px; }
-      .hero .hero-title {
-        font-size: clamp(30px, 9vw, 44px);
-        margin-bottom: 22px;
-      }
-      .hero .hero-body { font-size: 15px; margin-bottom: 28px; }
-      .cta { gap: 12px; margin-bottom: 20px; }
-      .btn { padding: 11px 18px; font-size: 12px; }
-      .btn-github-stars { padding: 10px 14px 10px 16px; gap: 10px; font-size: 12px; }
-      .btn-github-stars .count-badge { font-size: 10px; padding: 2px 8px; }
-      .meta {
-        display: grid;
-        grid-template-columns: repeat(2, auto);
-        justify-content: center;
-        column-gap: 28px;
-        row-gap: 6px;
-        font-size: 11px;
-      }
-      section { padding: 44px 0; }
-      section h2 { margin-bottom: 6px; }
-      section .subtitle { margin-bottom: 32px; font-size: 13px; }
-      .feature { padding: 18px; }
-      .feature h3 { font-size: 16px; }
-      .feature p { font-size: 13px; }
-      .install-step { gap: 12px; margin-bottom: 18px; }
-      .install-step-num {
-        width: 24px;
-        height: 24px;
-        line-height: 24px;
-        font-size: 12px;
-      }
-      .install-step-body p { font-size: 13px; }
-      .install-step-body code {
-        padding: 10px 56px 10px 12px;
-        font-size: 12px;
-      }
-      .copy-btn { font-size: 10px; padding: 3px 8px; }
+    @media (max-width: 600px) {
+      .prose, .wide { padding: 0 16px; }
+      .hero { padding: 72px 0 56px; }
+      .hero h1 { margin-bottom: 28px; }
+      .hero p { margin-bottom: 28px; }
+      .hero .cta { padding: 14px 24px; font-size: 14px; }
+      hr { margin: 56px auto; }
+      .terminal-section { padding: 56px 0; }
+      .terminal-body { padding: 16px 14px; font-size: 12px; }
       .terminal-header { padding: 10px 12px; }
       .terminal-title { font-size: 11px; padding-right: 48px; }
-      .terminal-body { padding: 14px 12px; font-size: 11px; }
-      footer {
-        padding: 36px 0 24px;
-        font-size: 12px;
-      }
-      footer .footer-links { gap: 12px; font-size: 12px; }
+      .bottom-cta { padding: 56px 0; }
+      .bottom-cta a { padding: 14px 24px; font-size: 14px; }
+      .code-wrap code { padding: 12px 56px 12px 12px; font-size: 12px; }
+      .copy-btn { font-size: 10px; padding: 3px 8px; }
     }
   </style>
 </head>
 <body>
   <nav>
-    <div class="container">
-      <a class="logo" href="/">
-        <svg class="logo-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-hidden="true">
-          <rect x="16" y="82" width="480" height="264" rx="30" ry="30" fill="#1e293b"/>
-          <rect x="64" y="118" width="384" height="24" rx="6" ry="6" fill="#475569"/>
-          <rect x="64" y="346" width="384" height="84" rx="12" ry="12" fill="#f8fafc"/>
-          <rect x="64" y="346" width="384" height="18" fill="#cbd5e1"/>
-          <circle cx="424" cy="190" r="15" fill="#22c55e"/>
-        </svg>
-        prinstall
-      </a>
-      <div class="nav-links">
-        <a href="#install">Install</a>
-        <a href="https://github.com/limehawk/prinstall">GitHub</a>
-        <a href="https://github.com/limehawk/prinstall/blob/main/README.md">Docs</a>
-      </div>
+    <div class="prose">
+      <a class="logo" href="/">prinstall</a>
+      <a class="nav-link" href="https://github.com/limehawk/prinstall">GitHub</a>
     </div>
   </nav>
 
   <main>
     <section class="hero">
-      <div class="container">
-        <h1 class="hero-title">
-          <span class="line-1">Adding printers on Windows sucks.</span>
-          <span class="line-2"><span class="brand">prinstall</span> <span class="accent">fixes it.</span></span>
+      <div class="prose">
+        <h1>
+          <span>Adding printers on</span>
+          <span>Windows sucks.</span>
+          <span><span class="hl">prinstall fixes it.</span></span>
         </h1>
-        <p class="hero-body">
-          Why does adding a printer in 2026 still feel like defusing a bomb? Wrong driver. Missing port. HRESULT 0x80070705. Restart the spooler. Google the error. Download a 200 MB "setup utility." Run it. It doesn't work. We wrote a tool so you never have to do that again.
+        <p>
+          Why does adding a printer in 2026 still feel like defusing a bomb? Wrong driver. Missing port. <code style="font-family: var(--mono); color: var(--accent); background: none; padding: 0;">HRESULT 0x80070705</code>. Restart the spooler. Google the error. Download a 200 MB "setup utility." Run it. It doesn't work. Throw the printer out the window. Order a new one. Repeat.
         </p>
-        <div class="cta">
-          <a class="btn btn-primary" href="https://github.com/limehawk/prinstall/releases/latest">
-            Download for Windows
-            <span class="arrow">→</span>
-          </a>
-          <a class="btn-github-stars" href="https://github.com/limehawk/prinstall">
-            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
-            View on GitHub
-            <span class="count-badge">★ <span data-github-stars>—</span></span>
-          </a>
-        </div>
-        <div class="meta">
-          <span>zero dependencies</span>
-          <span>no installer</span>
-          <span>no GUI wizard</span>
-          <span>no bullshit</span>
-        </div>
+        <p>
+          We wrote a tool so you never have to do that again.
+        </p>
+        <a class="cta" href="https://github.com/limehawk/prinstall/releases/latest">Download for Windows →</a>
       </div>
     </section>
 
-    <section id="install">
-      <div class="container">
-        <h2>Get this thing</h2>
-        <p class="subtitle">One file. No installer. No .NET runtime. No "please restart your computer." Just copy and run.</p>
-        <div class="install-block">
-          <div class="install-step">
-            <div class="install-step-num">1</div>
-            <div class="install-step-body">
-              <p>Grab the latest release:</p>
-              <div class="code-wrap">
-                <code>iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe</code>
-                <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
-              </div>
-              <p class="install-alt">Or install to a canonical location and add to PATH:</p>
-              <div class="code-wrap">
-                <code>iwr -useb https://raw.githubusercontent.com/limehawk/prinstall/main/scripts/prinstall_setup.ps1 | iex</code>
-                <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
-              </div>
-            </div>
-          </div>
-          <div class="install-step">
-            <div class="install-step-num">2</div>
-            <div class="install-step-body">
-              <p>Add a printer:</p>
-              <div class="code-wrap">
-                <code>.\prinstall.exe add 192.168.1.47</code>
-                <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
-              </div>
-            </div>
-          </div>
-        </div>
+    <hr>
+
+    <section class="body-section">
+      <div class="prose">
+        <h2>One binary. One command. Done.</h2>
+        <p>
+          <code>prinstall</code> is a single executable. No installer, no .NET runtime, no dependencies, no "please restart your computer." You point it at an IP address and it handles the rest — scans the printer, identifies the model, finds the right vendor driver, downloads it, stages it, and installs the printer. Ten seconds. The right driver. Not "Generic / Text Only." Not "HP Universal 6 years old." The actual driver, matched by hardware ID, verified before install.
+        </p>
+        <p>
+          It walks a six-tier cascade — local driver store, bundled packs, manufacturer download, Microsoft Update Catalog, SDI Origin driver packs, and IPP Class Driver fallback — and it will not give up before you do. If one source fails, it tries the next. Then the next. Then the next.
+        </p>
       </div>
     </section>
 
-    <section>
-      <div class="container">
+    <section class="terminal-section">
+      <div class="wide">
         <h2>Watch this printer get bodied</h2>
-        <p class="subtitle">one command  ·  no clicking through 9 wizard pages  ·  no "restart the spooler"</p>
+        <p class="sub">one command · no wizard · no "restart the spooler"</p>
         <div class="terminal">
           <div class="terminal-header">
             <span class="terminal-dot"></span>
@@ -706,74 +463,78 @@
       </div>
     </section>
 
-    <section id="features">
-      <div class="container">
-        <h2>What this bad boy does</h2>
-        <p class="subtitle">Built for techs who are absolutely done wrestling with printer drivers at 4:47 PM on a Friday.</p>
-        <div class="features">
-          <div class="feature">
-            <div class="icon">01</div>
-            <h3>It finds your printers</h3>
-            <p>Scans your whole subnet in seconds. SNMP, IPP, port probes — throws everything at the wall. That printer hiding in the corner with SNMP disabled? Found it. USB printer Karen plugged in that Windows assigned "Generic / Text Only"? Found that too.</p>
-          </div>
-          <div class="feature">
-            <div class="icon">02</div>
-            <h3>The right damn driver</h3>
-            <p>Not "Generic / Text Only." Not "HP Universal 6 years old." The actual vendor driver, matched by hardware ID, verified before install. Six-tier cascade that refuses to give up before you do. We don't guess. We don't pray. We know.</p>
-          </div>
-          <div class="feature">
-            <div class="icon">03</div>
-            <h3>Scorched earth removal</h3>
-            <p>Queue? Gone. Driver? Gone. Port? Gone. That ghost printer from 2019 that still shows up in Print Server Properties? Obliterated. The print spooler can finally breathe.</p>
-          </div>
-          <div class="feature">
-            <div class="icon">04</div>
-            <h3>Script it and forget it</h3>
-            <p>Pipe <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> into your RMM. Deploy to 200 machines at 2 AM. Wake up to zero printer tickets. Remember <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">HRESULT 0x80070705</code>? We decode that garbage into actual English. Because Microsoft sure as hell wasn't going to.</p>
-          </div>
+    <hr>
+
+    <section class="body-section">
+      <div class="prose">
+        <h2>It finds your printers</h2>
+        <p>
+          Scans your whole subnet in seconds. SNMP, IPP, port probes — throws everything at the wall in parallel. That printer hiding in the corner with SNMP disabled? Found it. The USB printer Karen plugged in that Windows decided to install with "Generic / Text Only"? Found that too. Network and USB, one tool.
+        </p>
+      </div>
+    </section>
+
+    <section class="body-section">
+      <div class="prose">
+        <h2>Scorched earth removal</h2>
+        <p>
+          Queue? Gone. Driver? Gone. Port? Gone. That ghost printer from 2019 that still shows up in Print Server Properties? Obliterated. The print spooler can finally breathe. No orphaned ports, no dead drivers, no "the driver is in use by another printer" bullshit. One command and the machine is clean.
+        </p>
+      </div>
+    </section>
+
+    <section class="body-section">
+      <div class="prose">
+        <h2>Script it and forget it</h2>
+        <p>
+          Pipe <code>--json</code> into your RMM. Deploy to 200 machines at 2 AM. Wake up to zero printer tickets. That's the dream. That's the whole point. Remember <code>HRESULT 0x80070705</code>? We decode that garbage into actual English. Because Microsoft sure as hell wasn't going to.
+        </p>
+      </div>
+    </section>
+
+    <hr>
+
+    <section class="install-section">
+      <div class="prose">
+        <h2>Get it</h2>
+        <p>Drop it anywhere and run it:</p>
+        <div class="code-wrap">
+          <code>iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe</code>
+          <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+        </div>
+        <p>Or install to PATH with the bootstrap script:</p>
+        <div class="code-wrap">
+          <code>iwr -useb https://raw.githubusercontent.com/limehawk/prinstall/main/scripts/prinstall_setup.ps1 | iex</code>
+          <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+        </div>
+        <p>Then add a printer:</p>
+        <div class="code-wrap">
+          <code>.\prinstall.exe add 192.168.1.47</code>
+          <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
         </div>
       </div>
+    </section>
+
+    <section class="bottom-cta">
+      <a href="https://github.com/limehawk/prinstall/releases/latest">Download for Windows →</a>
+      <p>MIT licensed · single binary · zero dependencies</p>
     </section>
   </main>
 
   <footer>
-    <div class="container">
-      <div class="footer-links">
-        <a href="https://github.com/limehawk/prinstall">GitHub</a>
-        <a href="https://github.com/limehawk/prinstall/releases">Releases</a>
-        <a href="https://github.com/limehawk/prinstall/blob/main/README.md">Docs</a>
-        <a href="https://github.com/limehawk/prinstall/issues">Issues</a>
-      </div>
-      <p>MIT licensed · built by <a href="https://limehawk.io" style="color: var(--text-dim); text-decoration: underline;">limehawk</a> · because fuck printers, that's why</p>
-    </div>
+    <p>built by <a href="https://limehawk.io">limehawk</a> · because fuck printers, that's why</p>
   </footer>
 
   <script>
-    (async () => {
-      try {
-        const res = await fetch('https://api.github.com/repos/limehawk/prinstall');
-        if (!res.ok) return;
-        const data = await res.json();
-        const count = data.stargazers_count;
-        if (typeof count === 'number') {
-          const formatted = new Intl.NumberFormat('en-US').format(count);
-          document.querySelectorAll('[data-github-stars]').forEach((el) => {
-            el.textContent = formatted;
-          });
-        }
-      } catch (_) {}
-    })();
-
     (() => {
-      const terminal = document.querySelector('section .terminal');
+      const terminal = document.querySelector('.terminal');
       if (!terminal) return;
       const body = terminal.querySelector('.terminal-body');
       if (!body) return;
       const lines = Array.from(body.querySelectorAll('.t-line'));
       if (!lines.length) return;
 
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (reduceMotion) return;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
       const delays = [
         140, 300, 260, 200, 180, 140,
@@ -785,8 +546,7 @@
 
       const caret = document.createElement('span');
       caret.className = 't-caret';
-
-      lines.forEach((line) => line.classList.add('is-pending'));
+      lines.forEach((l) => l.classList.add('is-pending'));
 
       let played = false;
       const play = () => {
@@ -803,11 +563,8 @@
       };
 
       const io = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            play();
-            io.disconnect();
-          }
+        entries.forEach((e) => {
+          if (e.isIntersecting) { play(); io.disconnect(); }
         });
       }, { threshold: 0.25 });
       io.observe(terminal);
@@ -817,25 +574,18 @@
       btn.addEventListener('click', async () => {
         const code = btn.parentElement?.querySelector('code');
         if (!code) return;
-        const text = code.textContent ?? '';
-        const flashCopied = () => {
+        try {
+          await navigator.clipboard.writeText(code.textContent ?? '');
           const prev = btn.textContent;
           btn.textContent = 'Copied!';
           btn.classList.add('is-copied');
-          setTimeout(() => {
-            btn.textContent = prev;
-            btn.classList.remove('is-copied');
-          }, 1400);
-        };
-        try {
-          await navigator.clipboard.writeText(text);
-          flashCopied();
+          setTimeout(() => { btn.textContent = prev; btn.classList.remove('is-copied'); }, 1400);
         } catch (_) {
-          const range = document.createRange();
-          range.selectNodeContents(code);
-          const sel = window.getSelection();
-          sel?.removeAllRanges();
-          sel?.addRange(range);
+          const r = document.createRange();
+          r.selectNodeContents(code);
+          const s = window.getSelection();
+          s?.removeAllRanges();
+          s?.addRange(r);
         }
       });
     });
