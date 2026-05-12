@@ -25,7 +25,7 @@ local trust store (via the rmm-scripts rollout) pass SAC cleanly.
 
 Run ONCE. The `.cer` (public) gets committed to rmm-scripts. The `.pfx`
 (private) gets uploaded as a GitHub Actions secret and then deleted from
-disk — 1Password holds the password, GitHub holds the bytes.
+disk — your password manager holds the cert password, GitHub holds the bytes.
 
 ```powershell
 $cert = New-SelfSignedCertificate `
@@ -40,7 +40,7 @@ $cert = New-SelfSignedCertificate `
 Export-Certificate -Cert $cert -FilePath "$env:USERPROFILE\Desktop\prinstall-codesign.cer"
 
 # Export PFX (private key) — keep secret
-$pwd = Read-Host -AsSecureString "Cert password (save in 1Password)"
+$pwd = Read-Host -AsSecureString "Cert password (save in your password manager)"
 Export-PfxCertificate -Cert $cert -FilePath "$env:USERPROFILE\Desktop\prinstall-codesign.pfx" -Password $pwd
 
 # Base64 encode PFX for GitHub secret
@@ -58,7 +58,7 @@ From the prinstall repo root:
 # Paste the base64 blob when prompted (already on clipboard from step 1)
 gh secret set CODESIGN_PFX_BASE64
 
-# Paste the password (the one from the Read-Host prompt, saved in 1Password)
+# Paste the password (the one from the Read-Host prompt, stored in your password manager)
 gh secret set CODESIGN_PFX_PASSWORD
 ```
 
@@ -82,7 +82,7 @@ git push
 ### 4. Scrub the local .pfx
 
 Once the secret is uploaded and verified, wipe the .pfx off the Desktop. It
-exists only in GitHub secrets and 1Password from here on.
+exists only in GitHub secrets and your password manager from here on.
 
 ```powershell
 Remove-Item "$env:USERPROFILE\Desktop\prinstall-codesign.pfx" -Force
