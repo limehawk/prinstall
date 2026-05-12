@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>prinstall docs — every command, every flag</title>
-  <meta name="description" content="Complete command reference for prinstall. Discovery, install, remove, driver management, SDI cache, and self-bootstrap." />
+  <title>prinstall docs — the whole toolkit</title>
+  <meta name="description" content="Complete guide to prinstall. Discovery, install, remove, driver management, SDI cache, and self-bootstrap." />
   <meta name="theme-color" content="#0a0e14" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect x='16' y='82' width='480' height='264' rx='30' ry='30' fill='%231e293b'/%3E%3Crect x='64' y='118' width='384' height='24' rx='6' ry='6' fill='%23475569'/%3E%3Crect x='64' y='346' width='384' height='84' rx='12' ry='12' fill='%23f8fafc'/%3E%3Crect x='64' y='346' width='384' height='18' fill='%23cbd5e1'/%3E%3Ccircle cx='424' cy='190' r='15' fill='%2322c55e'/%3E%3C/svg%3E" />
@@ -46,7 +46,7 @@
     }
 
     .prose {
-      max-width: 720px;
+      max-width: 680px;
       margin: 0 auto;
       padding: 0 24px;
     }
@@ -82,7 +82,7 @@
 
     /* Page header */
     .page-header {
-      padding: 80px 0 40px;
+      padding: 80px 0 20px;
     }
     .page-header h1 {
       font-size: clamp(28px, 3vw + 0.5rem, 48px);
@@ -97,65 +97,52 @@
       line-height: 1.6;
     }
 
-    /* Table of contents */
+    /* TOC */
     .toc {
-      padding: 0 0 40px;
+      padding: 32px 0 40px;
     }
     .toc ul {
       list-style: none;
       font-family: var(--mono);
       font-size: 14px;
+      columns: 2;
+      column-gap: 32px;
     }
-    .toc li {
-      margin-bottom: 8px;
-    }
+    .toc li { margin-bottom: 8px; }
     .toc a {
       color: var(--accent);
       text-decoration: none;
     }
     .toc a:hover { text-decoration: underline; }
 
-    /* Section dividers */
+    /* Dividers */
     hr {
       border: none;
       border-top: 1px solid var(--border);
       margin: 60px 0;
     }
 
-    /* Command sections */
-    .cmd-section {
-      padding: 0 0 20px;
-    }
-    .cmd-section h2 {
+    /* Content sections */
+    .s h2 {
       font-size: clamp(20px, 1.1rem + 0.6vw, 28px);
       font-weight: 700;
       letter-spacing: -0.02em;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
       line-height: 1.2;
     }
-    .cmd-section h3 {
-      font-family: var(--mono);
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--accent);
-      margin-bottom: 8px;
-      margin-top: 32px;
-    }
-    .cmd-section h3:first-of-type {
-      margin-top: 0;
-    }
-    .cmd-section p {
-      font-size: 15px;
+    .s p {
+      font-size: 16px;
       color: var(--text-dim);
       line-height: 1.7;
-      margin-bottom: 12px;
+      margin-bottom: 20px;
     }
-    .cmd-section p:last-child { margin-bottom: 0; }
+    .s p:last-child { margin-bottom: 0; }
+    .s strong { color: var(--text); font-weight: 600; }
 
     /* Inline code */
     code {
       font-family: var(--mono);
-      font-size: 0.88em;
+      font-size: 0.86em;
       color: var(--accent);
       background: var(--accent-dim);
       padding: 2px 6px;
@@ -172,7 +159,7 @@
       padding: 14px 16px;
       color: var(--text);
       overflow-x: auto;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
       line-height: 1.6;
     }
     pre code {
@@ -180,39 +167,6 @@
       padding: 0;
       color: inherit;
       font-size: inherit;
-    }
-
-    /* Flag tables */
-    .flags {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-      font-size: 14px;
-    }
-    .flags th {
-      text-align: left;
-      font-family: var(--mono);
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-subtle);
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      padding: 8px 12px 8px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .flags td {
-      padding: 8px 12px 8px 0;
-      border-bottom: 1px solid var(--border);
-      vertical-align: top;
-    }
-    .flags td:first-child {
-      font-family: var(--mono);
-      font-size: 13px;
-      color: var(--accent);
-      white-space: nowrap;
-    }
-    .flags td:last-child {
-      color: var(--text-dim);
     }
 
     /* Footer */
@@ -233,12 +187,10 @@
 
     @media (max-width: 600px) {
       .prose { padding: 0 16px; }
-      .page-header { padding: 56px 0 28px; }
+      .page-header { padding: 56px 0 16px; }
+      .toc ul { columns: 1; }
       hr { margin: 40px 0; }
-      .cmd-section h3 { margin-top: 24px; }
       pre { font-size: 12px; padding: 12px 14px; }
-      .flags { font-size: 13px; }
-      .flags td:first-child { font-size: 12px; }
     }
   </style>
 </head>
@@ -256,20 +208,21 @@
   <main>
     <section class="page-header">
       <div class="prose">
-        <h1>Docs</h1>
-        <p>Every command, every flag. Each subcommand also has its own <code>--help</code>.</p>
+        <h1>The whole damn toolkit</h1>
+        <p>Every command has <code>--help</code>. Every command takes <code>--json</code>. This page walks you through all of them so you never have to read a man page at 5 PM on a Friday.</p>
       </div>
     </section>
 
     <section class="toc">
       <div class="prose">
         <ul>
-          <li><a href="#global">Global flags</a></li>
-          <li><a href="#discovery">Discovery</a></li>
-          <li><a href="#install-remove">Install &amp; remove</a></li>
-          <li><a href="#drivers">Driver management</a></li>
+          <li><a href="#flags">Global flags</a></li>
+          <li><a href="#find">Find printers</a></li>
+          <li><a href="#add">Add a printer</a></li>
+          <li><a href="#remove">Remove a printer</a></li>
+          <li><a href="#drivers">Manage drivers</a></li>
           <li><a href="#sdi">SDI driver packs</a></li>
-          <li><a href="#setup">Self-bootstrap</a></li>
+          <li><a href="#setup">Bootstrap</a></li>
           <li><a href="#tui">Interactive TUI</a></li>
         </ul>
       </div>
@@ -277,41 +230,31 @@
 
     <hr>
 
-    <section class="cmd-section" id="global">
+    <section class="s" id="flags">
       <div class="prose">
         <h2>Global flags</h2>
-        <p>These work on every command.</p>
-        <table class="flags">
-          <tr><th>Flag</th><th>What it does</th></tr>
-          <tr><td>--json</td><td>Machine-readable JSON output. Pipe it to <code>jq</code> or your RMM.</td></tr>
-          <tr><td>--verbose</td><td>Structured install report with discovery, resolution, and install phases broken out.</td></tr>
-          <tr><td>--force</td><td>Skip safety checks. Reinstall duplicate printers, bypass scanner detection, force driver removal.</td></tr>
-          <tr><td>--community &lt;str&gt;</td><td>SNMP community string. Default is <code>public</code>.</td></tr>
-          <tr><td>--subnet &lt;cidr&gt;</td><td>Explicit subnet for scan. Auto-detected from NIC if omitted.</td></tr>
-        </table>
+        <p>These work on everything. <code>--json</code> gives you machine-readable output you can pipe to <code>jq</code> or your RMM. <code>--verbose</code> breaks the install into a structured report — discovery phase, resolution phase, install phase — so you can see exactly what happened and why. <code>--force</code> skips safety checks when you know what you're doing.</p>
+        <pre><code>prinstall add 10.10.20.16 --json          # pipe to jq or your RMM
+prinstall add 10.10.20.16 --verbose       # structured install report
+prinstall scan --community secret123      # custom SNMP community string
+prinstall scan --subnet 10.0.0.0/16       # explicit subnet instead of auto-detect
+prinstall add 10.10.20.16 --force         # reinstall even if duplicate exists</code></pre>
       </div>
     </section>
 
     <hr>
 
-    <section class="cmd-section" id="discovery">
+    <section class="s" id="find">
       <div class="prose">
-        <h2>Discovery</h2>
-        <p>Find every printer on the subnet. Network and USB, in parallel.</p>
-
-        <h3>prinstall scan [SUBNET]</h3>
-        <p>Multi-method subnet scan — TCP port probe (9100/631/515), IPP, SNMP, and USB enumeration all at once. Auto-detects the subnet from the local NIC if you don't specify one.</p>
-        <pre><code>prinstall scan                    # auto-detect subnet
+        <h2>Find printers</h2>
+        <p><strong><code>prinstall scan</code></strong> throws everything at the wall — SNMP, IPP, TCP port probes on 9100/631/515, and USB enumeration — all in parallel. If a printer is on the subnet and responding to anything, this finds it. Even the ones with SNMP disabled that every other tool misses.</p>
+        <pre><code>prinstall scan                    # auto-detect subnet from NIC
 prinstall scan 10.10.20.0/24     # explicit subnet
-prinstall scan --network-only    # skip USB enumeration
-prinstall scan --usb-only        # skip network scan</code></pre>
-
-        <h3>prinstall id &lt;IP&gt;</h3>
-        <p>Identify a single printer via SNMP. Returns model name, manufacturer, and serial if available.</p>
+prinstall scan --network-only    # skip USB, just hit the network
+prinstall scan --usb-only        # just show USB-attached printers</code></pre>
+        <p>Need to identify a single IP? <strong><code>prinstall id</code></strong> probes one host via SNMP and tells you what it is — model, manufacturer, serial if available.</p>
         <pre><code>prinstall id 10.10.20.16</code></pre>
-
-        <h3>prinstall list</h3>
-        <p>List every printer queue Windows knows about. Shows IP for network-attached queues. No admin required.</p>
+        <p>Want to see what Windows already knows about? <strong><code>prinstall list</code></strong> shows every installed queue with its IP address. No admin required.</p>
         <pre><code>prinstall list
 prinstall list --json</code></pre>
       </div>
@@ -319,69 +262,50 @@ prinstall list --json</code></pre>
 
     <hr>
 
-    <section class="cmd-section" id="install-remove">
+    <section class="s" id="add">
       <div class="prose">
-        <h2>Install &amp; remove</h2>
-        <p>The core workflow. Add a printer, remove a printer.</p>
-
-        <h3>prinstall add &lt;IP&gt;</h3>
-        <p>Install a network printer. Discovers the model, walks the six-tier driver cascade, stages the driver, creates the port, and adds the queue. Ten seconds, one command.</p>
-        <pre><code>prinstall add 10.10.20.16
-prinstall add 10.10.20.16 --verbose
-prinstall add 10.10.20.16 --driver "HP Universal Printing PS"
+        <h2>Add a printer</h2>
+        <p><strong><code>prinstall add</code></strong> is the main event. Point it at an IP and it does the rest — discovers the model, walks a six-tier driver cascade (local store → bundled packs → manufacturer download → Microsoft Update Catalog → SDI Origin → IPP Class Driver fallback), stages the driver, creates the port, and adds the queue. Ten seconds. Done.</p>
+        <pre><code>prinstall add 10.10.20.16</code></pre>
+        <p>Want to force a specific driver instead of letting the cascade pick? Use <code>--driver</code>. Want a custom queue name instead of "Brother MFC-L2750DW series"? Use <code>--name</code>.</p>
+        <pre><code>prinstall add 10.10.20.16 --driver "HP Universal Printing PS"
 prinstall add 10.10.20.16 --name "Front Desk Printer"</code></pre>
-        <table class="flags">
-          <tr><th>Flag</th><th>What it does</th></tr>
-          <tr><td>--driver &lt;name&gt;</td><td>Force a specific driver instead of auto-matching.</td></tr>
-          <tr><td>--name &lt;name&gt;</td><td>Custom queue name instead of the model string.</td></tr>
-          <tr><td>--model &lt;str&gt;</td><td>Override the discovered model string.</td></tr>
-          <tr><td>--no-catalog</td><td>Skip the Microsoft Update Catalog tier.</td></tr>
-          <tr><td>--no-sdi</td><td>Skip the SDI Origin tier.</td></tr>
-          <tr><td>--sdi-fetch</td><td>Allow on-demand SDI pack download (normally requires prefetch).</td></tr>
-        </table>
-
-        <h3>prinstall add &lt;QUEUE&gt; --usb</h3>
-        <p>Swap the driver on an existing USB printer queue. Windows loves to install USB printers with "Generic / Text Only" — this fixes that without recreating the queue.</p>
+        <p>You can also skip tiers you don't trust. <code>--no-catalog</code> skips the Microsoft Update Catalog. <code>--no-sdi</code> skips SDI Origin. <code>--sdi-fetch</code> lets it download SDI packs on demand instead of requiring a prefetch.</p>
+        <p><strong>USB printers</strong> are a different beast. Windows loves to install them with "Generic / Text Only" and call it a day. <code>--usb</code> swaps the driver on an existing USB queue without recreating it.</p>
         <pre><code>prinstall add "HP LaserJet 1320" --usb</code></pre>
-
-        <h3>prinstall remove &lt;IP|QUEUE&gt;</h3>
-        <p>Remove a printer and clean up after it. Deletes the queue, removes the driver if no other printer uses it, and removes the port if it's orphaned. Spooler-lag retry built in.</p>
-        <pre><code>prinstall remove 10.10.20.16
-prinstall remove "Brother MFC-L2750DW series"
-prinstall remove 10.10.20.16 --keep-driver
-prinstall remove 10.10.20.16 --keep-port</code></pre>
-        <table class="flags">
-          <tr><th>Flag</th><th>What it does</th></tr>
-          <tr><td>--keep-driver</td><td>Remove the queue and port but leave the driver in the store.</td></tr>
-          <tr><td>--keep-port</td><td>Remove the queue and driver but leave the TCP/IP port.</td></tr>
-        </table>
       </div>
     </section>
 
     <hr>
 
-    <section class="cmd-section" id="drivers">
+    <section class="s" id="remove">
       <div class="prose">
-        <h2>Driver management</h2>
-        <p>Stage, list, inspect, and remove drivers independent of any printer.</p>
+        <h2>Remove a printer</h2>
+        <p><strong><code>prinstall remove</code></strong> doesn't just delete the queue and walk away. It removes the queue, checks if any other printer is using the driver (if not, removes the driver too), and checks if any other printer is using the port (if not, removes that too). Spooler-lag retry is built in because Windows needs a moment to process its feelings after you delete a printer.</p>
+        <pre><code>prinstall remove 10.10.20.16
+prinstall remove "Brother MFC-L2750DW series"</code></pre>
+        <p>If you want to keep the driver around for next time, <code>--keep-driver</code>. If you want to keep the port, <code>--keep-port</code>. System drivers like "Microsoft IPP Class Driver" are protected — prinstall won't touch them no matter what.</p>
+        <pre><code>prinstall remove 10.10.20.16 --keep-driver
+prinstall remove 10.10.20.16 --keep-port</code></pre>
+      </div>
+    </section>
 
-        <h3>prinstall driver show &lt;IP&gt;</h3>
-        <p>Show ranked driver match candidates for a printer. Probes the printer, scores every driver in the manifest and local store, and lists them by confidence. No admin required.</p>
+    <hr>
+
+    <section class="s" id="drivers">
+      <div class="prose">
+        <h2>Manage drivers</h2>
+        <p>Sometimes you want to stage a driver without installing a printer. Maybe you're pre-loading drivers before a site visit. Maybe you're cleaning up orphaned drivers from printers that left the building three years ago.</p>
+        <p><strong><code>prinstall driver show</code></strong> probes a printer and scores every driver in the manifest and local store against it. No admin required — it's read-only.</p>
         <pre><code>prinstall driver show 10.10.20.16</code></pre>
-
-        <h3>prinstall driver add &lt;PATH|model&gt;</h3>
-        <p>Stage a driver from an INF folder, a single INF file, or a model string. Model-string mode auto-picks from <code>known_matches.toml</code> when unambiguous, or lists candidates for you to pick with <code>--driver</code>. Registers with the print spooler after staging.</p>
+        <p><strong><code>prinstall driver add</code></strong> stages a driver from an INF folder, a single INF file, or just a model string. If you give it a model name and there's an unambiguous match in the curated manifest, it auto-picks. If there's ambiguity, it lists candidates and you pick with <code>--driver</code>.</p>
         <pre><code>prinstall driver add C:\Drivers\HP\LaserJet
 prinstall driver add "Brother MFC-L2750DW"
 prinstall driver add "HP Universal Print Driver PS"</code></pre>
-
-        <h3>prinstall driver remove &lt;target&gt;</h3>
-        <p>Remove a driver from the store. Target is an exact name or a fuzzy match. If the driver is in use, tells you which queues block it — <code>--force</code> removes the queues first.</p>
+        <p><strong><code>prinstall driver remove</code></strong> pulls a driver out of the store. If another printer is using it, it'll tell you which queues are blocking the removal. <code>--force</code> removes the queues first, then the driver.</p>
         <pre><code>prinstall driver remove "Brother Laser Type1 Class Driver"
 prinstall driver remove "HP Universal" --force</code></pre>
-
-        <h3>prinstall driver list</h3>
-        <p>Every driver in the store, with dates. No admin required.</p>
+        <p><strong><code>prinstall driver list</code></strong> shows every driver in the store with dates. No admin required.</p>
         <pre><code>prinstall driver list
 prinstall driver list --json</code></pre>
       </div>
@@ -389,71 +313,45 @@ prinstall driver list --json</code></pre>
 
     <hr>
 
-    <section class="cmd-section" id="sdi">
+    <section class="s" id="sdi">
       <div class="prose">
         <h2>SDI driver packs</h2>
-        <p>SDI Origin is a community-maintained archive of printer driver packs. prinstall can search it by hardware ID and auto-install the match. Every pack's <code>.cat</code> Authenticode signature is verified against Microsoft's certificate chain before install — unsigned or tampered packs are skipped.</p>
-
-        <h3>prinstall sdi status</h3>
-        <p>Show cache status — index age, disk usage, pack count.</p>
-
-        <h3>prinstall sdi refresh</h3>
-        <p>Pull the latest pack index from SDIO mirrors. Fast — just metadata, no pack downloads.</p>
-
-        <h3>prinstall sdi list</h3>
-        <p>List every cached pack with extraction and verification status.</p>
-
-        <h3>prinstall sdi prefetch</h3>
-        <p>Download every printer pack in the index (~1.5 GB, one time). After this, <code>prinstall add</code> can resolve SDI candidates without hitting the network.</p>
-
-        <h3>prinstall sdi clean</h3>
-        <p>LRU-prune the cache. Removes packs that haven't been used recently.</p>
-
-        <h3>prinstall sdi verify</h3>
-        <p>Authenticode-check every cached <code>.cat</code> file. Reports verified, unsigned, and invalid packs.</p>
-
-        <pre><code>prinstall sdi status
-prinstall sdi refresh
+        <p>SDI Origin is a community-maintained archive of every printer driver known to humanity. Brother, Canon, Epson, Ricoh — all the vendors that make you download a 200 MB "setup utility" just to get a damn INF file. prinstall can search the archive by hardware ID and auto-install the match.</p>
+        <p>Every pack's <code>.cat</code> Authenticode signature is verified against Microsoft's certificate chain before install. Unsigned or tampered packs get skipped. Nobody's slipping malware in.</p>
+        <p><strong><code>prinstall sdi refresh</code></strong> pulls the latest index from SDIO mirrors. Fast — just metadata, no actual packs.</p>
+        <p><strong><code>prinstall sdi prefetch</code></strong> downloads every printer pack in the index. About 1.5 GB, one time. After this, <code>prinstall add</code> can resolve SDI candidates without hitting the network. Great for air-gapped sites.</p>
+        <p><strong><code>prinstall sdi verify</code></strong> runs an Authenticode check on every cached <code>.cat</code> file. Reports verified, unsigned, and invalid packs.</p>
+        <p><strong><code>prinstall sdi status</code></strong>, <strong><code>list</code></strong>, and <strong><code>clean</code></strong> let you inspect the cache, see what's extracted, and LRU-prune old packs.</p>
+        <pre><code>prinstall sdi refresh
 prinstall sdi prefetch
 prinstall sdi verify
+prinstall sdi status
+prinstall sdi list
 prinstall sdi clean</code></pre>
       </div>
     </section>
 
     <hr>
 
-    <section class="cmd-section" id="setup">
+    <section class="s" id="setup">
       <div class="prose">
-        <h2>Self-bootstrap</h2>
-        <p>Install prinstall itself onto the machine. Copies the binary, adds it to PATH, and opens the mDNS firewall port for discovery.</p>
-
-        <h3>prinstall setup install</h3>
-        <p>Copy the running <code>prinstall.exe</code> into <code>C:\ProgramData\prinstall\</code>, add the install dir to Machine PATH, and create the <code>Prinstall (mDNS discovery)</code> firewall rule for UDP 5353. Idempotent — re-running is a no-op.</p>
+        <h2>Bootstrap</h2>
+        <p>You can run prinstall from anywhere — it's a single .exe with no dependencies. But if you want it permanently on the machine, <strong><code>prinstall setup install</code></strong> copies itself into <code>C:\ProgramData\prinstall\</code>, adds the directory to Machine PATH, and opens UDP 5353 for mDNS discovery. Idempotent — run it twice, run it ten times, nothing breaks.</p>
         <pre><code>prinstall setup install
 prinstall setup install --dir D:\Tools\prinstall</code></pre>
-
-        <h3>prinstall setup uninstall</h3>
-        <p>Reverse everything <code>setup install</code> did — remove the binary, clean up PATH, delete the firewall rule.</p>
+        <p><strong><code>prinstall setup uninstall</code></strong> reverses all of it — removes the binary, cleans up PATH, deletes the firewall rule.</p>
         <pre><code>prinstall setup uninstall</code></pre>
       </div>
     </section>
 
     <hr>
 
-    <section class="cmd-section" id="tui">
+    <section class="s" id="tui">
       <div class="prose">
         <h2>Interactive TUI</h2>
-        <p>Run <code>prinstall</code> with no arguments in a real terminal (not an RMM pipe) and it launches a ratatui two-panel layout — printer list on the left, detail pane on the right.</p>
+        <p>Run <code>prinstall</code> with no arguments in a real terminal and it launches a two-panel ratatui layout — printer list on the left, detail pane on the right. Vim keys, no mouse, no wizards. <code>j/k</code> to navigate, <code>Enter</code> to install, <code>s</code> to rescan, <code>?</code> for help, <code>q</code> to quit.</p>
+        <p>The TUI auto-detects whether it's running in a real terminal or piped through an RMM. If it's piped, it drops to CLI mode automatically — you don't need to set a flag.</p>
         <pre><code>prinstall</code></pre>
-        <table class="flags">
-          <tr><th>Key</th><th>Action</th></tr>
-          <tr><td>j / k</td><td>Move up / down in the list</td></tr>
-          <tr><td>h / l</td><td>Swap between panels</td></tr>
-          <tr><td>Enter</td><td>Install the selected printer</td></tr>
-          <tr><td>s</td><td>Rescan the subnet</td></tr>
-          <tr><td>?</td><td>Help overlay</td></tr>
-          <tr><td>q</td><td>Quit</td></tr>
-        </table>
       </div>
     </section>
   </main>
