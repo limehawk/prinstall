@@ -588,7 +588,7 @@
           <div class="feature">
             <h3><span class="num">05</span><span class="sfw">Self-bootstrap</span><span class="nsfw">Plant it on the box</span></h3>
             <p>
-              <code>prinstall setup install</code> — copy to <code>C:\ProgramData\prinstall\</code>, add to Machine PATH, open UDP 5353 for mDNS.<br>
+              <code>prinstall setup install</code> — copies the exe to <code>C:\ProgramData\prinstall\</code>, adds that dir to Machine PATH, and opens UDP 5353 in Windows Firewall for mDNS discovery.<br>
               <code>prinstall setup uninstall</code> — reverses all three. Idempotent.<br>
               <span class="sfw">Run from a copy outside the install dir so uninstall doesn't hit the running-exe file lock.</span><span class="nsfw">Idempotent. Run it twice, run it ten times. Nothing breaks.</span>
             </p>
