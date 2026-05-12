@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>prinstall · Network printer management for Windows</title>
-  <meta name="description" content="A Rust CLI for Windows that discovers network printers, matches them to the right vendor driver, and installs them. Single binary." />
+  <title>prinstall · Because fuck printers.</title>
+  <meta name="description" content="A Rust CLI that discovers network printers, matches them to the right vendor driver, and installs them. One binary. No wizard. No crying." />
   <meta name="theme-color" content="#0a0e14" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="prinstall — Network printer management for Windows" />
-  <meta property="og:description" content="Discover printers, match drivers, install. One command." />
+  <meta property="og:title" content="prinstall — Because fuck printers." />
+  <meta property="og:description" content="Discover printers, match drivers, install. One command. No wizard. No crying." />
   <meta property="og:url" content="https://prinstall.limehawk.io" />
   <meta property="og:image" content="https://prinstall.limehawk.io/og-image.png" />
   <meta property="og:image:width" content="1200" />
@@ -18,8 +18,8 @@
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="prinstall — Network printer management for Windows" />
-  <meta name="twitter:description" content="Discover printers, match drivers, install. One command." />
+  <meta name="twitter:title" content="prinstall — Because fuck printers." />
+  <meta name="twitter:description" content="Discover printers, match drivers, install. One command. No wizard. No crying." />
   <meta name="twitter:image" content="https://prinstall.limehawk.io/og-image.png" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect x='16' y='82' width='480' height='264' rx='30' ry='30' fill='%231e293b'/%3E%3Crect x='64' y='118' width='384' height='24' rx='6' ry='6' fill='%23475569'/%3E%3Crect x='64' y='346' width='384' height='84' rx='12' ry='12' fill='%23f8fafc'/%3E%3Crect x='64' y='346' width='384' height='18' fill='%23cbd5e1'/%3E%3Ccircle cx='424' cy='190' r='15' fill='%2322c55e'/%3E%3C/svg%3E" />
@@ -609,7 +609,7 @@
           <span class="line-2"><span class="brand">prinstall</span> <span class="accent">fixes it.</span></span>
         </h1>
         <p class="hero-body">
-          One command. The right vendor driver, matched by hardware ID from the Microsoft Update Catalog. Installed. Built for MSP technicians.
+          Why does adding a printer in 2026 still feel like defusing a bomb? Wrong driver. Missing port. HRESULT 0x80070705. Restart the spooler. Google the error. Download a 200 MB "setup utility." Run it. It doesn't work. We wrote a tool so you never have to do that again.
         </p>
         <div class="cta">
           <a class="btn btn-primary" href="https://github.com/limehawk/prinstall/releases/latest">
@@ -623,18 +623,18 @@
           </a>
         </div>
         <div class="meta">
-          <span>built in Rust</span>
-          <span>single binary</span>
-          <span>scriptable</span>
-          <span>MIT licensed</span>
+          <span>zero dependencies</span>
+          <span>no installer</span>
+          <span>no GUI wizard</span>
+          <span>no bullshit</span>
         </div>
       </div>
     </section>
 
     <section id="install">
       <div class="container">
-        <h2>Install</h2>
-        <p class="subtitle">Single binary. Drop it on PATH and go.</p>
+        <h2>Get this thing</h2>
+        <p class="subtitle">One file. No installer. No .NET runtime. No "please restart your computer." Just copy and run.</p>
         <div class="install-block">
           <div class="install-step">
             <div class="install-step-num">1</div>
@@ -667,8 +667,8 @@
 
     <section>
       <div class="container">
-        <h2>Watch it work</h2>
-        <p class="subtitle">prinstall add 10.10.20.16  ·  real terminal output</p>
+        <h2>Watch this printer get bodied</h2>
+        <p class="subtitle">one command  ·  no clicking through 9 wizard pages  ·  no "restart the spooler"</p>
         <div class="terminal">
           <div class="terminal-header">
             <span class="terminal-dot"></span>
@@ -708,28 +708,28 @@
 
     <section id="features">
       <div class="container">
-        <h2>What it does</h2>
-        <p class="subtitle">Built for MSP technicians running it locally or through RMM remote shells.</p>
+        <h2>What this bad boy does</h2>
+        <p class="subtitle">Built for techs who are absolutely done wrestling with printer drivers at 4:47 PM on a Friday.</p>
         <div class="features">
           <div class="feature">
             <div class="icon">01</div>
-            <h3>Multi-method discovery</h3>
-            <p>TCP port probe, IPP, SNMP, and local Get-Printer all in one parallel pipeline. Network and USB. Works even on printers that have SNMP disabled.</p>
+            <h3>It finds your printers</h3>
+            <p>Scans your whole subnet in seconds. SNMP, IPP, port probes — throws everything at the wall. That printer hiding in the corner with SNMP disabled? Found it. USB printer Karen plugged in that Windows assigned "Generic / Text Only"? Found that too.</p>
           </div>
           <div class="feature">
             <div class="icon">02</div>
-            <h3>Deterministic driver matching</h3>
-            <p>Six-tier cascade: local store, bundled packs, manufacturer download, Update Catalog, SDI Origin, IPP Class Driver fallback. Parses the INF and confirms a hardware-ID match before installing. No guessing.</p>
+            <h3>The right damn driver</h3>
+            <p>Not "Generic / Text Only." Not "HP Universal 6 years old." The actual vendor driver, matched by hardware ID, verified before install. Six-tier cascade that refuses to give up before you do. We don't guess. We don't pray. We know.</p>
           </div>
           <div class="feature">
             <div class="icon">03</div>
-            <h3>Clean remove</h3>
-            <p>Queue, driver, and port cleanup with spooler-lag retry and driver-store package removal. No orphaned ports, no dead drivers cluttering Print Server Properties.</p>
+            <h3>Scorched earth removal</h3>
+            <p>Queue? Gone. Driver? Gone. Port? Gone. That ghost printer from 2019 that still shows up in Print Server Properties? Obliterated. The print spooler can finally breathe.</p>
           </div>
           <div class="feature">
             <div class="icon">04</div>
-            <h3>Scriptable CLI</h3>
-            <p>Pipe <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> to jq for RMM automation. Plain text for humans, structured JSON for scripts, semantic coloring that respects <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">NO_COLOR</code>. PowerShell stderr is parsed and HRESULT-decoded before you see it.</p>
+            <h3>Script it and forget it</h3>
+            <p>Pipe <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">--json</code> into your RMM. Deploy to 200 machines at 2 AM. Wake up to zero printer tickets. Remember <code style="font-family: var(--mono); color: var(--accent); font-size: 12px;">HRESULT 0x80070705</code>? We decode that garbage into actual English. Because Microsoft sure as hell wasn't going to.</p>
           </div>
         </div>
       </div>
@@ -744,7 +744,7 @@
         <a href="https://github.com/limehawk/prinstall/blob/main/README.md">Docs</a>
         <a href="https://github.com/limehawk/prinstall/issues">Issues</a>
       </div>
-      <p>MIT licensed · built by <a href="https://limehawk.io" style="color: var(--text-dim); text-decoration: underline;">limehawk</a></p>
+      <p>MIT licensed · built by <a href="https://limehawk.io" style="color: var(--text-dim); text-decoration: underline;">limehawk</a> · because fuck printers, that's why</p>
     </div>
   </footer>
 
