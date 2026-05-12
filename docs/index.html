@@ -3,23 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>prinstall · Discover. Match. Add. Remove.</title>
-  <meta name="description" content="A Rust CLI and TUI for nuking printer setup pain on Windows. Scan a subnet, match a driver from the Microsoft Update Catalog, install a printer — single binary." />
+  <title>prinstall — because fuck printers.</title>
+  <meta name="description" content="One binary. Scans the subnet. Matches the driver. Installs the printer. No wizard, no 200 MB setup utility, no crying." />
   <meta name="theme-color" content="#0a0e14" />
 
-  <!-- Open Graph -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="prinstall — Discover. Match. Add. Remove." />
-  <meta property="og:description" content="A Rust CLI and TUI for nuking printer setup pain on Windows." />
+  <meta property="og:title" content="prinstall — because fuck printers." />
+  <meta property="og:description" content="One binary. Scans the subnet. Matches the driver. Installs the printer." />
   <meta property="og:url" content="https://prinstall.limehawk.io" />
   <meta property="og:image" content="https://prinstall.limehawk.io/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
 
-  <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="prinstall — Discover. Match. Add. Remove." />
-  <meta name="twitter:description" content="Network printer management for Windows. One binary. The right driver. Installed." />
+  <meta name="twitter:title" content="prinstall — because fuck printers." />
+  <meta name="twitter:description" content="One binary. Scans the subnet. Matches the driver. Installs the printer." />
   <meta name="twitter:image" content="https://prinstall.limehawk.io/og-image.png" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect x='16' y='82' width='480' height='264' rx='30' ry='30' fill='%231e293b'/%3E%3Crect x='64' y='118' width='384' height='24' rx='6' ry='6' fill='%23475569'/%3E%3Crect x='64' y='346' width='384' height='84' rx='12' ry='12' fill='%23f8fafc'/%3E%3Crect x='64' y='346' width='384' height='18' fill='%23cbd5e1'/%3E%3Ccircle cx='424' cy='190' r='15' fill='%2322c55e'/%3E%3C/svg%3E" />
@@ -306,6 +304,7 @@
       color: var(--text);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
+      line-height: 1.6;
     }
     .copy-btn {
       position: absolute;
@@ -347,6 +346,19 @@
       font-family: var(--mono);
       font-size: 13px;
       color: var(--text-subtle);
+      margin-top: 20px;
+    }
+
+    /* ─── Footer ─── */
+    footer {
+      padding: 40px 0 32px;
+      border-top: 1px solid var(--border);
+    }
+    footer .col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
     }
     footer .footer-links {
       display: flex;
@@ -355,8 +367,9 @@
       flex-wrap: wrap;
     }
     footer .footer-links a {
-      color: var(--text-dim);
+      color: var(--text-subtle);
       text-decoration: none;
+      transition: color 0.15s;
     }
     footer .footer-links a:hover { color: var(--accent); }
     footer a { color: var(--text-dim); }
@@ -424,6 +437,9 @@
             <p><span class="sfw">PowerShell stderr is parsed and HRESULT-decoded before you see it. No more drowning in CategoryInfo and FullyQualifiedErrorId noise.</span><span class="nsfw">Remember <code>HRESULT 0x80070705</code>? We decode that garbage into actual English. Because Microsoft sure as hell wasn't going to.</span></p>
           </div>
         </div>
+        <p>
+          It walks a six-tier cascade — local driver store, bundled packs, manufacturer download, Microsoft Update Catalog, SDI Origin driver packs, and IPP Class Driver fallback — and it <strong>will not give up before you do</strong>. If one source fails, it tries the next. Then the next. Then the next.
+        </p>
       </div>
     </section>
 
@@ -638,11 +654,51 @@
         </ol>
       </div>
     </section>
+
+    <section class="section tinted">
+      <div class="col">
+        <h2>Script it and forget it</h2>
+        <p>
+          Pipe <code>--json</code> into your RMM. Deploy to 200 machines at 2 AM. Wake up to zero printer tickets. That's the dream. That's the whole point.
+        </p>
+        <p>
+          Remember <code>HRESULT 0x80070705</code>? We decode that garbage into actual English. Because Microsoft sure as hell wasn't going to.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="install">
+      <div class="col">
+        <h2>Get it</h2>
+        <p>Drop it anywhere and run it:</p>
+        <div class="code-wrap">
+          <code>iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe</code>
+          <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+        </div>
+        <p>Or install to PATH with the bootstrap script:</p>
+        <div class="code-wrap">
+          <code>iwr -useb https://raw.githubusercontent.com/limehawk/prinstall/main/scripts/prinstall_setup.ps1 | iex</code>
+          <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+        </div>
+        <p>Then add a printer:</p>
+        <div class="code-wrap">
+          <code>.\prinstall.exe add 192.168.1.47</code>
+          <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="bottom-cta">
+      <h2>Stop fighting printers.</h2>
+      <a class="cta-primary" href="https://github.com/limehawk/prinstall/releases/latest">Download for Windows →</a>
+      <p>Open source · MIT licensed · single binary</p>
+    </section>
   </main>
 
   <footer>
-    <div class="container">
+    <div class="col">
       <div class="footer-links">
+        <a href="/docs/">Docs</a>
         <a href="https://github.com/limehawk/prinstall">GitHub</a>
         <a href="https://github.com/limehawk/prinstall/releases">Releases</a>
         <a href="/docs.html">Docs</a>
