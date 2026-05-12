@@ -88,7 +88,7 @@ exists only in GitHub secrets and 1Password from here on.
 Remove-Item "$env:USERPROFILE\Desktop\prinstall-codesign.pfx" -Force
 ```
 
-### 5. Deploy the trust rollout script via SuperOps
+### 5. Deploy the trust rollout script via your RMM
 
 `scripts/prinstall_trust_codesign.ps1` in the rmm-scripts repo imports the
 `.cer` into `Cert:\LocalMachine\Root` and `Cert:\LocalMachine\TrustedPublisher`
