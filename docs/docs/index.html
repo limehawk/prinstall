@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>prinstall docs — every command, every flag</title>
+  <meta name="description" content="Complete command reference for prinstall. Discovery, install, remove, driver management, SDI cache, and self-bootstrap." />
+  <meta name="theme-color" content="#0a0e14" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect x='16' y='82' width='480' height='264' rx='30' ry='30' fill='%231e293b'/%3E%3Crect x='64' y='118' width='384' height='24' rx='6' ry='6' fill='%23475569'/%3E%3Crect x='64' y='346' width='384' height='84' rx='12' ry='12' fill='%23f8fafc'/%3E%3Crect x='64' y='346' width='384' height='18' fill='%23cbd5e1'/%3E%3Ccircle cx='424' cy='190' r='15' fill='%2322c55e'/%3E%3C/svg%3E" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-elevated: #111821;
+      --bg-subtle: #0f1620;
+      --border: #1e2a3a;
+      --border-bright: #2a3a50;
+      --text: #e6edf3;
+      --text-dim: #8b99a8;
+      --text-subtle: #5a6878;
+      --accent: #ff6b35;
+      --accent-bright: #ff8355;
+      --accent-dim: rgba(255, 107, 53, 0.12);
+      --green: #50fa7b;
+      --cyan: #8be9fd;
+      --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      min-height: 100vh;
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .prose {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Nav */
+    nav {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    nav .prose {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      font-family: var(--mono);
+      font-size: 14px;
+    }
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* Page header */
+    .page-header {
+      padding: 80px 0 40px;
+    }
+    .page-header h1 {
+      font-size: clamp(28px, 3vw + 0.5rem, 48px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+    .page-header p {
+      font-size: clamp(16px, 0.95rem + 0.2vw, 18px);
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    /* Table of contents */
+    .toc {
+      padding: 0 0 40px;
+    }
+    .toc ul {
+      list-style: none;
+      font-family: var(--mono);
+      font-size: 14px;
+    }
+    .toc li {
+      margin-bottom: 8px;
+    }
+    .toc a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .toc a:hover { text-decoration: underline; }
+
+    /* Section dividers */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 60px 0;
+    }
+
+    /* Command sections */
+    .cmd-section {
+      padding: 0 0 20px;
+    }
+    .cmd-section h2 {
+      font-size: clamp(20px, 1.1rem + 0.6vw, 28px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+      line-height: 1.2;
+    }
+    .cmd-section h3 {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+      margin-top: 32px;
+    }
+    .cmd-section h3:first-of-type {
+      margin-top: 0;
+    }
+    .cmd-section p {
+      font-size: 15px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+    .cmd-section p:last-child { margin-bottom: 0; }
+
+    /* Inline code */
+    code {
+      font-family: var(--mono);
+      font-size: 0.88em;
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    /* Code blocks */
+    pre {
+      font-family: var(--mono);
+      font-size: 13px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      color: var(--text);
+      overflow-x: auto;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+    }
+
+    /* Flag tables */
+    .flags {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    .flags th {
+      text-align: left;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-subtle);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 8px 12px 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .flags td {
+      padding: 8px 12px 8px 0;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .flags td:first-child {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .flags td:last-child {
+      color: var(--text-dim);
+    }
+
+    /* Footer */
+    footer {
+      padding: 32px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 60px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text-subtle);
+    }
+    footer a {
+      color: var(--text-dim);
+      text-decoration: underline;
+    }
+    footer a:hover { color: var(--accent); }
+
+    @media (max-width: 600px) {
+      .prose { padding: 0 16px; }
+      .page-header { padding: 56px 0 28px; }
+      hr { margin: 40px 0; }
+      .cmd-section h3 { margin-top: 24px; }
+      pre { font-size: 12px; padding: 12px 14px; }
+      .flags { font-size: 13px; }
+      .flags td:first-child { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="prose">
+      <a class="logo" href="/">prinstall</a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="https://github.com/limehawk/prinstall">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <section class="page-header">
+      <div class="prose">
+        <h1>Docs</h1>
+        <p>Every command, every flag. Each subcommand also has its own <code>--help</code>.</p>
+      </div>
+    </section>
+
+    <section class="toc">
+      <div class="prose">
+        <ul>
+          <li><a href="#global">Global flags</a></li>
+          <li><a href="#discovery">Discovery</a></li>
+          <li><a href="#install-remove">Install &amp; remove</a></li>
+          <li><a href="#drivers">Driver management</a></li>
+          <li><a href="#sdi">SDI driver packs</a></li>
+          <li><a href="#setup">Self-bootstrap</a></li>
+          <li><a href="#tui">Interactive TUI</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <hr>
+
+    <section class="cmd-section" id="global">
+      <div class="prose">
+        <h2>Global flags</h2>
+        <p>These work on every command.</p>
+        <table class="flags">
+          <tr><th>Flag</th><th>What it does</th></tr>
+          <tr><td>--json</td><td>Machine-readable JSON output. Pipe it to <code>jq</code> or your RMM.</td></tr>
+          <tr><td>--verbose</td><td>Structured install report with discovery, resolution, and install phases broken out.</td></tr>
+          <tr><td>--force</td><td>Skip safety checks. Reinstall duplicate printers, bypass scanner detection, force driver removal.</td></tr>
+          <tr><td>--community &lt;str&gt;</td><td>SNMP community string. Default is <code>public</code>.</td></tr>
+          <tr><td>--subnet &lt;cidr&gt;</td><td>Explicit subnet for scan. Auto-detected from NIC if omitted.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <hr>
+
+    <section class="cmd-section" id="discovery">
+      <div class="prose">
+        <h2>Discovery</h2>
+        <p>Find every printer on the subnet. Network and USB, in parallel.</p>
+
+        <h3>prinstall scan [SUBNET]</h3>
+        <p>Multi-method subnet scan — TCP port probe (9100/631/515), IPP, SNMP, and USB enumeration all at once. Auto-detects the subnet from the local NIC if you don't specify one.</p>
+        <pre><code>prinstall scan                    # auto-detect subnet
+prinstall scan 10.10.20.0/24     # explicit subnet
+prinstall scan --network-only    # skip USB enumeration
+prinstall scan --usb-only        # skip network scan</code></pre>
+
+        <h3>prinstall id &lt;IP&gt;</h3>
+        <p>Identify a single printer via SNMP. Returns model name, manufacturer, and serial if available.</p>
+        <pre><code>prinstall id 10.10.20.16</code></pre>
+
+        <h3>prinstall list</h3>
+        <p>List every printer queue Windows knows about. Shows IP for network-attached queues. No admin required.</p>
+        <pre><code>prinstall list
+prinstall list --json</code></pre>
+      </div>
+    </section>
+
+    <hr>
+
+    <section class="cmd-section" id="install-remove">
+      <div class="prose">
+        <h2>Install &amp; remove</h2>
+        <p>The core workflow. Add a printer, remove a printer.</p>
+
+        <h3>prinstall add &lt;IP&gt;</h3>
+        <p>Install a network printer. Discovers the model, walks the six-tier driver cascade, stages the driver, creates the port, and adds the queue. Ten seconds, one command.</p>
+        <pre><code>prinstall add 10.10.20.16
+prinstall add 10.10.20.16 --verbose
+prinstall add 10.10.20.16 --driver "HP Universal Printing PS"
+prinstall add 10.10.20.16 --name "Front Desk Printer"</code></pre>
+        <table class="flags">
+          <tr><th>Flag</th><th>What it does</th></tr>
+          <tr><td>--driver &lt;name&gt;</td><td>Force a specific driver instead of auto-matching.</td></tr>
+          <tr><td>--name &lt;name&gt;</td><td>Custom queue name instead of the model string.</td></tr>
+          <tr><td>--model &lt;str&gt;</td><td>Override the discovered model string.</td></tr>
+          <tr><td>--no-catalog</td><td>Skip the Microsoft Update Catalog tier.</td></tr>
+          <tr><td>--no-sdi</td><td>Skip the SDI Origin tier.</td></tr>
+          <tr><td>--sdi-fetch</td><td>Allow on-demand SDI pack download (normally requires prefetch).</td></tr>
+        </table>
+
+        <h3>prinstall add &lt;QUEUE&gt; --usb</h3>
+        <p>Swap the driver on an existing USB printer queue. Windows loves to install USB printers with "Generic / Text Only" — this fixes that without recreating the queue.</p>
+        <pre><code>prinstall add "HP LaserJet 1320" --usb</code></pre>
+
+        <h3>prinstall remove &lt;IP|QUEUE&gt;</h3>
+        <p>Remove a printer and clean up after it. Deletes the queue, removes the driver if no other printer uses it, and removes the port if it's orphaned. Spooler-lag retry built in.</p>
+        <pre><code>prinstall remove 10.10.20.16
+prinstall remove "Brother MFC-L2750DW series"
+prinstall remove 10.10.20.16 --keep-driver
+prinstall remove 10.10.20.16 --keep-port</code></pre>
+        <table class="flags">
+          <tr><th>Flag</th><th>What it does</th></tr>
+          <tr><td>--keep-driver</td><td>Remove the queue and port but leave the driver in the store.</td></tr>
+          <tr><td>--keep-port</td><td>Remove the queue and driver but leave the TCP/IP port.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <hr>
+
+    <section class="cmd-section" id="drivers">
+      <div class="prose">
+        <h2>Driver management</h2>
+        <p>Stage, list, inspect, and remove drivers independent of any printer.</p>
+
+        <h3>prinstall driver show &lt;IP&gt;</h3>
+        <p>Show ranked driver match candidates for a printer. Probes the printer, scores every driver in the manifest and local store, and lists them by confidence. No admin required.</p>
+        <pre><code>prinstall driver show 10.10.20.16</code></pre>
+
+        <h3>prinstall driver add &lt;PATH|model&gt;</h3>
+        <p>Stage a driver from an INF folder, a single INF file, or a model string. Model-string mode auto-picks from <code>known_matches.toml</code> when unambiguous, or lists candidates for you to pick with <code>--driver</code>. Registers with the print spooler after staging.</p>
+        <pre><code>prinstall driver add C:\Drivers\HP\LaserJet
+prinstall driver add "Brother MFC-L2750DW"
+prinstall driver add "HP Universal Print Driver PS"</code></pre>
+
+        <h3>prinstall driver remove &lt;target&gt;</h3>
+        <p>Remove a driver from the store. Target is an exact name or a fuzzy match. If the driver is in use, tells you which queues block it — <code>--force</code> removes the queues first.</p>
+        <pre><code>prinstall driver remove "Brother Laser Type1 Class Driver"
+prinstall driver remove "HP Universal" --force</code></pre>
+
+        <h3>prinstall driver list</h3>
+        <p>Every driver in the store, with dates. No admin required.</p>
+        <pre><code>prinstall driver list
+prinstall driver list --json</code></pre>
+      </div>
+    </section>
+
+    <hr>
+
+    <section class="cmd-section" id="sdi">
+      <div class="prose">
+        <h2>SDI driver packs</h2>
+        <p>SDI Origin is a community-maintained archive of printer driver packs. prinstall can search it by hardware ID and auto-install the match. Every pack's <code>.cat</code> Authenticode signature is verified against Microsoft's certificate chain before install — unsigned or tampered packs are skipped.</p>
+
+        <h3>prinstall sdi status</h3>
+        <p>Show cache status — index age, disk usage, pack count.</p>
+
+        <h3>prinstall sdi refresh</h3>
+        <p>Pull the latest pack index from SDIO mirrors. Fast — just metadata, no pack downloads.</p>
+
+        <h3>prinstall sdi list</h3>
+        <p>List every cached pack with extraction and verification status.</p>
+
+        <h3>prinstall sdi prefetch</h3>
+        <p>Download every printer pack in the index (~1.5 GB, one time). After this, <code>prinstall add</code> can resolve SDI candidates without hitting the network.</p>
+
+        <h3>prinstall sdi clean</h3>
+        <p>LRU-prune the cache. Removes packs that haven't been used recently.</p>
+
+        <h3>prinstall sdi verify</h3>
+        <p>Authenticode-check every cached <code>.cat</code> file. Reports verified, unsigned, and invalid packs.</p>
+
+        <pre><code>prinstall sdi status
+prinstall sdi refresh
+prinstall sdi prefetch
+prinstall sdi verify
+prinstall sdi clean</code></pre>
+      </div>
+    </section>
+
+    <hr>
+
+    <section class="cmd-section" id="setup">
+      <div class="prose">
+        <h2>Self-bootstrap</h2>
+        <p>Install prinstall itself onto the machine. Copies the binary, adds it to PATH, and opens the mDNS firewall port for discovery.</p>
+
+        <h3>prinstall setup install</h3>
+        <p>Copy the running <code>prinstall.exe</code> into <code>C:\ProgramData\prinstall\</code>, add the install dir to Machine PATH, and create the <code>Prinstall (mDNS discovery)</code> firewall rule for UDP 5353. Idempotent — re-running is a no-op.</p>
+        <pre><code>prinstall setup install
+prinstall setup install --dir D:\Tools\prinstall</code></pre>
+
+        <h3>prinstall setup uninstall</h3>
+        <p>Reverse everything <code>setup install</code> did — remove the binary, clean up PATH, delete the firewall rule.</p>
+        <pre><code>prinstall setup uninstall</code></pre>
+      </div>
+    </section>
+
+    <hr>
+
+    <section class="cmd-section" id="tui">
+      <div class="prose">
+        <h2>Interactive TUI</h2>
+        <p>Run <code>prinstall</code> with no arguments in a real terminal (not an RMM pipe) and it launches a ratatui two-panel layout — printer list on the left, detail pane on the right.</p>
+        <pre><code>prinstall</code></pre>
+        <table class="flags">
+          <tr><th>Key</th><th>Action</th></tr>
+          <tr><td>j / k</td><td>Move up / down in the list</td></tr>
+          <tr><td>h / l</td><td>Swap between panels</td></tr>
+          <tr><td>Enter</td><td>Install the selected printer</td></tr>
+          <tr><td>s</td><td>Rescan the subnet</td></tr>
+          <tr><td>?</td><td>Help overlay</td></tr>
+          <tr><td>q</td><td>Quit</td></tr>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="prose">
+      <p><a href="/">prinstall</a> · <a href="https://github.com/limehawk/prinstall">GitHub</a> · <a href="https://github.com/limehawk/prinstall/releases">Releases</a> · <a href="https://github.com/limehawk/prinstall/issues">Issues</a></p>
+    </div>
+  </footer>
+</body>
+</html>
