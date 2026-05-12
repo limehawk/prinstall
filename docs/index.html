@@ -24,58 +24,57 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;0,6..72,800;1,6..72,400;1,6..72,600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
 
   <style>
     :root {
-      --bg:           #0a0e14;
-      --bg-warm:      #0d1219;
-      --bg-elevated:  #111821;
-      --bg-subtle:    #0f1620;
-      --border:       #1e2a3a;
-      --border-bright:#2a3a50;
-      --text:         #e6edf3;
-      --text-dim:     #8b99a8;
-      --text-subtle:  #5a6878;
-      --accent:       #ff6b35;
-      --accent-bright:#ff8355;
-      --accent-dim:   rgba(255, 107, 53, 0.10);
-      --accent-glow:  rgba(255, 107, 53, 0.06);
-      --green:        #50fa7b;
-      --cyan:         #8be9fd;
-      --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
-      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --bg:      #0a0e14;
+      --bg-alt:  #0d1219;
+      --border:  #1e2a3a;
+      --text:    #e6edf3;
+      --text-2:  #8b99a8;
+      --text-3:  #5a6878;
+      --accent:  #ff6b35;
+      --green:   #50fa7b;
+      --cyan:    #8be9fd;
+      --serif: "Newsreader", Georgia, serif;
+      --mono:  "JetBrains Mono", ui-monospace, monospace;
     }
 
-    ::selection {
-      background: rgba(255, 107, 53, 0.3);
-      color: var(--text);
-    }
+    ::selection { background: rgba(255, 107, 53, 0.25); }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
 
     body {
-      font-family: var(--sans);
+      font-family: var(--serif);
       background: var(--bg);
       color: var(--text);
-      font-size: 17px;
-      line-height: 1.75;
-      min-height: 100vh;
-      min-height: 100dvh;
+      font-size: 18px;
+      line-height: 1.55;
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Layout */
-    .col    { max-width: 640px;  margin: 0 auto; padding: 0 24px; }
-    .col-md { max-width: 880px;  margin: 0 auto; padding: 0 24px; }
-    .col-lg { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+    .col {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .col-wide {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
 
     /* ─── Nav ─── */
     nav {
       padding: 20px 0;
+      border-bottom: 1px solid var(--border);
     }
-    nav .col-lg {
+    nav .col {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -83,202 +82,172 @@
     .logo {
       font-family: var(--mono);
       font-weight: 700;
-      font-size: 16px;
+      font-size: 15px;
       color: var(--text);
       text-decoration: none;
-      letter-spacing: -0.01em;
     }
+    .logo:hover { text-decoration: none; }
     .nav-links {
       display: flex;
-      gap: 32px;
-      font-size: 14px;
+      gap: 24px;
     }
     .nav-links a {
       font-family: var(--mono);
-      color: var(--text-subtle);
+      font-size: 13px;
+      color: var(--text-3);
       text-decoration: none;
-      transition: color 0.2s;
     }
-    .nav-links a:hover { color: var(--text); }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
 
     /* ─── Hero ─── */
     .hero {
-      padding: 140px 0 100px;
-      background: linear-gradient(180deg, var(--bg-warm) 0%, var(--bg) 100%);
-    }
-    .hero .label {
-      font-family: var(--mono);
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 24px;
-      display: block;
+      padding: 100px 0 72px;
     }
     .hero h1 {
-      font-size: clamp(40px, 6vw + 0.5rem, 80px);
+      font-family: var(--serif);
+      font-size: clamp(36px, 5vw + 0.5rem, 64px);
       font-weight: 800;
-      letter-spacing: -0.035em;
-      line-height: 1.0;
-      margin-bottom: 32px;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin-bottom: 28px;
     }
-    .hero h1 span { display: block; }
-    .hero h1 .hl {
-      color: var(--accent);
-      text-shadow: 0 0 80px rgba(255, 107, 53, 0.2);
-    }
-    .hero .lead {
-      font-size: clamp(18px, 1rem + 0.5vw, 21px);
-      color: var(--text-dim);
-      line-height: 1.7;
+    .hero .lede {
+      font-family: var(--serif);
+      font-size: clamp(20px, 1.1rem + 0.5vw, 23px);
+      font-style: italic;
+      color: var(--text-2);
+      line-height: 1.5;
       max-width: 560px;
-      margin-bottom: 48px;
+      margin-bottom: 40px;
     }
-    .cta-primary {
+    .pill {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
-      padding: 18px 40px;
+      gap: 8px;
+      padding: 12px 28px;
       font-family: var(--mono);
-      font-size: 15px;
-      font-weight: 700;
-      text-decoration: none;
-      border-radius: 10px;
-      background: var(--accent);
-      color: #fff;
-      box-shadow: 0 4px 24px rgba(255, 107, 53, 0.25);
-      transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
-    }
-    .cta-primary:hover {
-      background: var(--accent-bright);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 32px rgba(255, 107, 53, 0.35);
-    }
-
-    /* ─── Trust bar ─── */
-    .trust {
-      padding: 40px 0;
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-    }
-    .trust .col {
-      display: flex;
-      justify-content: center;
-      gap: 32px;
-      flex-wrap: wrap;
-      font-family: var(--mono);
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
-      color: var(--text-subtle);
-      letter-spacing: 0.04em;
-    }
-
-    /* ─── Prose sections ─── */
-    .section {
-      padding: 100px 0;
-    }
-    .section.tinted {
-      background: var(--bg-warm);
-    }
-    .section h2 {
-      font-size: clamp(24px, 1.4rem + 1vw, 36px);
-      font-weight: 800;
-      letter-spacing: -0.025em;
-      line-height: 1.15;
-      margin-bottom: 24px;
-    }
-    .section p {
-      color: var(--text-dim);
-      margin-bottom: 24px;
-      max-width: 600px;
-    }
-    .section p:last-child { margin-bottom: 0; }
-    .section strong { color: var(--text); }
-    .section code {
-      font-family: var(--mono);
-      font-size: 0.85em;
       color: var(--accent);
-      background: var(--accent-dim);
-      padding: 3px 7px;
-      border-radius: 4px;
+      border: 1px solid var(--accent);
+      border-radius: 100px;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pill:hover {
+      background: var(--accent);
+      color: var(--bg);
+      text-decoration: none;
     }
 
-    /* Callout — a visually distinct pull quote */
-    .callout {
-      border-left: 3px solid var(--accent);
-      padding: 16px 0 16px 24px;
-      margin: 32px 0;
-      font-size: 18px;
+    /* ─── Ornament break ─── */
+    .ornament {
+      text-align: center;
+      padding: 48px 0;
+      font-family: var(--mono);
+      font-size: 14px;
+      color: var(--text-3);
+      letter-spacing: 0.3em;
+    }
+
+    /* ─── Prose ─── */
+    .essay {
+      padding: 40px 0;
+    }
+    .essay h2 {
+      font-family: var(--serif);
+      font-size: clamp(24px, 1.5rem + 0.8vw, 34px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 20px;
+    }
+    .essay p {
+      color: var(--text-2);
+      margin-bottom: 20px;
+      max-width: 620px;
+    }
+    .essay p:last-child { margin-bottom: 0; }
+    .essay strong { color: var(--text); font-weight: 600; }
+    .essay em { font-style: italic; color: var(--text); }
+    .essay code {
+      font-family: var(--mono);
+      font-size: 0.78em;
+      color: var(--accent);
+    }
+
+    /* Aside — italic callout, indented */
+    .aside {
+      font-style: italic;
       color: var(--text);
-      line-height: 1.65;
-      font-weight: 500;
+      border-left: 1px solid var(--border);
+      padding: 2px 0 2px 20px;
+      margin: 28px 0;
+      font-size: 17px;
+      line-height: 1.55;
       max-width: 560px;
     }
 
     /* ─── Terminal ─── */
-    .terminal-wrap {
-      padding: 100px 0 120px;
+    .terminal-section {
+      padding: 56px 0 64px;
     }
-    .terminal-wrap h2 {
-      font-size: clamp(24px, 1.4rem + 1vw, 36px);
-      font-weight: 800;
-      letter-spacing: -0.025em;
+    .terminal-section h2 {
+      font-family: var(--serif);
+      font-size: clamp(24px, 1.5rem + 0.8vw, 34px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
       text-align: center;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
-    .terminal-wrap .sub {
+    .terminal-section .sub {
       text-align: center;
       font-family: var(--mono);
-      font-size: 13px;
-      color: var(--text-subtle);
-      margin-bottom: 48px;
+      font-size: 12px;
+      color: var(--text-3);
+      margin-bottom: 40px;
     }
     .terminal {
-      background: var(--bg-subtle);
+      background: #080b10;
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 6px;
       overflow: hidden;
       font-family: var(--mono);
       font-size: 13px;
-      box-shadow:
-        0 24px 80px rgba(0, 0, 0, 0.6),
-        0 0 120px var(--accent-glow),
-        inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
     .terminal-header {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 14px 18px;
-      background: var(--bg-elevated);
+      gap: 7px;
+      padding: 11px 14px;
+      background: var(--bg-alt);
       border-bottom: 1px solid var(--border);
     }
-    .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
-    .terminal-dot:nth-child(1) { background: #ff5f57; }
-    .terminal-dot:nth-child(2) { background: #febc2e; }
-    .terminal-dot:nth-child(3) { background: #28c840; }
+    .td { width: 11px; height: 11px; border-radius: 50%; }
+    .td:nth-child(1) { background: #ff5f57; }
+    .td:nth-child(2) { background: #febc2e; }
+    .td:nth-child(3) { background: #28c840; }
     .terminal-title {
       flex: 1;
       text-align: center;
-      color: var(--text-subtle);
-      font-size: 12px;
-      padding-right: 60px;
+      color: var(--text-3);
+      font-size: 11px;
+      padding-right: 54px;
     }
     .terminal-body {
-      padding: 24px 28px;
+      padding: 20px 24px;
       overflow-x: auto;
       line-height: 1.65;
+      color: var(--text);
     }
-    .t-prompt { color: var(--green); }
-    .t-cmd { color: var(--text); font-weight: 600; }
-    .t-dim { color: var(--text-subtle); }
-    .t-accent { color: var(--accent); font-weight: 600; }
-    .t-section { color: var(--cyan); font-weight: 600; }
-    .t-check { color: var(--green); }
-    .t-fail { color: var(--text-subtle); }
-    .t-star { color: var(--accent); font-weight: 600; }
-    .t-label { color: var(--cyan); }
+    .t-p  { color: var(--green); }
+    .t-b  { font-weight: 600; }
+    .t-d  { color: var(--text-3); }
+    .t-a  { color: var(--accent); font-weight: 600; }
+    .t-s  { color: var(--cyan); font-weight: 600; }
+    .t-g  { color: var(--green); }
+    .t-f  { color: var(--text-3); }
+    .t-l  { color: var(--cyan); }
     .t-ok { color: var(--green); font-weight: 600; }
     .t-line { display: block; white-space: pre; min-height: 1.65em; }
     .t-line.is-pending { opacity: 0; }
@@ -295,15 +264,15 @@
     /* ─── Install ─── */
     .code-wrap {
       position: relative;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
     .code-wrap code {
       display: block;
       font-family: var(--mono);
       font-size: 13px;
-      background: var(--bg-subtle);
+      background: #080b10;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 6px;
       padding: 14px 64px 14px 16px;
       color: var(--text);
       white-space: pre-wrap;
@@ -315,114 +284,97 @@
       top: 8px; right: 8px;
       font-family: var(--mono);
       font-size: 11px;
-      color: var(--text-subtle);
-      background: var(--bg-elevated);
+      color: var(--text-3);
+      background: var(--bg-alt);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px 10px;
+      border-radius: 4px;
+      padding: 3px 8px;
       cursor: pointer;
-      transition: color 0.15s, border-color 0.15s;
+      transition: color 0.15s;
     }
-    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
-    .copy-btn.is-copied { color: var(--green); border-color: var(--green); }
+    .copy-btn:hover { color: var(--text); }
+    .copy-btn.is-copied { color: var(--green); }
     @media (pointer: coarse) {
-      .copy-btn { min-width: 44px; min-height: 32px; padding: 8px 12px; top: 4px; right: 4px; }
+      .copy-btn { min-width: 44px; min-height: 32px; padding: 8px 12px; }
     }
 
     /* ─── Bottom CTA ─── */
-    .bottom-cta {
+    .end {
       text-align: center;
-      padding: 80px 0 100px;
-      background: linear-gradient(180deg, var(--bg) 0%, var(--bg-warm) 100%);
+      padding: 72px 0 80px;
+      border-top: 1px solid var(--border);
     }
-    .bottom-cta h2 {
-      font-size: clamp(24px, 1.4rem + 1vw, 36px);
-      font-weight: 800;
-      letter-spacing: -0.025em;
-      margin-bottom: 24px;
+    .end h2 {
+      font-family: var(--serif);
+      font-size: clamp(24px, 1.5rem + 0.8vw, 34px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
     }
-    .bottom-cta p {
-      font-family: var(--mono);
-      font-size: 13px;
-      color: var(--text-subtle);
+    .end .sub {
+      font-style: italic;
+      color: var(--text-2);
+      margin-bottom: 32px;
+      font-size: 18px;
+    }
+    .end .meta {
       margin-top: 20px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-3);
+      letter-spacing: 0.03em;
     }
 
     /* ─── Footer ─── */
     footer {
-      padding: 40px 0 32px;
+      padding: 28px 0;
       border-top: 1px solid var(--border);
-    }
-    footer .col {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-    }
-    footer .footer-links {
-      display: flex;
-      gap: 24px;
-      font-family: var(--mono);
-      font-size: 13px;
-    }
-    footer .footer-links a {
-      color: var(--text-subtle);
-      text-decoration: none;
-      transition: color 0.15s;
-    }
-    footer .footer-links a:hover { color: var(--text); }
-    footer .attrib {
+      text-align: center;
       font-family: var(--mono);
       font-size: 12px;
-      color: var(--text-subtle);
+      color: var(--text-3);
     }
-    footer .attrib a {
-      color: var(--text-dim);
-      text-decoration: underline;
+    footer a { color: var(--text-3); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+    footer .links {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      margin-bottom: 8px;
     }
-    footer .attrib a:hover { color: var(--accent); }
 
     /* ─── Responsive ─── */
     @media (max-width: 680px) {
-      body { font-size: 16px; }
-      .col, .col-md, .col-lg { padding: 0 20px; }
-      .hero { padding: 100px 0 72px; }
-      .hero .label { margin-bottom: 20px; }
-      .hero h1 { margin-bottom: 24px; }
-      .hero .lead { margin-bottom: 36px; }
-      .cta-primary { padding: 16px 32px; font-size: 14px; }
-      .trust .col { gap: 20px; font-size: 11px; }
-      .section { padding: 72px 0; }
-      .terminal-wrap { padding: 72px 0 80px; }
-      .terminal-body { padding: 18px 16px; font-size: 12px; }
-      .terminal-header { padding: 12px 14px; }
-      .terminal-title { font-size: 11px; padding-right: 48px; }
-      .callout { font-size: 16px; padding-left: 20px; }
-      .bottom-cta { padding: 64px 0 80px; }
-      .code-wrap code { padding: 12px 56px 12px 14px; font-size: 12px; }
-      .copy-btn { font-size: 10px; }
-      footer .footer-links { gap: 16px; flex-wrap: wrap; justify-content: center; }
-    }
-
-    @media (max-width: 400px) {
-      .col, .col-md, .col-lg { padding: 0 16px; }
+      body { font-size: 17px; }
+      .col, .col-wide { padding: 0 20px; }
       .hero { padding: 72px 0 56px; }
-      .hero h1 { font-size: clamp(32px, 10vw, 44px); }
-      .cta-primary { padding: 14px 24px; font-size: 13px; width: 100%; justify-content: center; }
-      .section { padding: 56px 0; }
-      .terminal-wrap { padding: 56px 0 64px; }
-      .trust .col { flex-direction: column; gap: 8px; align-items: center; }
-      .nav-links { gap: 20px; font-size: 13px; }
+      .hero h1 { margin-bottom: 20px; }
+      .hero .lede { margin-bottom: 32px; }
+      .ornament { padding: 36px 0; }
+      .essay { padding: 32px 0; }
+      .terminal-section { padding: 40px 0 48px; }
+      .terminal-body { padding: 16px 14px; font-size: 12px; }
+      .terminal-header { padding: 10px 12px; }
+      .terminal-title { font-size: 10px; padding-right: 44px; }
+      .end { padding: 56px 0 64px; }
+      .code-wrap code { padding: 12px 56px 12px 14px; font-size: 12px; }
+    }
+    @media (max-width: 400px) {
+      .col, .col-wide { padding: 0 16px; }
+      .hero { padding: 56px 0 44px; }
+      .pill { width: 100%; justify-content: center; }
+      .nav-links { gap: 16px; }
+      .nav-links a { font-size: 12px; }
     }
   </style>
 </head>
 <body>
   <nav>
-    <div class="col-lg">
+    <div class="col">
       <a class="logo" href="/">prinstall</a>
       <div class="nav-links">
-        <a href="/docs/">Docs</a>
-        <a href="https://github.com/limehawk/prinstall">GitHub</a>
+        <a href="/docs/">docs</a>
+        <a href="https://github.com/limehawk/prinstall">github</a>
       </div>
     </div>
   </nav>
@@ -430,210 +382,178 @@
   <main>
     <section class="hero">
       <div class="col">
-        <span class="label">Network printer management for Windows</span>
-        <h1>
-          <span>Adding printers</span>
-          <span>on Windows sucks.</span>
-          <span><span class="hl">We fixed it.</span></span>
-        </h1>
-        <p class="lead">
-          Why does adding a printer in 2026 still feel like defusing a bomb? Wrong driver. Missing port. <code>HRESULT 0x80070705</code>. Restart the spooler. Google the error. Download a 200 MB "setup utility." Run it. It doesn't work.
+        <h1>Adding printers on Windows is still broken in 2026.</h1>
+        <p class="lede">
+          I built a tool that scans your subnet, finds every printer, matches the right vendor driver by hardware ID, and installs it. One command. Ten seconds. No wizard.
         </p>
-        <a class="cta-primary" href="https://github.com/limehawk/prinstall/releases/latest">Download for Windows →</a>
+        <a class="pill" href="https://github.com/limehawk/prinstall/releases/latest">download for windows →</a>
       </div>
     </section>
 
-    <div class="trust">
-      <div class="col">
-        <span>Rust</span>
-        <span>Single binary</span>
-        <span>Zero dependencies</span>
-        <span>292 tests</span>
-        <span>MIT licensed</span>
-      </div>
-    </div>
+    <div class="ornament">· · ·</div>
 
-    <section class="section">
+    <section class="essay">
       <div class="col">
-        <h2>One binary. One command. Done.</h2>
+        <h2>The problem is familiar.</h2>
         <p>
-          <code>prinstall</code> is a single executable. No installer, no .NET runtime, no dependencies, no "please restart your computer." You point it at an IP address and it handles the rest — scans the printer, identifies the model, finds the right vendor driver, downloads it, stages it, and installs the printer.
+          New office. Twelve printers across three floors. You open Devices and Printers and start the wizard. It asks for a port. Then a driver. You pick "HP LaserJet" from a list that hasn't been updated since Windows 7. The test page comes out garbled. You go to HP's website and download a 200 MB "setup utility" that installs seventeen background services and a supply ordering app. The printer still doesn't work.
         </p>
-        <div class="callout">
-          Not "Generic / Text Only." Not "HP Universal 6 years old." The actual vendor driver, matched by hardware ID, verified before install.
+        <p>
+          This happens every day, on every site visit, to every MSP tech in the field. I got tired of it, so I wrote <code>prinstall</code>.
+        </p>
+      </div>
+    </section>
+
+    <section class="essay">
+      <div class="col">
+        <h2>What it does.</h2>
+        <p>
+          You run <code>prinstall add 10.10.20.16</code>. It probes the printer via SNMP and IPP, figures out the make and model, then walks a six-tier driver cascade looking for the best match. Local driver store first. Bundled packs. Manufacturer URLs. The Microsoft Update Catalog. SDI Origin driver packs. And if nothing else works, the built-in IPP Class Driver as a last resort.
+        </p>
+        <div class="aside">
+          Every driver is matched by hardware ID and verified before install. The INF is parsed, the HWID is confirmed, the <code>.cat</code> Authenticode signature is checked against Microsoft's certificate chain. Unsigned or tampered packs get skipped.
         </div>
         <p>
-          It walks a six-tier cascade — local driver store, bundled packs, manufacturer download, Microsoft Update Catalog, SDI Origin driver packs, and IPP Class Driver fallback — and it <strong>will not give up before you do</strong>. If one source fails, it tries the next. Then the next. Then the next.
+          Removal is the same story. <code>prinstall remove</code> deletes the queue, checks if any other printer uses the driver, checks if any other printer uses the port, and cleans up whatever is orphaned. One command, no ghosts left behind.
         </p>
       </div>
     </section>
 
-    <section class="terminal-wrap">
-      <div class="col-md">
-        <h2>Watch this printer get bodied</h2>
-        <p class="sub">one command · no wizard · no "restart the spooler"</p>
+    <div class="ornament">· · ·</div>
+
+    <section class="terminal-section">
+      <div class="col-wide">
+        <h2>See it work.</h2>
+        <p class="sub">prinstall add 10.10.20.16</p>
         <div class="terminal">
           <div class="terminal-header">
-            <span class="terminal-dot"></span>
-            <span class="terminal-dot"></span>
-            <span class="terminal-dot"></span>
-            <span class="terminal-title">Windows PowerShell</span>
+            <span class="td"></span>
+            <span class="td"></span>
+            <span class="td"></span>
+            <span class="terminal-title">PowerShell</span>
           </div>
           <div class="terminal-body">
-<div class="t-line"><span class="t-prompt">PS&gt;</span> <span class="t-cmd">prinstall</span> <span class="t-cmd">add</span> 10.10.20.16</div>
+<div class="t-line"><span class="t-p">PS&gt;</span> <span class="t-b">prinstall</span> <span class="t-b">add</span> 10.10.20.16</div>
 <div class="t-line"></div>
-<div class="t-line"><span class="t-section">━━ Discovery ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
-<div class="t-line">  <span class="t-dim">SNMP</span>  <span class="t-dim">→</span> <span class="t-accent">Brother MFC-L2750DW series</span></div>
-<div class="t-line">  <span class="t-dim">IPP</span>   <span class="t-dim">→</span> <span class="t-accent">Brother MFC-L2750DW series</span> <span class="t-dim">(CID confirmed)</span></div>
-<div class="t-line">  <span class="t-dim">DID</span>    <span class="t-dim">Brother MFC-L2750DW series</span></div>
+<div class="t-line"><span class="t-s">━━ Discovery ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
+<div class="t-line">  <span class="t-d">SNMP</span>  <span class="t-d">→</span> <span class="t-a">Brother MFC-L2750DW series</span></div>
+<div class="t-line">  <span class="t-d">IPP</span>   <span class="t-d">→</span> <span class="t-a">Brother MFC-L2750DW series</span> <span class="t-d">(CID confirmed)</span></div>
+<div class="t-line">  <span class="t-d">DID</span>    <span class="t-d">Brother MFC-L2750DW series</span></div>
 <div class="t-line"></div>
-<div class="t-line"><span class="t-section">━━ Driver Resolution ━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
-<div class="t-line">   <span class="t-fail">Manufacturer</span>    <span class="t-fail">✗</span> <span class="t-fail">install failed</span></div>
-<div class="t-line">  <span class="t-accent">▸</span> <span class="t-star">Catalog</span>         <span class="t-star">★</span> <span class="t-star">Brother Laser Type1 Class Driver</span></div>
+<div class="t-line"><span class="t-s">━━ Driver Resolution ━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
+<div class="t-line">   <span class="t-f">Manufacturer</span>    <span class="t-f">✗</span> <span class="t-f">install failed</span></div>
+<div class="t-line">  <span class="t-a">▸</span> <span class="t-a">Catalog</span>         <span class="t-a">★</span> <span class="t-a">Brother Laser Type1 Class Driver</span></div>
 <div class="t-line"></div>
-<div class="t-line"><span class="t-section">━━ Install ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
-<div class="t-line">  <span class="t-label">Port</span>   IP_10.10.20.16                      <span class="t-check">✓</span></div>
-<div class="t-line">  <span class="t-label">Driver</span> Brother Laser Type1 Class Driver    <span class="t-check">✓</span></div>
-<div class="t-line">  <span class="t-label">Queue</span>  Brother MFC-L2750DW series          <span class="t-check">✓</span></div>
+<div class="t-line"><span class="t-s">━━ Install ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
+<div class="t-line">  <span class="t-l">Port</span>   IP_10.10.20.16                      <span class="t-g">✓</span></div>
+<div class="t-line">  <span class="t-l">Driver</span> Brother Laser Type1 Class Driver    <span class="t-g">✓</span></div>
+<div class="t-line">  <span class="t-l">Queue</span>  Brother MFC-L2750DW series          <span class="t-g">✓</span></div>
 <div class="t-line"></div>
-<div class="t-line"><span class="t-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
-<div class="t-line">  <span class="t-check">✓</span> Installed in <span class="t-accent">10.5s</span> via <span class="t-accent">Microsoft Update Catalog</span></div>
-<div class="t-line"><span class="t-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
+<div class="t-line"><span class="t-s">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
+<div class="t-line">  <span class="t-g">✓</span> Installed in <span class="t-a">10.5s</span> via <span class="t-a">Microsoft Update Catalog</span></div>
+<div class="t-line"><span class="t-s">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
 <div class="t-line"></div>
 <div class="t-line"><span class="t-ok">Printer installed successfully!</span></div>
-<div class="t-line">  <span class="t-dim">Name:</span>   <span class="t-accent">Brother MFC-L2750DW series</span></div>
-<div class="t-line">  <span class="t-dim">Driver:</span> <span class="t-accent">Brother Laser Type1 Class Driver</span></div>
-<div class="t-line">  <span class="t-dim">Port:</span>   IP_10.10.20.16</div>
+<div class="t-line">  <span class="t-d">Name:</span>   <span class="t-a">Brother MFC-L2750DW series</span></div>
+<div class="t-line">  <span class="t-d">Driver:</span> <span class="t-a">Brother Laser Type1 Class Driver</span></div>
+<div class="t-line">  <span class="t-d">Port:</span>   IP_10.10.20.16</div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="section tinted">
+    <div class="ornament">· · ·</div>
+
+    <section class="essay">
       <div class="col">
-        <h2>It finds your printers</h2>
+        <h2>Built for the field.</h2>
         <p>
-          Scans your whole subnet in seconds. SNMP, IPP, port probes — throws everything at the wall in parallel. That printer hiding in the corner with SNMP disabled? Found it. The USB printer Karen plugged in that Windows decided to install with "Generic / Text Only"? Found that too.
+          Every command takes <code>--json</code> so you can pipe output to your RMM. Every error is decoded — PowerShell's verbose noise is stripped, HRESULT codes are translated to English. It runs headless through SuperOps, ConnectWise, Datto, anywhere you can drop a binary.
+        </p>
+        <p>
+          USB printers are handled too. Windows loves to install them with "Generic / Text Only" and call it a day. <code>prinstall add "HP LaserJet 1320" --usb</code> swaps the driver on the existing queue without recreating it.
         </p>
       </div>
     </section>
 
-    <section class="section">
+    <section class="essay" id="install">
       <div class="col">
-        <h2>Scorched earth removal</h2>
-        <p>
-          Queue? Gone. Driver? Gone. Port? Gone. That ghost printer from 2019 that still shows up in Print Server Properties? Obliterated.
-        </p>
-        <div class="callout">
-          The print spooler can finally breathe. No orphaned ports, no dead drivers, no "the driver is in use by another printer" bullshit. One command and the machine is clean.
-        </div>
-      </div>
-    </section>
-
-    <section class="section tinted">
-      <div class="col">
-        <h2>Script it and forget it</h2>
-        <p>
-          Pipe <code>--json</code> into your RMM. Deploy to 200 machines at 2 AM. Wake up to zero printer tickets. That's the dream. That's the whole point.
-        </p>
-        <p>
-          Remember <code>HRESULT 0x80070705</code>? We decode that garbage into actual English. Because Microsoft sure as hell wasn't going to.
-        </p>
-      </div>
-    </section>
-
-    <section class="section" id="install">
-      <div class="col">
-        <h2>Get it</h2>
-        <p>Drop it anywhere and run it:</p>
+        <h2>Get it.</h2>
+        <p>It's a single <code>.exe</code>. No installer, no runtime, no dependencies.</p>
         <div class="code-wrap">
           <code>iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe</code>
-          <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+          <button class="copy-btn" type="button">copy</button>
         </div>
-        <p>Or install to PATH with the bootstrap script:</p>
+        <p>Or use the bootstrap script to install to PATH:</p>
         <div class="code-wrap">
           <code>iwr -useb https://raw.githubusercontent.com/limehawk/prinstall/main/scripts/prinstall_setup.ps1 | iex</code>
-          <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+          <button class="copy-btn" type="button">copy</button>
         </div>
-        <p>Then add a printer:</p>
+        <p>Then:</p>
         <div class="code-wrap">
           <code>.\prinstall.exe add 192.168.1.47</code>
-          <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+          <button class="copy-btn" type="button">copy</button>
         </div>
       </div>
     </section>
 
-    <section class="bottom-cta">
+    <section class="end">
       <h2>Stop fighting printers.</h2>
-      <a class="cta-primary" href="https://github.com/limehawk/prinstall/releases/latest">Download for Windows →</a>
-      <p>Open source · MIT licensed · single binary</p>
+      <p class="sub">Life's too short for driver wizards.</p>
+      <a class="pill" href="https://github.com/limehawk/prinstall/releases/latest">download for windows →</a>
+      <p class="meta">open source · mit licensed · built in rust · zero dependencies</p>
     </section>
   </main>
 
   <footer>
-    <div class="col">
-      <div class="footer-links">
-        <a href="/docs/">Docs</a>
-        <a href="https://github.com/limehawk/prinstall">GitHub</a>
-        <a href="https://github.com/limehawk/prinstall/releases">Releases</a>
-        <a href="https://github.com/limehawk/prinstall/issues">Issues</a>
-      </div>
-      <p class="attrib">built by <a href="https://limehawk.io">limehawk</a> · because fuck printers, that's why</p>
+    <div class="links">
+      <a href="/docs/">docs</a>
+      <a href="https://github.com/limehawk/prinstall">github</a>
+      <a href="https://github.com/limehawk/prinstall/releases">releases</a>
+      <a href="https://github.com/limehawk/prinstall/issues">issues</a>
     </div>
+    <p>built by <a href="https://limehawk.io">limehawk</a></p>
   </footer>
 
   <script>
     (() => {
-      const terminal = document.querySelector('.terminal');
-      if (!terminal) return;
-      const body = terminal.querySelector('.terminal-body');
-      if (!body) return;
-      const lines = Array.from(body.querySelectorAll('.t-line'));
+      const t = document.querySelector('.terminal');
+      if (!t) return;
+      const b = t.querySelector('.terminal-body');
+      if (!b) return;
+      const lines = Array.from(b.querySelectorAll('.t-line'));
       if (!lines.length) return;
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-      const delays = [
-        140, 300, 260, 200, 180, 140,
-        300, 260, 200,
-        300, 180, 180, 180,
-        300, 200, 200,
-        300, 160, 100, 100, 100,
-      ];
-
-      const caret = document.createElement('span');
-      caret.className = 't-caret';
-      lines.forEach((l) => l.classList.add('is-pending'));
-
+      const delays = [140,300,260,200,180,140,300,260,200,300,180,180,180,300,200,200,300,160,100,100,100];
+      const c = document.createElement('span');
+      c.className = 't-caret';
+      lines.forEach(l => l.classList.add('is-pending'));
       let played = false;
       const play = () => {
         if (played) return;
         played = true;
-        let t = 0;
-        lines.forEach((line, i) => {
-          t += delays[i] ?? 160;
-          setTimeout(() => {
-            line.classList.remove('is-pending');
-            line.appendChild(caret);
-          }, t);
+        let ms = 0;
+        lines.forEach((l, i) => {
+          ms += delays[i] ?? 160;
+          setTimeout(() => { l.classList.remove('is-pending'); l.appendChild(c); }, ms);
         });
       };
-
-      const io = new IntersectionObserver((entries) => {
-        entries.forEach((e) => { if (e.isIntersecting) { play(); io.disconnect(); } });
+      const io = new IntersectionObserver(entries => {
+        entries.forEach(e => { if (e.isIntersecting) { play(); io.disconnect(); } });
       }, { threshold: 0.25 });
-      io.observe(terminal);
+      io.observe(t);
     })();
 
-    document.querySelectorAll('.copy-btn').forEach((btn) => {
+    document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const code = btn.parentElement?.querySelector('code');
         if (!code) return;
         try {
           await navigator.clipboard.writeText(code.textContent ?? '');
-          const prev = btn.textContent;
-          btn.textContent = 'Copied!';
+          const p = btn.textContent;
+          btn.textContent = 'copied';
           btn.classList.add('is-copied');
-          setTimeout(() => { btn.textContent = prev; btn.classList.remove('is-copied'); }, 1400);
+          setTimeout(() => { btn.textContent = p; btn.classList.remove('is-copied'); }, 1400);
         } catch (_) {
           const r = document.createRange();
           r.selectNodeContents(code);
