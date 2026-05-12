@@ -16,6 +16,7 @@
   <style>
     :root {
       --bg: #0a0e14;
+      --bg-warm: #0d1219;
       --bg-elevated: #111821;
       --bg-subtle: #0f1620;
       --border: #1e2a3a;
@@ -25,11 +26,16 @@
       --text-subtle: #5a6878;
       --accent: #ff6b35;
       --accent-bright: #ff8355;
-      --accent-dim: rgba(255, 107, 53, 0.12);
+      --accent-dim: rgba(255, 107, 53, 0.10);
       --green: #50fa7b;
       --cyan: #8be9fd;
       --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
       --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    ::selection {
+      background: rgba(255, 107, 53, 0.3);
+      color: var(--text);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -39,24 +45,29 @@
       font-family: var(--sans);
       background: var(--bg);
       color: var(--text);
-      line-height: 1.7;
+      font-size: 17px;
+      line-height: 1.75;
       min-height: 100vh;
       min-height: 100dvh;
       -webkit-font-smoothing: antialiased;
     }
 
     .prose {
-      max-width: 680px;
+      max-width: 640px;
       margin: 0 auto;
       padding: 0 24px;
     }
 
-    /* Nav */
-    nav {
-      padding: 24px 0;
-      border-bottom: 1px solid var(--border);
+    .col-lg {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 24px;
     }
-    nav .prose {
+
+    nav {
+      padding: 20px 0;
+    }
+    nav .col-lg {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -64,37 +75,50 @@
     .logo {
       font-family: var(--mono);
       font-weight: 700;
-      font-size: 18px;
+      font-size: 16px;
       color: var(--text);
       text-decoration: none;
+      letter-spacing: -0.01em;
     }
     .nav-links {
       display: flex;
-      gap: 24px;
-      font-family: var(--mono);
+      gap: 32px;
       font-size: 14px;
     }
     .nav-links a {
-      color: var(--text-dim);
+      font-family: var(--mono);
+      color: var(--text-subtle);
       text-decoration: none;
+      transition: color 0.2s;
     }
     .nav-links a:hover { color: var(--text); }
 
-    /* Page header */
     .page-header {
-      padding: 80px 0 20px;
+      padding: 100px 0 24px;
+      background: linear-gradient(180deg, var(--bg-warm) 0%, var(--bg) 100%);
+    }
+    .page-header .label {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+      display: block;
     }
     .page-header h1 {
-      font-size: clamp(28px, 3vw + 0.5rem, 48px);
+      font-size: clamp(32px, 4vw + 0.5rem, 56px);
       font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
       margin-bottom: 16px;
     }
     .page-header p {
-      font-size: clamp(16px, 0.95rem + 0.2vw, 18px);
+      font-size: clamp(16px, 0.95rem + 0.2vw, 19px);
       color: var(--text-dim);
-      line-height: 1.6;
+      line-height: 1.7;
+      max-width: 540px;
     }
 
     /* TOC */
@@ -124,17 +148,16 @@
 
     /* Content sections */
     .s h2 {
-      font-size: clamp(20px, 1.1rem + 0.6vw, 28px);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 16px;
-      line-height: 1.2;
+      font-size: clamp(22px, 1.2rem + 0.8vw, 32px);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 20px;
+      line-height: 1.15;
     }
     .s p {
-      font-size: 16px;
       color: var(--text-dim);
-      line-height: 1.7;
       margin-bottom: 20px;
+      max-width: 600px;
     }
     .s p:last-child { margin-bottom: 0; }
     .s strong { color: var(--text); font-weight: 600; }
@@ -171,19 +194,38 @@
 
     /* Footer */
     footer {
-      padding: 32px 0;
+      padding: 40px 0 32px;
       border-top: 1px solid var(--border);
       margin-top: 60px;
-      text-align: center;
+    }
+    footer .prose {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    footer .footer-links {
+      display: flex;
+      gap: 24px;
       font-family: var(--mono);
       font-size: 13px;
+    }
+    footer .footer-links a {
+      color: var(--text-subtle);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    footer .footer-links a:hover { color: var(--text); }
+    footer .attrib {
+      font-family: var(--mono);
+      font-size: 12px;
       color: var(--text-subtle);
     }
-    footer a {
+    footer .attrib a {
       color: var(--text-dim);
       text-decoration: underline;
     }
-    footer a:hover { color: var(--accent); }
+    footer .attrib a:hover { color: var(--accent); }
 
     @media (max-width: 600px) {
       .prose { padding: 0 16px; }
@@ -196,7 +238,7 @@
 </head>
 <body>
   <nav>
-    <div class="prose">
+    <div class="col-lg">
       <a class="logo" href="/">prinstall</a>
       <div class="nav-links">
         <a href="/">Home</a>
@@ -208,6 +250,7 @@
   <main>
     <section class="page-header">
       <div class="prose">
+        <span class="label">Documentation</span>
         <h1>The whole damn toolkit</h1>
         <p>Every command has <code>--help</code>. Every command takes <code>--json</code>. This page walks you through all of them so you never have to read a man page at 5 PM on a Friday.</p>
       </div>
@@ -358,7 +401,13 @@ prinstall setup install --dir D:\Tools\prinstall</code></pre>
 
   <footer>
     <div class="prose">
-      <p><a href="/">prinstall</a> · <a href="https://github.com/limehawk/prinstall">GitHub</a> · <a href="https://github.com/limehawk/prinstall/releases">Releases</a> · <a href="https://github.com/limehawk/prinstall/issues">Issues</a></p>
+      <div class="footer-links">
+        <a href="/">Home</a>
+        <a href="https://github.com/limehawk/prinstall">GitHub</a>
+        <a href="https://github.com/limehawk/prinstall/releases">Releases</a>
+        <a href="https://github.com/limehawk/prinstall/issues">Issues</a>
+      </div>
+      <p class="attrib">built by <a href="https://limehawk.io">limehawk</a> · because fuck printers, that's why</p>
     </div>
   </footer>
 </body>
