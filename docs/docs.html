@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>prinstall · docs</title>
+  <meta name="description" content="prinstall cheatsheet — every command, every flag, every effect, on one page." />
+  <meta name="theme-color" content="#0a0e14" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect x='16' y='82' width='480' height='264' rx='30' ry='30' fill='%231e293b'/%3E%3Crect x='64' y='118' width='384' height='24' rx='6' ry='6' fill='%23475569'/%3E%3Crect x='64' y='346' width='384' height='84' rx='12' ry='12' fill='%23f8fafc'/%3E%3Crect x='64' y='346' width='384' height='18' fill='%23cbd5e1'/%3E%3Ccircle cx='424' cy='190' r='15' fill='%2322c55e'/%3E%3C/svg%3E" />
+
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-subtle: #0f1620;
+      --border: #1e2a3a;
+      --text: #e6edf3;
+      --text-dim: #8b99a8;
+      --text-subtle: #5a6878;
+      --accent: #ff6b35;
+      --green: #50fa7b;
+      --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --radius: 6px;
+      --radius-sm: 4px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.5;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    nav {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    nav a { color: var(--text-dim); margin-right: 14px; }
+    nav a:hover { color: var(--text); text-decoration: underline; }
+    nav .logo {
+      color: var(--accent);
+      margin-right: 18px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    nav .logo:hover { text-decoration: none; color: var(--text); }
+    nav .logo pre {
+      font-size: 4px;
+      line-height: 1;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      white-space: pre;
+      color: inherit;
+    }
+    @media (max-width: 600px) {
+      nav .logo pre { font-size: 3px; }
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      margin: 28px 0 4px;
+      color: var(--text);
+    }
+    h1 + .lede {
+      color: var(--text-dim);
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    h2 {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 28px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 14px;
+      font-size: 12.5px;
+    }
+    th, td {
+      text-align: left;
+      padding: 6px 14px 6px 0;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--text-subtle);
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+    td.cmd { color: var(--text); font-weight: 600; white-space: nowrap; }
+    td.flags { color: var(--accent); }
+    td.effect { color: var(--text-dim); }
+    td.req { color: var(--text-subtle); font-size: 11px; white-space: nowrap; }
+    code { color: var(--accent); }
+
+    pre {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      margin: 6px 0 12px;
+      overflow-x: auto;
+      font-size: 12.5px;
+      color: var(--text);
+      line-height: 1.55;
+    }
+    pre .c { color: var(--text-subtle); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 32px;
+    }
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr; gap: 0; }
+      table { font-size: 12px; }
+      td.req { display: none; }
+    }
+
+    /* RMM script accordion — native details/summary, no fake chrome */
+    details.script {
+      border-top: 1px solid var(--border);
+      padding: 8px 0;
+    }
+    details.script:last-of-type { border-bottom: 1px solid var(--border); }
+    details.script > summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 4px 0;
+      color: var(--text);
+      font-size: 13px;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    details.script > summary::-webkit-details-marker { display: none; }
+    details.script > summary::before {
+      content: "+";
+      color: var(--accent);
+      font-weight: 700;
+      width: 1ch;
+    }
+    details.script[open] > summary::before { content: "−"; }
+    details.script > summary .name { color: var(--accent); font-weight: 600; }
+    details.script > summary .desc { color: var(--text-dim); font-size: 12.5px; }
+    details.script .script-wrap {
+      position: relative;
+      margin-top: 8px;
+    }
+    details.script pre {
+      max-height: 360px;
+      overflow: auto;
+      margin: 0;
+      padding-right: 56px;
+    }
+    details.script .copy-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 2px 7px;
+      cursor: pointer;
+      line-height: 1.5;
+    }
+    details.script .copy-btn:hover { color: var(--accent); }
+    details.script .copy-btn.is-copied { color: var(--green); }
+    details.script .script-meta {
+      font-size: 11px;
+      color: var(--text-subtle);
+      margin-top: 6px;
+    }
+
+    footer {
+      margin-top: 36px;
+      padding: 16px 0 28px;
+      border-top: 1px solid var(--border);
+      color: var(--text-subtle);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <a class="logo" href="/" aria-label="prinstall"><pre aria-hidden="true">▄▄▄▄▄▄▄   ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄    ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄   ▄▄▄▄   ▄▄▄      ▄▄▄
+███▀▀███▄ ███▀▀███▄  ███  ████▄  ███ █████▀▀▀ ▀▀▀███▀▀▀ ▄██▀▀██▄ ███      ███
+███▄▄███▀ ███▄▄███▀  ███  ███▀██▄███  ▀████▄     ███    ███  ███ ███      ███
+███▀▀▀▀   ███▀▀██▄   ███  ███  ▀████    ▀████    ███    ███▀▀███ ███      ███
+███       ███  ▀███ ▄███▄ ███    ███ ███████▀    ███    ███  ███ ████████ ████████</pre></a>
+      <a href="/">home</a>
+      <a href="/docs.html">docs</a>
+      <a href="https://github.com/limehawk/prinstall">github</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+      <h1>prinstall · docs</h1>
+      <p class="lede">Every command, every flag, on one page. Each subcommand has its own <code>--help</code> with examples.</p>
+
+      <h2>Install</h2>
+<pre><span class="c"># Default — includes SDI (Tier 5), Authenticode-verified</span>
+iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe
+
+<span class="c"># Lean — no SDI, Tiers 1–4 + IPP fallback</span>
+iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-nosdi.exe -OutFile prinstall.exe
+
+<span class="c"># First-run setup — copy to C:\ProgramData\prinstall\, add to PATH, open UDP 5353</span>
+.\prinstall.exe setup install</pre>
+
+      <h2>Commands</h2>
+      <table>
+        <thead>
+          <tr><th>Command</th><th>Flags</th><th>Effect</th><th>Admin</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="cmd">prinstall</td><td class="flags">--subnet</td><td class="effect">Launch the interactive TUI</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall scan [SUBNET]</td><td class="flags">--method (all|snmp|port|mdns), --timeout, --network-only, --usb-only</td><td class="effect">Multi-method subnet probe + USB enum. Auto-detects subnet from NIC. /24+ needs <code>--force</code>.</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall id &lt;ip&gt;</td><td class="flags">--community</td><td class="effect">SNMP query one host. Description, serial, status. 2 s timeout.</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall add &lt;target&gt;</td><td class="flags">--driver, --name, --model, --usb, --no-sdi, --no-catalog, --sdi-fetch, --no-verify</td><td class="effect">Walks the 6-tier driver pipeline. Network: ID → match → stage → install. USB: queue name target, hot-swap via Set-Printer.</td><td class="req">yes</td></tr>
+          <tr><td class="cmd">prinstall remove &lt;target&gt;</td><td class="flags">--keep-driver, --keep-port</td><td class="effect">Queue → driver (if orphaned) → port (if orphaned). Idempotent. Target can be IP or queue name.</td><td class="req">yes</td></tr>
+          <tr><td class="cmd">prinstall list</td><td class="flags">--verbose</td><td class="effect">Enumerate every queue Windows knows. Name, driver, port, IP, source.</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall driver add &lt;path|model&gt;</td><td class="flags">--driver, --no-verify</td><td class="effect">Stage from INF file, INF folder, or model string. Auto-picks unambiguous matches.</td><td class="req">yes</td></tr>
+          <tr><td class="cmd">prinstall driver remove &lt;name|fuzzy&gt;</td><td class="flags">--force</td><td class="effect">Unstage from driver store. Refuses if bound to a queue. <code>--force</code> cascades dependent queues. System drivers protected.</td><td class="req">yes</td></tr>
+          <tr><td class="cmd">prinstall driver list</td><td class="flags"></td><td class="effect">Every staged driver — manufacturer, version, date.</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall driver show &lt;ip&gt;</td><td class="flags">--model</td><td class="effect">Ranked match candidates for a printer. ★ exact / ● fuzzy / ○ low.</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall sdi status</td><td class="flags"></td><td class="effect">Cache contents, total size, mirror URL.</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall sdi refresh</td><td class="flags"></td><td class="effect">Pull latest index files (~1 MB).</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall sdi prefetch</td><td class="flags"></td><td class="effect">Download all printer driver packs (~1.5 GB, one time).</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall sdi verify</td><td class="flags"></td><td class="effect">Authenticode-check every cached <code>.cat</code>.</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall sdi list</td><td class="flags"></td><td class="effect">List cached indexes + packs.</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall sdi clean</td><td class="flags"></td><td class="effect">LRU-evict past the size budget.</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall setup install</td><td class="flags">--dir</td><td class="effect">Copy exe → <code>C:\ProgramData\prinstall\</code>, add to Machine PATH, open UDP 5353.</td><td class="req">yes</td></tr>
+          <tr><td class="cmd">prinstall setup uninstall</td><td class="flags">--dir</td><td class="effect">Reverse all three. Idempotent.</td><td class="req">yes</td></tr>
+          <tr><td class="cmd">prinstall version</td><td class="flags"></td><td class="effect">Alias for <code>--version</code>.</td><td class="req">no</td></tr>
+        </tbody>
+      </table>
+
+      <div class="grid">
+        <div>
+          <h2>Global flags</h2>
+          <table>
+            <tbody>
+              <tr><td class="flags">--json</td><td class="effect">Machine-readable JSON output</td></tr>
+              <tr><td class="flags">--verbose, -v</td><td class="effect">Raw PS commands + structured report</td></tr>
+              <tr><td class="flags">--community &lt;str&gt;</td><td class="effect">SNMP community (default: public)</td></tr>
+              <tr><td class="flags">--force</td><td class="effect">Permit /24+ scans, skip <code>add</code> fail-fast, cascade <code>driver remove</code></td></tr>
+              <tr><td class="flags">--subnet &lt;cidr&gt;</td><td class="effect">Override auto-detected subnet for TUI</td></tr>
+            </tbody>
+          </table>
+
+          <h2>TUI keys</h2>
+          <table>
+            <tbody>
+              <tr><td class="flags">j / k</td><td class="effect">Move up / down</td></tr>
+              <tr><td class="flags">h / l</td><td class="effect">Focus prev / next panel</td></tr>
+              <tr><td class="flags">Tab</td><td class="effect">Cycle panel focus</td></tr>
+              <tr><td class="flags">g / G</td><td class="effect">Top / bottom</td></tr>
+              <tr><td class="flags">Enter</td><td class="effect">Select / install</td></tr>
+              <tr><td class="flags">Esc</td><td class="effect">Back / close overlay</td></tr>
+              <tr><td class="flags">s</td><td class="effect">Rescan</td></tr>
+              <tr><td class="flags">?</td><td class="effect">Help overlay</td></tr>
+              <tr><td class="flags">q</td><td class="effect">Quit</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div>
+          <h2>Driver pipeline</h2>
+          <table>
+            <tbody>
+              <tr><td class="cmd">Tier 1</td><td class="effect">Local driver store — reuse what's installed</td></tr>
+              <tr><td class="cmd">Tier 2</td><td class="effect">Local bundle — drivers dropped next to exe</td></tr>
+              <tr><td class="cmd">Tier 3</td><td class="effect">Vendor download — HP, Xerox, Kyocera direct URLs</td></tr>
+              <tr><td class="cmd">Tier 4</td><td class="effect">Update Catalog + INF HWID match</td></tr>
+              <tr><td class="cmd">Tier 5</td><td class="effect">SDI Origin — verified <code>.cat</code> required</td></tr>
+              <tr><td class="cmd">Tier 6</td><td class="effect">IPP Class Driver — always-works fallback</td></tr>
+            </tbody>
+          </table>
+
+          <h2>Files</h2>
+          <table>
+            <tbody>
+              <tr><td class="flags">C:\ProgramData\prinstall\</td><td class="effect">Data root</td></tr>
+              <tr><td class="flags">…\drivers\</td><td class="effect">Bundle dir (Tier 2 fallback)</td></tr>
+              <tr><td class="flags">…\sdi\</td><td class="effect">SDI cache</td></tr>
+              <tr><td class="flags">…\config.toml</td><td class="effect">Persistent config</td></tr>
+              <tr><td class="flags">…\history.json</td><td class="effect">Install audit log</td></tr>
+            </tbody>
+          </table>
+
+          <h2>Environment</h2>
+          <table>
+            <tbody>
+              <tr><td class="flags">PRINSTALL_BUNDLE_DIR</td><td class="effect">Override the Tier 2 bundle directory</td></tr>
+              <tr><td class="flags">NO_COLOR</td><td class="effect">Suppress ANSI color</td></tr>
+            </tbody>
+          </table>
+
+          <h2>Exit status</h2>
+          <table>
+            <tbody>
+              <tr><td class="flags">0</td><td class="effect">Success</td></tr>
+              <tr><td class="flags">1</td><td class="effect">Failure — detail on stderr, full payload via <code>--json</code></td></tr>
+              <tr><td class="flags">2</td><td class="effect">Invalid arguments</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <h2>Examples — scan</h2>
+<pre><span class="c"># Auto-detect subnet from NIC, run every method in parallel</span>
+prinstall scan
+
+<span class="c"># Scan a specific subnet</span>
+prinstall scan 192.168.1.0/24
+prinstall scan 10.0.0.0/24 --community private
+
+<span class="c"># Single-method probes (faster when you know the network)</span>
+prinstall scan --method snmp
+prinstall scan --method port      <span class="c"># TCP 9100 only</span>
+prinstall scan --method mdns      <span class="c"># multicast browse, no subnet needed</span>
+
+<span class="c"># Tune timing</span>
+prinstall scan --timeout 200      <span class="c"># 200 ms per-host</span>
+prinstall scan --timeout 2000     <span class="c"># slower network, longer wait</span>
+
+<span class="c"># Network vs USB isolation</span>
+prinstall scan --network-only     <span class="c"># skip USB enumeration</span>
+prinstall scan --usb-only         <span class="c"># skip network, USB only</span>
+
+<span class="c"># Wide scan (requires --force above /24)</span>
+prinstall scan 10.0.0.0/16 --force
+
+<span class="c"># JSON for RMM</span>
+prinstall scan --json | ConvertFrom-Json | Where-Object { $_.model -like "HP*" }</pre>
+
+      <h2>Examples — id</h2>
+<pre><span class="c"># Identify one host via SNMP</span>
+prinstall id 192.168.1.100
+prinstall id 10.0.0.50 --community private
+
+<span class="c"># JSON shape: { ip, model, serial, status, manufacturer }</span>
+prinstall id 192.168.1.100 --json</pre>
+
+      <h2>Examples — add (network)</h2>
+<pre><span class="c"># Full pipeline cascade — discovers driver automatically</span>
+prinstall add 192.168.1.100
+
+<span class="c"># Pick the driver yourself</span>
+prinstall add 192.168.1.100 --driver "HP Universal Print Driver PCL6"
+
+<span class="c"># Override the auto-detected display name</span>
+prinstall add 192.168.1.100 --name "Front Desk Printer"
+
+<span class="c"># Bypass SNMP — supply the model directly</span>
+prinstall add 192.168.1.100 --model "HP LaserJet Pro M404dn"
+
+<span class="c"># Skip specific tiers for this run</span>
+prinstall add 192.168.1.100 --no-sdi          <span class="c"># skip Tier 5</span>
+prinstall add 192.168.1.100 --no-catalog      <span class="c"># skip Tier 4</span>
+prinstall add 192.168.1.100 --no-sdi --no-catalog
+
+<span class="c"># First-run SDI fetch — allow auto-pick to pull a 1.5 GB pack</span>
+prinstall add 192.168.1.100 --sdi-fetch
+
+<span class="c"># Skip Authenticode verification (vendor packs that legitimately ship unsigned)</span>
+prinstall add 192.168.1.100 --no-verify
+
+<span class="c"># Verbose audit trail — raw PS commands + structured report</span>
+prinstall add 192.168.1.100 --verbose
+
+<span class="c"># JSON for RMM</span>
+prinstall add 192.168.1.100 --json</pre>
+
+      <h2>Examples — add (USB)</h2>
+<pre><span class="c"># Swap driver on an existing USB queue (target is the queue name, not an IP)</span>
+prinstall add "Brother MFC-L2750DW" --usb
+
+<span class="c"># With a specific driver</span>
+prinstall add "HP OfficeJet Pro" --usb --driver "HP Universal PCL6"
+
+<span class="c"># Override the model string (when the queue name is wrong)</span>
+prinstall add "Generic / Text Only" --usb --model "Brother HL-L2370DW"</pre>
+
+      <h2>Examples — remove</h2>
+<pre><span class="c"># Full cleanup by IP — port name resolves via IP_&lt;ip&gt; convention</span>
+prinstall remove 192.168.1.100
+
+<span class="c"># By queue name</span>
+prinstall remove "HP LaserJet Pro"
+
+<span class="c"># Keep the driver in the store (e.g. you'll re-add the same printer later)</span>
+prinstall remove 192.168.1.100 --keep-driver
+
+<span class="c"># Keep both driver and port — queue removal only</span>
+prinstall remove 192.168.1.100 --keep-driver --keep-port
+
+<span class="c"># Idempotent — succeeds even if the printer doesn't exist</span>
+prinstall remove 192.168.1.999</pre>
+
+      <h2>Examples — list</h2>
+<pre><span class="c"># Every queue Windows knows about</span>
+prinstall list
+
+<span class="c"># JSON for scripting</span>
+prinstall list --json
+prinstall list --json | ConvertFrom-Json | Where-Object { $_.source -eq "network" }
+
+<span class="c"># Raw Get-Printer output for debugging</span>
+prinstall list --verbose</pre>
+
+      <h2>Examples — driver add</h2>
+<pre><span class="c"># Stage from an extracted INF folder</span>
+prinstall driver add C:\Drivers\HP_LaserJet_1320
+
+<span class="c"># Stage from a single INF file</span>
+prinstall driver add C:\Drivers\brother.inf
+
+<span class="c"># Stage by model string — auto-resolves curated matches</span>
+prinstall driver add "HP LaserJet 1320"
+prinstall driver add "HP Universal Print Driver PS"
+
+<span class="c"># Multiple candidates? Pick one explicitly</span>
+prinstall driver add "HP LaserJet" --driver "HP Universal Print Driver PCL6"
+
+<span class="c"># Skip Authenticode (only for unsigned-but-legitimate vendor packs)</span>
+prinstall driver add C:\Drivers\legacy_brother --no-verify</pre>
+
+      <h2>Examples — driver remove</h2>
+<pre><span class="c"># Exact driver name</span>
+prinstall driver remove "HP Universal Print Driver PCL6"
+
+<span class="c"># Fuzzy match (resolves to one staged driver)</span>
+prinstall driver remove "hp 1320"
+
+<span class="c"># Cascade — remove dependent queues first, then the driver</span>
+prinstall driver remove "Brother MFC" --force
+
+<span class="c"># System drivers are protected — this is a no-op</span>
+prinstall driver remove "Microsoft IPP Class Driver"</pre>
+
+      <h2>Examples — driver list / show</h2>
+<pre><span class="c"># Every staged driver — no admin required</span>
+prinstall driver list
+prinstall driver list --json
+
+<span class="c"># Ranked match candidates for a printer (★ exact / ● fuzzy / ○ low)</span>
+prinstall driver show 192.168.1.100
+
+<span class="c"># Bypass SNMP — use a specified model</span>
+prinstall driver show 192.168.1.100 --model "HP LaserJet Pro MFP M428fdw"
+
+<span class="c"># Inspect match scores in JSON</span>
+prinstall driver show 192.168.1.100 --json</pre>
+
+      <h2>Examples — sdi</h2>
+<pre><span class="c"># First-time setup on a freshly-deployed box</span>
+prinstall sdi refresh           <span class="c"># pull index files (~1 MB)</span>
+prinstall sdi prefetch          <span class="c"># download all printer packs (~1.5 GB, one time)</span>
+
+<span class="c"># Inspect what's cached</span>
+prinstall sdi status
+prinstall sdi list
+prinstall sdi list --json
+
+<span class="c"># Verify every cached pack's .cat signature against Microsoft's chain</span>
+prinstall sdi verify
+
+<span class="c"># Trim cache past the size budget (LRU eviction)</span>
+prinstall sdi clean</pre>
+
+      <h2>Examples — setup</h2>
+<pre><span class="c"># Bootstrap — copy exe to C:\ProgramData\prinstall\, +PATH, +firewall rule (UDP 5353)</span>
+.\prinstall.exe setup install
+
+<span class="c"># Custom install location</span>
+.\prinstall.exe setup install --dir C:\Tools\prinstall
+
+<span class="c"># Reverse all three. Run from a copy outside the install dir to avoid file lock</span>
+prinstall setup uninstall
+prinstall setup uninstall --dir C:\Tools\prinstall</pre>
+
+      <h2>Examples — install from a local driver bundle (Tier 2)</h2>
+<pre><span class="c"># Layout — drop extracted vendor packs in a drivers\ folder next to the exe</span>
+<span class="c"># (one subfolder per pack, each with the extracted INF + payload + .cat)</span>
+
+C:\Tools\prinstall\
+├── prinstall.exe
+└── drivers\
+    ├── hp-laserjet-m404\
+    │   ├── hppcl6.inf
+    │   ├── hppcl6.cat
+    │   └── ...
+    ├── brother-mfc-l2750dw\
+    │   ├── brimg18a.inf
+    │   ├── brimg18a.cat
+    │   └── ...
+    └── kyocera-ecosys-m5526\
+        ├── oemsetup.inf
+        ├── oemsetup.cat
+        └── ...
+
+<span class="c"># Confirm prinstall sees the bundle and a printer matches before installing</span>
+prinstall driver show 192.168.1.47
+<span class="c"># → ranked candidates with "source: bundle" for matches from drivers\</span>
+
+<span class="c"># Install — pipeline auto-picks the bundle match (Tier 2 before catalog/SDI)</span>
+prinstall add 192.168.1.47
+
+<span class="c"># Override the bundle dir without moving files</span>
+$env:PRINSTALL_BUNDLE_DIR = "D:\msp-drivers"
+prinstall add 192.168.1.47
+
+<span class="c"># System-wide fallback path (no env var, no adjacent folder needed)</span>
+<span class="c"># C:\ProgramData\prinstall\drivers\hp-laserjet-m404\...</span>
+
+<span class="c"># Resolution order — first directory with a matching INF wins:</span>
+<span class="c">#   1. $env:PRINSTALL_BUNDLE_DIR</span>
+<span class="c">#   2. drivers\ adjacent to prinstall.exe</span>
+<span class="c">#   3. C:\ProgramData\prinstall\drivers\</span>
+
+<span class="c"># Pre-stage a bundled driver into the Windows driver store (without installing</span>
+<span class="c"># a printer yet — useful right before a PnP event fires)</span>
+prinstall driver add C:\Tools\prinstall\drivers\hp-laserjet-m404
+
+<span class="c"># Force a specific bundle driver onto a printer (bypass auto-match)</span>
+prinstall add 192.168.1.47 --driver "HP Universal Printing PCL 6"
+
+<span class="c"># Skip Authenticode for legitimately-unsigned vendor packs (rare; .cat absent)</span>
+prinstall add 192.168.1.47 --no-verify
+
+<span class="c"># Verify what the bundle tier would pick, in JSON</span>
+prinstall driver show 192.168.1.47 --json | ConvertFrom-Json |
+  Where-Object { $_.source -eq "bundle" }</pre>
+
+      <h2>Examples — pipelines</h2>
+<pre><span class="c"># RMM: install + capture JSON result</span>
+$result = .\prinstall.exe add 10.0.0.50 --json | ConvertFrom-Json
+if ($result.success) { Write-Host "Installed: $($result.detail.queue)" }
+
+<span class="c"># Batch install — loop over scan results</span>
+prinstall scan --json | ConvertFrom-Json | ForEach-Object {
+  prinstall add $_.ip --json
+}
+
+<span class="c"># RMM remote shell — no color, JSON only</span>
+$env:NO_COLOR = "1"
+.\prinstall.exe scan --json</pre>
+
+      <h2>RMM scripts</h2>
+      <p class="lede">SuperOps-flavored PowerShell wrappers around each prinstall command. Structured stdout, exit codes for RMM dispatch, README headers inline. Source: <a href="https://github.com/limehawk/rmm-scripts">limehawk/rmm-scripts</a>. Click to expand and copy.</p>
+
+      <details class="script" data-script="prinstall_setup.ps1">
+        <summary><span class="name">prinstall_setup.ps1</span><span class="desc">— bootstrap a box: download prinstall.exe, install to <code>C:\ProgramData\prinstall\</code>, add to PATH, open UDP 5353</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_setup.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_scan.ps1">
+        <summary><span class="name">prinstall_scan.ps1</span><span class="desc">— multi-method subnet scan (TCP + IPP + SNMP + mDNS)</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_scan.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_id.ps1">
+        <summary><span class="name">prinstall_id.ps1</span><span class="desc">— SNMP query one host: model, serial, status</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_id.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_add.ps1">
+        <summary><span class="name">prinstall_add.ps1</span><span class="desc">— install a network or USB printer via the full pipeline cascade</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_add.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_remove.ps1">
+        <summary><span class="name">prinstall_remove.ps1</span><span class="desc">— remove queue + orphan driver + orphan port, idempotent</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_remove.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_list.ps1">
+        <summary><span class="name">prinstall_list.ps1</span><span class="desc">— enumerate every printer queue on the box</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_list.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_driver_add.ps1">
+        <summary><span class="name">prinstall_driver_add.ps1</span><span class="desc">— stage a driver into the Windows driver store</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_driver_add.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_driver_remove.ps1">
+        <summary><span class="name">prinstall_driver_remove.ps1</span><span class="desc">— unstage a driver; <code>--force</code> cascades dependent queues</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_driver_remove.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_driver_list.ps1">
+        <summary><span class="name">prinstall_driver_list.ps1</span><span class="desc">— list every driver in the Windows driver store</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_driver_list.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_drivers.ps1">
+        <summary><span class="name">prinstall_drivers.ps1</span><span class="desc">— show ranked driver-match candidates for a printer IP</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_drivers.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <details class="script" data-script="prinstall_trust_codesign.ps1">
+        <summary><span class="name">prinstall_trust_codesign.ps1</span><span class="desc">— push the limehawk self-signed cert to the box's TrustedPublisher store (fleet trust rollout)</span></summary>
+        <div class="script-wrap">
+          <button class="copy-btn" type="button">Copy</button>
+          <pre><code>Loading…</code></pre>
+          <p class="script-meta"><a href="https://github.com/limehawk/rmm-scripts/blob/main/scripts/prinstall_trust_codesign.ps1">View on GitHub</a></p>
+        </div>
+      </details>
+
+      <footer>
+        <span>limehawk</span>
+        <span><a href="https://github.com/limehawk/prinstall/blob/main/README.md">Full README on GitHub</a></span>
+        <span>MIT licensed</span>
+      </footer>
+    </div>
+  </main>
+
+  <script>
+    // Lazy-fetch script bodies from the rmm-scripts repo on first expand.
+    // Native <details> toggle, one fetch per script, plain copy-to-clipboard.
+    const RAW = 'https://raw.githubusercontent.com/limehawk/rmm-scripts/main/scripts/';
+
+    document.querySelectorAll('details.script').forEach((d) => {
+      const code = d.querySelector('pre code');
+      const btn = d.querySelector('.copy-btn');
+      const name = d.dataset.script;
+      let loaded = false;
+
+      d.addEventListener('toggle', async () => {
+        if (!d.open || loaded) return;
+        loaded = true;
+        try {
+          const res = await fetch(RAW + name, { cache: 'no-cache' });
+          if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+          code.textContent = await res.text();
+        } catch (err) {
+          code.textContent = 'Failed to load: ' + err.message + '\nOpen on GitHub instead.';
+        }
+      });
+
+      btn.addEventListener('click', async () => {
+        const text = code.textContent ?? '';
+        if (!text || text === 'Loading…') return;
+        const flash = () => {
+          const prev = btn.textContent;
+          btn.textContent = 'Copied!';
+          btn.classList.add('is-copied');
+          setTimeout(() => {
+            btn.textContent = prev;
+            btn.classList.remove('is-copied');
+          }, 1400);
+        };
+        if (await copyText(text, code)) flash();
+      });
+    });
+
+    // Cross-context copy helper. Modern Clipboard API in secure contexts;
+    // legacy execCommand path everywhere else (file://, plain http://).
+    async function copyText(text, fallbackNode) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (_) { /* fall through */ }
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        ta.style.pointerEvents = 'none';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (_) {
+        if (fallbackNode) {
+          const range = document.createRange();
+          range.selectNodeContents(fallbackNode);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+        return false;
+      }
+    }
+  </script>
+</body>
+</html>

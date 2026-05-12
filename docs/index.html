@@ -22,280 +22,276 @@
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect x='16' y='82' width='480' height='264' rx='30' ry='30' fill='%231e293b'/%3E%3Crect x='64' y='118' width='384' height='24' rx='6' ry='6' fill='%23475569'/%3E%3Crect x='64' y='346' width='384' height='84' rx='12' ry='12' fill='%23f8fafc'/%3E%3Crect x='64' y='346' width='384' height='18' fill='%23cbd5e1'/%3E%3Ccircle cx='424' cy='190' r='15' fill='%2322c55e'/%3E%3C/svg%3E" />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
-
   <style>
     :root {
-      --bg:           #0a0e14;
-      --bg-warm:      #0d1219;
-      --bg-elevated:  #111821;
-      --bg-subtle:    #0f1620;
-      --border:       #1e2a3a;
-      --border-bright:#2a3a50;
-      --text:         #e6edf3;
-      --text-dim:     #8b99a8;
-      --text-subtle:  #5a6878;
-      --accent:       #ff6b35;
-      --accent-bright:#ff8355;
-      --accent-dim:   rgba(255, 107, 53, 0.10);
-      --accent-glow:  rgba(255, 107, 53, 0.06);
-      --green:        #50fa7b;
-      --cyan:         #8be9fd;
-      --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      --bg: #0a0e14;
+      --bg-elevated: #111821;
+      --bg-subtle: #0f1620;
+      --border: #1e2a3a;
+      --text: #e6edf3;
+      --text-dim: #8b99a8;
+      --text-subtle: #5a6878;
+      --accent: #ff6b35;
+      --green: #50fa7b;
+      --yellow: #f1fa8c;
+      --red: #ff5555;
+      --cyan: #8be9fd;
+      --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    }
-
-    ::selection {
-      background: rgba(255, 107, 53, 0.3);
-      color: var(--text);
+      --radius: 6px;
+      --radius-sm: 4px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
 
     body {
       font-family: var(--sans);
       background: var(--bg);
       color: var(--text);
-      font-size: 17px;
-      line-height: 1.75;
-      min-height: 100vh;
-      min-height: 100dvh;
+      line-height: 1.55;
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Layout */
-    .col    { max-width: 640px;  margin: 0 auto; padding: 0 24px; }
-    .col-md { max-width: 880px;  margin: 0 auto; padding: 0 24px; }
-    .col-lg { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+    .container {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
 
-    /* ─── Nav ─── */
+    a { color: var(--accent); }
+    a:hover { text-decoration: underline; }
+
+    code, pre, .mono { font-family: var(--mono); }
+
+    /* Nav — flush left, one row, prose-flowing */
     nav {
-      padding: 20px 0;
-    }
-    nav .col-lg {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .logo {
-      font-family: var(--mono);
-      font-weight: 700;
-      font-size: 16px;
-      color: var(--text);
-      text-decoration: none;
-      letter-spacing: -0.01em;
-    }
-    .nav-links {
-      display: flex;
-      gap: 32px;
-      font-size: 14px;
-    }
-    .nav-links a {
-      font-family: var(--mono);
-      color: var(--text-subtle);
-      text-decoration: none;
-      transition: color 0.2s;
-    }
-    .nav-links a:hover { color: var(--text); }
-
-    /* ─── Hero ─── */
-    .hero {
-      padding: 140px 0 100px;
-      background: linear-gradient(180deg, var(--bg-warm) 0%, var(--bg) 100%);
-    }
-    .hero .label {
-      font-family: var(--mono);
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 24px;
-      display: block;
-    }
-    .hero h1 {
-      font-size: clamp(40px, 6vw + 0.5rem, 80px);
-      font-weight: 800;
-      letter-spacing: -0.035em;
-      line-height: 1.0;
-      margin-bottom: 32px;
-    }
-    .hero h1 span { display: block; }
-    .hero h1 .hl {
-      color: var(--accent);
-      text-shadow: 0 0 80px rgba(255, 107, 53, 0.2);
-    }
-    .hero .lead {
-      font-size: clamp(18px, 1rem + 0.5vw, 21px);
-      color: var(--text-dim);
-      line-height: 1.7;
-      max-width: 560px;
-      margin-bottom: 48px;
-    }
-    .cta-primary {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 18px 40px;
-      font-family: var(--mono);
-      font-size: 15px;
-      font-weight: 700;
-      text-decoration: none;
-      border-radius: 10px;
-      background: var(--accent);
-      color: #fff;
-      box-shadow: 0 4px 24px rgba(255, 107, 53, 0.25);
-      transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
-    }
-    .cta-primary:hover {
-      background: var(--accent-bright);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 32px rgba(255, 107, 53, 0.35);
-    }
-
-    /* ─── Trust bar ─── */
-    .trust {
-      padding: 40px 0;
-      border-top: 1px solid var(--border);
+      padding: 16px 0;
       border-bottom: 1px solid var(--border);
     }
-    .trust .col {
-      display: flex;
-      justify-content: center;
-      gap: 32px;
-      flex-wrap: wrap;
+    nav .container {
       font-family: var(--mono);
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-subtle);
-      letter-spacing: 0.04em;
+      font-size: 14px;
+      line-height: 1.6;
     }
-
-    /* ─── Prose sections ─── */
-    .section {
-      padding: 100px 0;
-    }
-    .section.tinted {
-      background: var(--bg-warm);
-    }
-    .section h2 {
-      font-size: clamp(24px, 1.4rem + 1vw, 36px);
-      font-weight: 800;
-      letter-spacing: -0.025em;
-      line-height: 1.15;
-      margin-bottom: 24px;
-    }
-    .section p {
+    nav a {
       color: var(--text-dim);
-      margin-bottom: 24px;
-      max-width: 600px;
+      text-decoration: none;
+      margin-right: 14px;
     }
-    .section p:last-child { margin-bottom: 0; }
-    .section strong { color: var(--text); }
-    .section code {
-      font-family: var(--mono);
-      font-size: 0.85em;
+    nav a:hover { color: var(--text); text-decoration: underline; }
+    nav .logo {
       color: var(--accent);
-      background: var(--accent-dim);
-      padding: 3px 7px;
-      border-radius: 4px;
+      margin-right: 6px;
+      display: inline-block;
+      vertical-align: middle;
     }
+    nav .logo:hover { text-decoration: none; color: var(--text); }
+    nav .logo pre {
+      font-size: 4px;
+      line-height: 1;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      border: none;
+      white-space: pre;
+      color: inherit;
+    }
+    @media (max-width: 600px) {
+      nav .logo pre { font-size: 3px; }
+    }
+    /* Flag sits inline immediately after the wordmark — reads as `prinstall --sfw` */
+    nav .nsfw-toggle { margin-right: 18px; vertical-align: middle; }
 
-    /* Callout — a visually distinct pull quote */
-    .callout {
-      border-left: 3px solid var(--accent);
-      padding: 16px 0 16px 24px;
-      margin: 32px 0;
-      font-size: 18px;
-      color: var(--text);
-      line-height: 1.65;
-      font-weight: 500;
-      max-width: 560px;
-    }
-
-    /* ─── Terminal ─── */
-    .terminal-wrap {
-      padding: 100px 0 120px;
-    }
-    .terminal-wrap h2 {
-      font-size: clamp(24px, 1.4rem + 1vw, 36px);
-      font-weight: 800;
-      letter-spacing: -0.025em;
-      text-align: center;
-      margin-bottom: 8px;
-    }
-    .terminal-wrap .sub {
-      text-align: center;
+    /* NSFW toggle — native <button> with aria-pressed, CLI-flag swap.
+       OFF: --sfw (dim). ON: --nsfw (red). Two spans, CSS picks which shows. */
+    .nsfw-toggle {
       font-family: var(--mono);
       font-size: 13px;
-      color: var(--text-subtle);
-      margin-bottom: 48px;
+      color: var(--text-dim);
+      background: transparent;
+      border: none;
+      padding: 4px 6px;
+      cursor: pointer;
     }
+    .nsfw-toggle .on { display: none; }
+    .nsfw-toggle:hover { color: var(--text); }
+    .nsfw-toggle[aria-pressed="true"] { color: var(--red); }
+    .nsfw-toggle[aria-pressed="true"] .off { display: none; }
+    .nsfw-toggle[aria-pressed="true"] .on { display: inline; }
+    .nsfw-toggle:focus-visible {
+      outline: 1px dashed var(--accent);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* Hero — left-aligned, document flow, no centered marketing */
+    .hero {
+      padding: 56px 0 40px;
+    }
+    .hero h1 {
+      font-size: clamp(32px, 4vw + 8px, 52px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+    .hero h1 .accent { color: var(--accent); }
+    .hero p {
+      font-size: 18px;
+      color: var(--text-dim);
+      max-width: 60ch;
+      margin-bottom: 24px;
+    }
+
+    /* CTA — inline native links, no fake buttons */
+    .cta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+      font-family: var(--mono);
+      font-size: 14px;
+    }
+    .cta a {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+    .cta a:hover { color: var(--text); }
+    .cta .secondary { color: var(--text-dim); }
+    .cta .secondary:hover { color: var(--text); }
+    .stars { color: var(--yellow); }
+
+    /* Sections — flush left, dense, document-flow */
+    section {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+    }
+    section h2 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+    section .subtitle {
+      color: var(--text-dim);
+      font-size: 15px;
+      margin-bottom: 28px;
+    }
+    section .subtitle code { font-size: 13px; color: var(--accent); }
+
+    /* Feature/command lists — definition-list flow, not a card grid.
+       Information density over visual breathing room. */
+    .features {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    @media (min-width: 720px) {
+      .features { grid-template-columns: 1fr 1fr; gap: 24px 36px; }
+    }
+    .feature h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .feature h3 .num {
+      font-family: var(--mono);
+      color: var(--accent);
+      margin-right: 8px;
+    }
+    .feature p {
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+    .feature code {
+      font-size: 13px;
+      color: var(--accent);
+    }
+
+    /* Terminal demo — static, no animation, no fake OS chrome */
     .terminal {
       background: var(--bg-subtle);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      overflow: hidden;
+      border-radius: var(--radius);
       font-family: var(--mono);
       font-size: 13px;
-      box-shadow:
-        0 24px 80px rgba(0, 0, 0, 0.6),
-        0 0 120px var(--accent-glow),
-        inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    }
-    .terminal-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 14px 18px;
-      background: var(--bg-elevated);
-      border-bottom: 1px solid var(--border);
-    }
-    .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
-    .terminal-dot:nth-child(1) { background: #ff5f57; }
-    .terminal-dot:nth-child(2) { background: #febc2e; }
-    .terminal-dot:nth-child(3) { background: #28c840; }
-    .terminal-title {
-      flex: 1;
-      text-align: center;
-      color: var(--text-subtle);
-      font-size: 12px;
-      padding-right: 60px;
-    }
-    .terminal-body {
-      padding: 24px 28px;
       overflow-x: auto;
-      line-height: 1.65;
+      padding: 16px 18px;
+      line-height: 1.55;
     }
+    .terminal .t-line { display: block; white-space: pre; }
     .t-prompt { color: var(--green); }
     .t-cmd { color: var(--text); font-weight: 600; }
     .t-dim { color: var(--text-subtle); }
-    .t-accent { color: var(--accent); font-weight: 600; }
     .t-section { color: var(--cyan); font-weight: 600; }
-    .t-check { color: var(--green); }
+    .t-ok, .t-check { color: var(--green); }
+    .t-accent, .t-star { color: var(--accent); font-weight: 600; }
     .t-fail { color: var(--text-subtle); }
-    .t-star { color: var(--accent); font-weight: 600; }
     .t-label { color: var(--cyan); }
-    .t-ok { color: var(--green); font-weight: 600; }
-    .t-line { display: block; white-space: pre; min-height: 1.65em; }
-    .t-line.is-pending { opacity: 0; }
-    .t-caret {
-      display: inline-block;
-      width: 0.55em; height: 1em;
-      vertical-align: text-bottom;
-      background: var(--accent);
-      margin-left: 2px;
-      animation: blink 1s steps(2, end) infinite;
-    }
-    @keyframes blink { 50% { opacity: 0; } }
 
-    /* ─── Install ─── */
+    /* Pipeline — ordered list, flat, no card decoration */
+    .pipeline { list-style: none; }
+    .pipeline li {
+      border-top: 1px solid var(--border);
+      padding: 14px 0;
+    }
+    .pipeline li:first-child { border-top: none; padding-top: 0; }
+    .pipeline .tier-num {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .pipeline h4 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 2px 0 4px;
+    }
+    .pipeline p {
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+    .pipeline .highlight .tier-num::after {
+      content: " · opt-in";
+      color: var(--text-subtle);
+      font-weight: 400;
+    }
+    body[data-nsfw] .pipeline .highlight .tier-num::after {
+      content: " · the big gun";
+    }
+    .pipeline code { font-size: 13px; color: var(--accent); }
+
+    /* Install steps — numbered ordered list */
+    .install-block { list-style: none; counter-reset: step; }
+    .install-block li {
+      counter-increment: step;
+      padding: 14px 0;
+      border-top: 1px solid var(--border);
+    }
+    .install-block li:first-child { border-top: none; padding-top: 0; }
+    .install-block li::before {
+      content: counter(step) ".";
+      font-family: var(--mono);
+      color: var(--accent);
+      font-weight: 700;
+      margin-right: 8px;
+    }
+    .install-block p {
+      font-size: 14px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      display: inline;
+    }
+    .install-block .install-alt {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--text-subtle);
+      display: block;
+    }
     .code-wrap {
       position: relative;
-      margin-bottom: 20px;
+      margin: 8px 0;
     }
     .code-wrap code {
       display: block;
@@ -303,8 +299,8 @@
       font-size: 13px;
       background: var(--bg-subtle);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 14px 64px 14px 16px;
+      border-radius: var(--radius);
+      padding: 10px 60px 10px 14px;
       color: var(--text);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -312,36 +308,41 @@
     }
     .copy-btn {
       position: absolute;
-      top: 8px; right: 8px;
+      top: 4px;
+      right: 4px;
       font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text-subtle);
+      font-size: 10px;
+      color: var(--text-dim);
       background: var(--bg-elevated);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      padding: 2px 7px;
       cursor: pointer;
-      transition: color 0.15s, border-color 0.15s;
+      line-height: 1.5;
     }
-    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
-    .copy-btn.is-copied { color: var(--green); border-color: var(--green); }
-    @media (pointer: coarse) {
-      .copy-btn { min-width: 44px; min-height: 32px; padding: 8px 12px; top: 4px; right: 4px; }
+    .copy-btn:hover { color: var(--accent); }
+    .copy-btn.is-copied { color: var(--green); }
+
+    /* Community callout — flat, no card, no border glow */
+    .community-callout h2 { margin-bottom: 8px; }
+    .community-callout p { max-width: 60ch; color: var(--text-dim); margin-bottom: 12px; }
+
+    /* NSFW theme — accent flips to red. No glow, no shadow. */
+    body[data-nsfw] {
+      --accent: #ff5555;
     }
 
-    /* ─── Bottom CTA ─── */
-    .bottom-cta {
-      text-align: center;
-      padding: 80px 0 100px;
-      background: linear-gradient(180deg, var(--bg) 0%, var(--bg-warm) 100%);
-    }
-    .bottom-cta h2 {
-      font-size: clamp(24px, 1.4rem + 1vw, 36px);
-      font-weight: 800;
-      letter-spacing: -0.025em;
-      margin-bottom: 24px;
-    }
-    .bottom-cta p {
+    /* Copy swapping */
+    .nsfw { display: none; }
+    .sfw { display: inline; }
+    body[data-nsfw] .nsfw { display: inline; }
+    body[data-nsfw] .sfw { display: none; }
+
+    /* Footer — single text row, flush left */
+    footer {
+      padding: 24px 0 32px;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
       font-family: var(--mono);
       font-size: 13px;
       color: var(--text-subtle);
@@ -361,106 +362,80 @@
     }
     footer .footer-links {
       display: flex;
-      gap: 24px;
-      font-family: var(--mono);
-      font-size: 13px;
+      gap: 18px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
     }
     footer .footer-links a {
       color: var(--text-subtle);
       text-decoration: none;
       transition: color 0.15s;
     }
-    footer .footer-links a:hover { color: var(--text); }
-    footer .attrib {
-      font-family: var(--mono);
-      font-size: 12px;
-      color: var(--text-subtle);
-    }
-    footer .attrib a {
-      color: var(--text-dim);
-      text-decoration: underline;
-    }
-    footer .attrib a:hover { color: var(--accent); }
-
-    /* ─── Responsive ─── */
-    @media (max-width: 680px) {
-      body { font-size: 16px; }
-      .col, .col-md, .col-lg { padding: 0 20px; }
-      .hero { padding: 100px 0 72px; }
-      .hero .label { margin-bottom: 20px; }
-      .hero h1 { margin-bottom: 24px; }
-      .hero .lead { margin-bottom: 36px; }
-      .cta-primary { padding: 16px 32px; font-size: 14px; }
-      .trust .col { gap: 20px; font-size: 11px; }
-      .section { padding: 72px 0; }
-      .terminal-wrap { padding: 72px 0 80px; }
-      .terminal-body { padding: 18px 16px; font-size: 12px; }
-      .terminal-header { padding: 12px 14px; }
-      .terminal-title { font-size: 11px; padding-right: 48px; }
-      .callout { font-size: 16px; padding-left: 20px; }
-      .bottom-cta { padding: 64px 0 80px; }
-      .code-wrap code { padding: 12px 56px 12px 14px; font-size: 12px; }
-      .copy-btn { font-size: 10px; }
-      footer .footer-links { gap: 16px; flex-wrap: wrap; justify-content: center; }
-    }
-
-    @media (max-width: 400px) {
-      .col, .col-md, .col-lg { padding: 0 16px; }
-      .hero { padding: 72px 0 56px; }
-      .hero h1 { font-size: clamp(32px, 10vw, 44px); }
-      .cta-primary { padding: 14px 24px; font-size: 13px; width: 100%; justify-content: center; }
-      .section { padding: 56px 0; }
-      .terminal-wrap { padding: 56px 0 64px; }
-      .trust .col { flex-direction: column; gap: 8px; align-items: center; }
-      .nav-links { gap: 20px; font-size: 13px; }
-    }
+    footer .footer-links a:hover { color: var(--accent); }
+    footer a { color: var(--text-dim); }
   </style>
 </head>
 <body>
   <nav>
-    <div class="col-lg">
-      <a class="logo" href="/">prinstall</a>
-      <div class="nav-links">
-        <a href="/docs/">Docs</a>
-        <a href="https://github.com/limehawk/prinstall">GitHub</a>
-      </div>
+    <div class="container">
+      <a class="logo" href="/" aria-label="prinstall"><pre aria-hidden="true">▄▄▄▄▄▄▄   ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄    ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄   ▄▄▄▄   ▄▄▄      ▄▄▄
+███▀▀███▄ ███▀▀███▄  ███  ████▄  ███ █████▀▀▀ ▀▀▀███▀▀▀ ▄██▀▀██▄ ███      ███
+███▄▄███▀ ███▄▄███▀  ███  ███▀██▄███  ▀████▄     ███    ███  ███ ███      ███
+███▀▀▀▀   ███▀▀██▄   ███  ███  ▀████    ▀████    ███    ███▀▀███ ███      ███
+███       ███  ▀███ ▄███▄ ███    ███ ███████▀    ███    ███  ███ ████████ ████████</pre></a>
+      <button type="button" class="nsfw-toggle" id="nsfw-toggle" aria-pressed="false" aria-label="Toggle NSFW mode" title="Toggle NSFW mode">
+        <span class="off">--sfw</span><span class="on">--nsfw</span>
+      </button>
+      <a href="/docs.html">docs</a>
+      <a href="https://github.com/limehawk/prinstall">github</a>
     </div>
   </nav>
 
   <main>
     <section class="hero">
-      <div class="col">
-        <span class="label">Network printer management for Windows</span>
+      <div class="container">
         <h1>
-          <span>Adding printers</span>
-          <span>on Windows sucks.</span>
-          <span><span class="hl">We fixed it.</span></span>
+          <span class="sfw">Adding printers on Windows sucks. <span class="accent">prinstall fixes it.</span></span><span class="nsfw">prinstall. <span class="accent">because fuck printers.</span></span>
         </h1>
-        <p class="lead">
-          Why does adding a printer in 2026 still feel like defusing a bomb? Wrong driver. Missing port. <code>HRESULT 0x80070705</code>. Restart the spooler. Google the error. Download a 200 MB "setup utility." Run it. It doesn't work.
+        <p>
+          <span class="sfw">One command. The right vendor driver, pulled from the Microsoft Update Catalog. Installed.</span><span class="nsfw">Why does adding a printer in 2026 still feel like defusing a bomb? Wrong driver. Missing port. HRESULT 0x80070705. Restart the spooler. Google the error. Download a 200 MB "setup utility." Run it. It doesn't work. Cry. We wrote a tool so you never have to do that again.</span>
         </p>
-        <a class="cta-primary" href="https://github.com/limehawk/prinstall/releases/latest">Download for Windows →</a>
+        <div class="cta">
+          <a href="https://github.com/limehawk/prinstall/releases/latest">Download for Windows →</a>
+          <a class="secondary" href="https://github.com/limehawk/prinstall">View on GitHub <span class="stars">★ <span data-github-stars>—</span></span></a>
+        </div>
       </div>
     </section>
 
-    <div class="trust">
-      <div class="col">
-        <span>Rust</span>
-        <span>Single binary</span>
-        <span>Zero dependencies</span>
-        <span>292 tests</span>
-        <span>MIT licensed</span>
-      </div>
-    </div>
-
-    <section class="section">
-      <div class="col">
-        <h2>One binary. One command. Done.</h2>
-        <p>
-          <code>prinstall</code> is a single executable. No installer, no .NET runtime, no dependencies, no "please restart your computer." You point it at an IP address and it handles the rest — scans the printer, identifies the model, finds the right vendor driver, downloads it, stages it, and installs the printer.
-        </p>
-        <div class="callout">
-          Not "Generic / Text Only." Not "HP Universal 6 years old." The actual vendor driver, matched by hardware ID, verified before install.
+    <section id="features">
+      <div class="container">
+        <h2><span class="sfw">What it does</span><span class="nsfw">What this bad boy does</span></h2>
+        <p class="subtitle"><span class="sfw">Built for MSP technicians running it locally or through RMM remote shells.</span><span class="nsfw">Built for techs who are absolutely done wrestling with printer drivers at 4:47 PM on a Friday.</span></p>
+        <div class="features">
+          <div class="feature">
+            <h3><span class="num">01</span><span class="sfw">Multi-method discovery</span><span class="nsfw">It finds your printers</span></h3>
+            <p><span class="sfw">TCP port probe, IPP, SNMP, and local Get-Printer all in one parallel pipeline. Works even on printers that have SNMP disabled.</span><span class="nsfw">Scans your whole subnet in seconds. SNMP, IPP, port probes — throws everything at the wall. That printer hiding in the corner with SNMP disabled? Found it. Sit down.</span></p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">02</span><span class="sfw">Deterministic driver matching</span><span class="nsfw">The right damn driver</span></h3>
+            <p><span class="sfw">Scrapes the Microsoft Update Catalog, downloads the candidate driver, parses the INF, and confirms a <code>1284_CID_*</code> hardware-ID match before installing. No guessing.</span><span class="nsfw">Not "Generic / Text Only." Not "HP Universal 6 years old." The actual vendor driver, matched by hardware ID, verified before install. We don't guess. We don't pray. We know.</span></p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">03</span><span class="sfw">Network + USB printers</span><span class="nsfw">USB printers too</span></h3>
+            <p><span class="sfw">One binary handles both install paths. USB printers hot-swap their driver via Set-Printer without re-creating the queue.</span><span class="nsfw">Yeah, the USB printer that Karen plugged in and Windows decided to install with "Generic / Text Only"? One command. Driver swapped. Karen prints. You leave on time.</span></p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">04</span><span class="sfw">Clean remove</span><span class="nsfw">Scorched earth removal</span></h3>
+            <p><span class="sfw">Queue → driver → port cleanup with spooler-lag retry and driver-store package removal. No orphaned ports, no dead drivers cluttering Print Server Properties.</span><span class="nsfw">Queue? Gone. Driver? Gone. Port? Gone. That ghost printer from 2019 that still shows up in Print Server Properties? Obliterated. The print spooler can finally breathe.</span></p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">05</span><span class="sfw">Scriptable CLI</span><span class="nsfw">Script it and forget it</span></h3>
+            <p><span class="sfw">Pipe <code>--json</code> to jq for RMM automation. Plain text output for humans, structured JSON for scripts, semantic coloring that respects <code>NO_COLOR</code>.</span><span class="nsfw">Pipe it into your RMM. Deploy to 200 machines at 2 AM. Wake up to zero printer tickets. That's the dream. That's the whole point. Go back to sleep.</span></p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">06</span><span class="sfw">Readable errors</span><span class="nsfw">Errors that don't make you cry</span></h3>
+            <p><span class="sfw">PowerShell stderr is parsed and HRESULT-decoded before you see it. No more drowning in CategoryInfo and FullyQualifiedErrorId noise.</span><span class="nsfw">Remember <code>HRESULT 0x80070705</code>? We decode that garbage into actual English. Because Microsoft sure as hell wasn't going to.</span></p>
+          </div>
         </div>
         <p>
           It walks a six-tier cascade — local driver store, bundled packs, manufacturer download, Microsoft Update Catalog, SDI Origin driver packs, and IPP Class Driver fallback — and it <strong>will not give up before you do</strong>. If one source fails, it tries the next. Then the next. Then the next.
@@ -468,18 +443,11 @@
       </div>
     </section>
 
-    <section class="terminal-wrap">
-      <div class="col-md">
-        <h2>Watch this printer get bodied</h2>
-        <p class="sub">one command · no wizard · no "restart the spooler"</p>
+    <section>
+      <div class="container">
+        <h2><span class="sfw">Watch it work</span><span class="nsfw">Watch this printer get bodied</span></h2>
+        <p class="subtitle"><span class="sfw"><code>prinstall add 10.10.20.16</code> · real terminal output</span><span class="nsfw">one command · no clicking through 9 wizard pages · no "restart the spooler"</span></p>
         <div class="terminal">
-          <div class="terminal-header">
-            <span class="terminal-dot"></span>
-            <span class="terminal-dot"></span>
-            <span class="terminal-dot"></span>
-            <span class="terminal-title">Windows PowerShell</span>
-          </div>
-          <div class="terminal-body">
 <div class="t-line"><span class="t-prompt">PS&gt;</span> <span class="t-cmd">prinstall</span> <span class="t-cmd">add</span> 10.10.20.16</div>
 <div class="t-line"></div>
 <div class="t-line"><span class="t-section">━━ Discovery ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></div>
@@ -504,29 +472,186 @@
 <div class="t-line">  <span class="t-dim">Name:</span>   <span class="t-accent">Brother MFC-L2750DW series</span></div>
 <div class="t-line">  <span class="t-dim">Driver:</span> <span class="t-accent">Brother Laser Type1 Class Driver</span></div>
 <div class="t-line">  <span class="t-dim">Port:</span>   IP_10.10.20.16</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pipeline">
+      <div class="container">
+        <h2><span class="sfw">Six tiers, one command</span><span class="nsfw">Six ways to find your driver, because printers are assholes</span></h2>
+        <p class="subtitle"><span class="sfw"><code>prinstall add</code> walks the pipeline in priority order — only escalates when the previous tier comes up empty.</span><span class="nsfw">If one source fails, it tries the next. Then the next. Then the next. It will NOT give up before you do.</span></p>
+        <ol class="pipeline">
+          <li>
+            <div class="tier-num">TIER 01</div>
+            <h4><span class="sfw">Local driver store</span><span class="nsfw">Already on your box?</span></h4>
+            <p><span class="sfw">Reuse what's already installed. No network, no side effects. Instant.</span><span class="nsfw">If Windows already has the driver from a previous install, we just use it. Zero downloads, zero drama. Why would you re-download something that's sitting right there?</span></p>
+          </li>
+          <li>
+            <div class="tier-num">TIER 02</div>
+            <h4><span class="sfw">Local bundle</span><span class="nsfw">Drivers you already shipped</span></h4>
+            <p><span class="sfw">Drop a folder of extracted vendor packs next to <code>prinstall.exe</code> (or set <code>PRINSTALL_BUNDLE_DIR</code>) and the bundle tier finds them by HWID. Air-gapped fleets, pre-staged RMM payloads, anything offline. Same <code>.cat</code> signature gate as every other tier.</span><span class="nsfw">Pushed prinstall out via your RMM with a <code>drivers/</code> folder right next to it? It finds them. Air-gapped site? It finds them. Tech dropped a vendor pack in ProgramData last Tuesday? It finds that too. Zero network, zero excuses.</span></p>
+          </li>
+          <li>
+            <div class="tier-num">TIER 03</div>
+            <h4><span class="sfw">Manufacturer download</span><span class="nsfw">Straight from the source</span></h4>
+            <p><span class="sfw">Pull from the embedded URL manifest — HP, Xerox, and Kyocera have stable direct links. More vendors coming.</span><span class="nsfw">HP, Xerox, Kyocera — their download URLs are hardcoded because someone had to memorize the paths these vendors bury 14 clicks deep on their godforsaken support sites.</span></p>
+          </li>
+          <li>
+            <div class="tier-num">TIER 04</div>
+            <h4><span class="sfw">Update Catalog + INF HWID</span><span class="nsfw">Microsoft's secret driver stash</span></h4>
+            <p><span class="sfw">Search by IPP CID, download a candidate CAB, parse the INF, match the synthesized hardware ID. Deterministic.</span><span class="nsfw">Microsoft has a whole catalog of drivers they don't tell you about. We scrape it, crack open the CAB, match the hardware ID, and stage the INF. Microsoft couldn't make this easy, so we did.</span></p>
+          </li>
+          <li class="highlight">
+            <div class="tier-num">TIER 05</div>
+            <h4><span class="sfw">SDI Origin driver packs</span><span class="nsfw">The nuclear option</span></h4>
+            <p><span class="sfw">Search SDIO's printer driver pack index by hardware ID. Covers Brother, Canon, Epson, Ricoh, and every other vendor SDIO carries — the brands the Update Catalog often misses. Every pack's <code>.cat</code> Authenticode signature is verified against Microsoft's certificate chain before install.</span><span class="nsfw">A community-maintained archive of every printer driver known to humanity. Brother, Canon, Epson, Ricoh — the vendors that make you download a 200 MB "setup utility" just to get a damn INF file. We bypass all of it. Unsigned packs get nuked, so nobody's slipping malware in.</span></p>
+          </li>
+          <li>
+            <div class="tier-num">TIER 06</div>
+            <h4><span class="sfw">IPP Class Driver</span><span class="nsfw">The "fuck it, just print" fallback</span></h4>
+            <p><span class="sfw">The always-works safety net for any printer that speaks IPP Everywhere (Windows 8+).</span><span class="nsfw">If literally nothing else works, Microsoft's built-in IPP driver will at least let you print. No duplex, no trays, no fancy stuff — but the paper comes out. Sometimes that's all you need at 5 PM on a Friday.</span></p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="commands">
+      <div class="container">
+        <h2><span class="sfw">Every command, at a glance</span><span class="nsfw">The whole damn toolkit</span></h2>
+        <p class="subtitle"><span class="sfw">Each subcommand has its own <code>--help</code>. Global flags <code>--json</code>, <code>--verbose</code>, <code>--community</code>, <code>--force</code> work everywhere.</span><span class="nsfw">Six discovery commands, four driver commands, six SDI commands, two bootstrap commands. <code>--json</code> and <code>--verbose</code> on every single one of them.</span></p>
+        <div class="features">
+          <div class="feature">
+            <h3><span class="num">01</span><span class="sfw">Discovery</span><span class="nsfw">Find the damn printer</span></h3>
+            <p>
+              <code>prinstall scan [SUBNET]</code> — TCP + IPP + SNMP + mDNS in parallel.<br>
+              <code>prinstall id &lt;IP&gt;</code> — identify one host via SNMP.<br>
+              <span class="sfw">Flags: <code>--method</code> (all/snmp/port/mdns), <code>--timeout</code>, <code>--network-only</code>, <code>--usb-only</code>.</span><span class="nsfw">Throws SNMP, IPP, port probes, and mDNS at every IP in parallel. Anything that beeps shows up.</span>
+            </p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">02</span><span class="sfw">Install &amp; remove</span><span class="nsfw">Add it. Nuke it.</span></h3>
+            <p>
+              <code>prinstall add &lt;IP&gt;</code> — network install, full pipeline cascade.<br>
+              <code>prinstall add &lt;QUEUE&gt; --usb</code> — swap driver on a USB printer.<br>
+              <code>prinstall remove &lt;IP|QUEUE&gt;</code> — queue + driver + port cleanup.<br>
+              <code>prinstall list</code> — every queue Windows knows about.
+            </p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">03</span><span class="sfw">Driver management</span><span class="nsfw">Stage 'em, kill 'em</span></h3>
+            <p>
+              <code>prinstall driver add &lt;PATH|model&gt;</code> — stage from INF folder, INF file, or model string.<br>
+              <code>prinstall driver remove &lt;name|fuzzy&gt;</code> — unstage; <code>--force</code> cascades dependent queues.<br>
+              <code>prinstall driver list</code> — every staged driver, no admin needed.<br>
+              <code>prinstall driver show &lt;IP&gt;</code> — ranked match candidates for a printer.
+            </p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">04</span><span class="sfw">SDI cache</span><span class="nsfw">The driver pack vault</span></h3>
+            <p>
+              <code>prinstall sdi refresh</code> — pull the latest pack index.<br>
+              <code>prinstall sdi prefetch</code> — download every printer pack (~1.5 GB, one time).<br>
+              <code>prinstall sdi verify</code> — Authenticode-check every cached <code>.cat</code>.<br>
+              <code>prinstall sdi status / list / clean</code> — inspect, list, LRU-prune.
+            </p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">05</span><span class="sfw">Self-bootstrap</span><span class="nsfw">Plant it on the box</span></h3>
+            <p>
+              <code>prinstall setup install</code> — copy to <code>C:\ProgramData\prinstall\</code>, add to Machine PATH, open UDP 5353 for mDNS.<br>
+              <code>prinstall setup uninstall</code> — reverses all three. Idempotent.<br>
+              <span class="sfw">Run from a copy outside the install dir so uninstall doesn't hit the running-exe file lock.</span><span class="nsfw">Idempotent. Run it twice, run it ten times. Nothing breaks.</span>
+            </p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">06</span><span class="sfw">Interactive TUI</span><span class="nsfw">The two-panel cockpit</span></h3>
+            <p>
+              <code>prinstall</code> (no args) — launches a ratatui two-panel layout: printer list + detail pane.<br>
+              <span class="sfw">Vim keys: <code>j/k</code> move, <code>h/l</code> swap panels, <code>Enter</code> install, <code>s</code> rescan, <code>?</code> help, <code>q</code> quit.</span><span class="nsfw">Vim keys, no mouse, no wizards. <code>j/k</code> to move, <code>Enter</code> to install, <code>q</code> to bail. That's it.</span>
+            </p>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="section tinted">
-      <div class="col">
-        <h2>It finds your printers</h2>
-        <p>
-          Scans your whole subnet in seconds. SNMP, IPP, port probes — throws everything at the wall in parallel. That printer hiding in the corner with SNMP disabled? Found it. The USB printer Karen plugged in that Windows decided to install with "Generic / Text Only"? Found that too.
-        </p>
+    <section id="roadmap">
+      <div class="container">
+        <h2><span class="sfw">Roadmap</span><span class="nsfw">More ways to destroy printer pain</span></h2>
+        <p class="subtitle"><span class="sfw">What's next — loosely ordered, priority shifts based on what MSPs actually hit in the field.</span><span class="nsfw">We're not done. Every feature below is another nail in the coffin of printer-related suffering.</span></p>
+        <div class="features">
+          <div class="feature">
+            <h3><span class="num">01</span><span class="sfw">prinstall health &lt;ip&gt;</span><span class="nsfw">Is this printer dying?</span></h3>
+            <p><span class="sfw">SNMP Printer MIB query for toner level, drum life, paper tray status, and error state. One <code>--json</code> per machine and the RMM knows which printers need attention before the ticket lands.</span><span class="nsfw">Toner at 3%? Drum about to die? Paper jam in tray 2 for the last 6 hours? Know about it BEFORE the user calls you screaming. Pipe it into your RMM and stop playing printer paramedic.</span></p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">02</span><span class="sfw">Printer defaults at install</span><span class="nsfw">Set it up right the first time</span></h3>
+            <p><span class="sfw">Duplex, color/mono, paper size, and set-as-default via <code>Set-PrintConfiguration</code> during <code>add</code>, so the printer shows up ready-to-use instead of needing a second pass.</span><span class="nsfw">Duplex on. Color off. Letter paper. Set as default. Done at install time. Because nothing says "I hate my job" like getting a callback because the printer defaults to A4 single-sided.</span></p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">03</span><span class="sfw">Batch install mode</span><span class="nsfw">Nuke an entire office at once</span></h3>
+            <p><span class="sfw">One command, multiple IPs. Parallel driver matching across every printer on a site, JSON results per target, one invocation per site visit instead of one per printer.</span><span class="nsfw">12 printers across 3 floors? One command. All of them. In parallel. Walk in, run it, walk out. That's not a site visit, that's a drive-by.</span></p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">04</span><span class="sfw">Signed binary</span><span class="nsfw">SmartScreen can shut up</span></h3>
+            <p><span class="sfw">SignPath.io code signing so Windows SmartScreen stops warning on download. MSP deployment gets a lot friendlier when the tech doesn't have to click "Run anyway" every time.</span><span class="nsfw">"Windows protected your PC" — yeah, from the thing that fixes printers. Thanks, Microsoft. Code signing is coming so SmartScreen stops being a hall monitor about it.</span></p>
+          </div>
+          <div class="feature">
+            <h3><span class="num">05</span><span class="sfw">Interactive TUI rework</span><span class="nsfw">Full terminal UI</span></h3>
+            <p><span class="sfw">The dense two-panel lazy-style TUI is currently under construction. When it comes back, expect lazygit-style panels, real vim keybindings, and scan-as-you-type subnet filtering.</span><span class="nsfw">A full terminal UI where you scan, browse, and install without ever touching a mouse or a wizard. Keyboard-driven, no clicking through tabs, no "Next > Next > Finish" energy.</span></p>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="section">
-      <div class="col">
-        <h2>Scorched earth removal</h2>
+    <section class="community-callout">
+      <div class="container">
+        <h2><span class="sfw">Built for the field, built in the open</span><span class="nsfw">why prinstall? <span style="color: var(--red);">because FUCK printers.</span></span></h2>
         <p>
-          Queue? Gone. Driver? Gone. Port? Gone. That ghost printer from 2019 that still shows up in Print Server Properties? Obliterated.
+          <span class="sfw">prinstall is an open-source project built by MSP techs, for MSP techs. Every feature comes from real pain in the field — printers that won't install, drivers that don't match, spoolers that crash at the worst possible moment. If you've been there, you can help make it better. Star the repo, open an issue, or ship a PR.</span><span class="nsfw">We're a community of MSP techs, sysadmins, and IT pros who've collectively lost thousands of hours to printer driver hell. If you've ever rage-Googled an HRESULT code at 5 PM on a Friday, you're one of us. Star the repo. Open an issue. Ship a PR. Let's make this thing so good that no tech ever has to manually install a printer driver again.</span>
         </p>
-        <div class="callout">
-          The print spooler can finally breathe. No orphaned ports, no dead drivers, no "the driver is in use by another printer" bullshit. One command and the machine is clean.
-        </div>
+        <p><a href="https://github.com/limehawk/prinstall"><span class="sfw">Contribute on GitHub →</span><span class="nsfw">Join the fight on GitHub →</span></a></p>
+      </div>
+    </section>
+
+    <section id="install">
+      <div class="container">
+        <h2><span class="sfw">Install</span><span class="nsfw">Get this thing</span></h2>
+        <p class="subtitle"><span class="sfw">Single binary. Drop it on PATH and go.</span><span class="nsfw">One file. No installer. No .NET runtime. No "please restart your computer." Just copy and run.</span></p>
+        <ol class="install-block">
+          <li>
+            <p>Grab the latest release and drop it in the current directory:</p>
+            <div class="code-wrap">
+              <code>iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe</code>
+              <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+            </div>
+            <span class="install-alt">Or install to a canonical location and add to PATH:</span>
+            <div class="code-wrap">
+              <code>iwr -useb https://raw.githubusercontent.com/limehawk/prinstall/main/scripts/prinstall_setup.ps1 | iex</code>
+              <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+            </div>
+          </li>
+          <li>
+            <p>Scan your subnet for printers:</p>
+            <div class="code-wrap">
+              <code>.\prinstall.exe scan</code>
+              <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+            </div>
+          </li>
+          <li>
+            <p>Add one:</p>
+            <div class="code-wrap">
+              <code>.\prinstall.exe add 192.168.1.47</code>
+              <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+            </div>
+          </li>
+          <li>
+            <p>Or launch the interactive TUI:</p>
+            <div class="code-wrap">
+              <code>.\prinstall.exe</code>
+              <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
+            </div>
+          </li>
+        </ol>
       </div>
     </section>
 
@@ -576,71 +701,101 @@
         <a href="/docs/">Docs</a>
         <a href="https://github.com/limehawk/prinstall">GitHub</a>
         <a href="https://github.com/limehawk/prinstall/releases">Releases</a>
+        <a href="/docs.html">Docs</a>
         <a href="https://github.com/limehawk/prinstall/issues">Issues</a>
       </div>
-      <p class="attrib">built by <a href="https://limehawk.io">limehawk</a> · because fuck printers, that's why</p>
+      <p><span class="sfw">MIT licensed · built by <a href="https://limehawk.io">limehawk</a> · designed for techs who just want the printer to work</span><span class="nsfw">MIT licensed · built by <a href="https://limehawk.io">limehawk</a> · because fuck printers, that's why</span></p>
     </div>
   </footer>
 
   <script>
+    // NSFW mode toggle — native <button> with aria-pressed, localStorage-backed.
     (() => {
-      const terminal = document.querySelector('.terminal');
-      if (!terminal) return;
-      const body = terminal.querySelector('.terminal-body');
-      if (!body) return;
-      const lines = Array.from(body.querySelectorAll('.t-line'));
-      if (!lines.length) return;
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-      const delays = [
-        140, 300, 260, 200, 180, 140,
-        300, 260, 200,
-        300, 180, 180, 180,
-        300, 200, 200,
-        300, 160, 100, 100, 100,
-      ];
-
-      const caret = document.createElement('span');
-      caret.className = 't-caret';
-      lines.forEach((l) => l.classList.add('is-pending'));
-
-      let played = false;
-      const play = () => {
-        if (played) return;
-        played = true;
-        let t = 0;
-        lines.forEach((line, i) => {
-          t += delays[i] ?? 160;
-          setTimeout(() => {
-            line.classList.remove('is-pending');
-            line.appendChild(caret);
-          }, t);
-        });
+      const btn = document.getElementById('nsfw-toggle');
+      if (!btn) return;
+      const key = 'prinstall-nsfw';
+      const set = (on) => {
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        if (on) {
+          document.body.setAttribute('data-nsfw', '');
+          localStorage.setItem(key, '1');
+        } else {
+          document.body.removeAttribute('data-nsfw');
+          localStorage.removeItem(key);
+        }
       };
-
-      const io = new IntersectionObserver((entries) => {
-        entries.forEach((e) => { if (e.isIntersecting) { play(); io.disconnect(); } });
-      }, { threshold: 0.25 });
-      io.observe(terminal);
+      if (localStorage.getItem(key) === '1') set(true);
+      btn.addEventListener('click', () => {
+        set(btn.getAttribute('aria-pressed') !== 'true');
+      });
     })();
 
+    // Live GitHub stars — one unauthenticated GET, silent on failure.
+    (async () => {
+      try {
+        const res = await fetch('https://api.github.com/repos/limehawk/prinstall');
+        if (!res.ok) return;
+        const data = await res.json();
+        const count = data.stargazers_count;
+        if (typeof count === 'number') {
+          const formatted = new Intl.NumberFormat('en-US').format(count);
+          document.querySelectorAll('[data-github-stars]').forEach((el) => {
+            el.textContent = formatted;
+          });
+        }
+      } catch (_) { /* silent */ }
+    })();
+
+    // Cross-context copy helper. Tries the modern Clipboard API first; on
+    // insecure contexts (file://, plain http://) falls back to the legacy
+    // execCommand path with a temporary textarea — works everywhere.
+    async function copyText(text, fallbackNode) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (_) { /* fall through */ }
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        ta.style.pointerEvents = 'none';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (_) {
+        if (fallbackNode) {
+          const range = document.createRange();
+          range.selectNodeContents(fallbackNode);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+        return false;
+      }
+    }
+
+    // Copy-to-clipboard for install code blocks.
     document.querySelectorAll('.copy-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const code = btn.parentElement?.querySelector('code');
         if (!code) return;
-        try {
-          await navigator.clipboard.writeText(code.textContent ?? '');
+        const text = code.textContent ?? '';
+        const flash = () => {
           const prev = btn.textContent;
           btn.textContent = 'Copied!';
           btn.classList.add('is-copied');
-          setTimeout(() => { btn.textContent = prev; btn.classList.remove('is-copied'); }, 1400);
-        } catch (_) {
-          const r = document.createRange();
-          r.selectNodeContents(code);
-          const s = window.getSelection();
-          s?.removeAllRanges();
-          s?.addRange(r);
-        }
+          setTimeout(() => {
+            btn.textContent = prev;
+            btn.classList.remove('is-copied');
+          }, 1400);
+        };
+        const ok = await copyText(text, code);
+        if (ok) flash();
       });
     });
   </script>
