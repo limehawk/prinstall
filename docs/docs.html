@@ -259,13 +259,15 @@
       <p class="lede">Every command, every flag, on one page. Each subcommand has its own <code>--help</code> with examples.</p>
 
       <h2>Install</h2>
-<pre><span class="c"># Default — includes SDI (Tier 5), Authenticode-verified</span>
+<pre><span class="c"># Download the default build (includes SDI Tier 5, Authenticode-verified)</span>
 iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe
 
-<span class="c"># Lean — no SDI, Tiers 1–4 + IPP fallback</span>
+<span class="c"># Or download the lean build (no SDI; Tiers 1–4 + IPP fallback)</span>
 iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-nosdi.exe -OutFile prinstall.exe
 
-<span class="c"># First-run setup — copy to C:\ProgramData\prinstall\, add to PATH, open UDP 5353</span>
+<span class="c"># Optional one-shot install: the command below copies the exe into</span>
+<span class="c"># C:\ProgramData\prinstall\, adds that dir to Machine PATH, and opens</span>
+<span class="c"># UDP 5353 in Windows Firewall (needed for mDNS discovery). Idempotent.</span>
 .\prinstall.exe setup install</pre>
 
       <h2>RMM scripts</h2>
@@ -392,8 +394,8 @@ iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-nos
           <tr><td class="cmd">prinstall sdi verify</td><td class="flags"></td><td class="effect">Authenticode-check every cached <code>.cat</code>.</td><td class="req">no</td></tr>
           <tr><td class="cmd">prinstall sdi list</td><td class="flags"></td><td class="effect">List cached indexes + packs.</td><td class="req">no</td></tr>
           <tr><td class="cmd">prinstall sdi clean</td><td class="flags"></td><td class="effect">LRU-evict past the size budget.</td><td class="req">no</td></tr>
-          <tr><td class="cmd">prinstall setup install</td><td class="flags">--dir</td><td class="effect">Copy exe → <code>C:\ProgramData\prinstall\</code>, add to Machine PATH, open UDP 5353.</td><td class="req">yes</td></tr>
-          <tr><td class="cmd">prinstall setup uninstall</td><td class="flags">--dir</td><td class="effect">Reverse all three. Idempotent.</td><td class="req">yes</td></tr>
+          <tr><td class="cmd">prinstall setup install</td><td class="flags">--dir</td><td class="effect">Self-installs: copies the running exe to <code>C:\ProgramData\prinstall\</code>, adds that dir to Machine PATH, opens UDP 5353 in Windows Firewall.</td><td class="req">yes</td></tr>
+          <tr><td class="cmd">prinstall setup uninstall</td><td class="flags">--dir</td><td class="effect">Removes the install dir, PATH entry, and firewall rule. Idempotent.</td><td class="req">yes</td></tr>
           <tr><td class="cmd">prinstall version</td><td class="flags"></td><td class="effect">Alias for <code>--version</code>.</td><td class="req">no</td></tr>
         </tbody>
       </table>
@@ -445,9 +447,10 @@ iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-nos
             <tbody>
               <tr><td class="flags">C:\ProgramData\prinstall\</td><td class="effect">Data root</td></tr>
               <tr><td class="flags">…\drivers\</td><td class="effect">Bundle dir (Tier 2 fallback)</td></tr>
-              <tr><td class="flags">…\sdi\</td><td class="effect">SDI cache</td></tr>
+              <tr><td class="flags">…\staging\</td><td class="effect">Downloaded driver staging area</td></tr>
+              <tr><td class="flags">…\sdi\</td><td class="effect">SDI cache (indexes + driver packs)</td></tr>
               <tr><td class="flags">…\config.toml</td><td class="effect">Persistent config</td></tr>
-              <tr><td class="flags">…\history.json</td><td class="effect">Install audit log</td></tr>
+              <tr><td class="flags">…\history.toml</td><td class="effect">Install audit log</td></tr>
             </tbody>
           </table>
 
@@ -633,13 +636,15 @@ prinstall sdi verify
 prinstall sdi clean</pre>
 
       <h2>Examples — setup</h2>
-<pre><span class="c"># Bootstrap — copy exe to C:\ProgramData\prinstall\, +PATH, +firewall rule (UDP 5353)</span>
+<pre><span class="c"># Bootstrap: this command copies the running exe to C:\ProgramData\prinstall\,</span>
+<span class="c"># adds that dir to Machine PATH, and creates a Windows Firewall rule for UDP 5353.</span>
 .\prinstall.exe setup install
 
-<span class="c"># Custom install location</span>
+<span class="c"># Same, but installs to a custom location</span>
 .\prinstall.exe setup install --dir C:\Tools\prinstall
 
-<span class="c"># Reverse all three. Run from a copy outside the install dir to avoid file lock</span>
+<span class="c"># Reverses all three (removes install dir, PATH entry, firewall rule).</span>
+<span class="c"># Run from a copy outside the install dir so the file lock doesn't block removal.</span>
 prinstall setup uninstall
 prinstall setup uninstall --dir C:\Tools\prinstall</pre>
 
