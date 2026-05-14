@@ -1334,14 +1334,18 @@ async fn stage_driver_if_needed(
     };
 
     // Authenticode verification gate (unless --no-verify).
-    let signer = if no_verify {
+    // `verified` tracks whether we got an actual signature confirmation
+    // (vs. --no-verify or a NoCatalogs auto-fall-through); it determines
+    // whether the resulting outcome is StagedVerified or StagedUnverified.
+    let (signer, verified) = if no_verify {
         if verbose {
             eprintln!("[stage] --no-verify passed, skipping Authenticode check");
         }
-        None
+        (None, false)
     } else {
         match run_manufacturer_verify(&extract_dir, verbose) {
-            Ok(s) => s,
+            Ok(ManufacturerVerify::Signed { signer }) => (signer, true),
+            Ok(ManufacturerVerify::NoCatalogsFallthrough) => (None, false),
             Err(reason) => return StageOutcome::VerificationFailed { reason },
         }
     };
@@ -1393,13 +1397,13 @@ async fn stage_driver_if_needed(
     // INF version or it fails with 0x80070705 "Unknown printer driver".
     let actual_driver_name = collect_actual_driver_name(&staged_infs, driver_name, verbose);
 
-    if no_verify {
-        StageOutcome::StagedUnverified { actual_driver_name }
-    } else {
+    if verified {
         StageOutcome::StagedVerified {
             signer,
             actual_driver_name,
         }
+    } else {
+        StageOutcome::StagedUnverified { actual_driver_name }
     }
 }
 
@@ -1457,17 +1461,34 @@ pub(crate) fn collect_actual_driver_name(
     picked
 }
 
+/// Outcome of an attempt to verify a manufacturer driver pack.
+///
+/// `NoCatalogsFallthrough` covers two cases that look the same from disk:
+/// vendor genuinely shipped without .cat catalogs (rare but real — some
+/// Epson Generic packs do this), or something on the user's box ate them
+/// between extract and verify (AV quarantine, filesystem race, permissions).
+/// In both cases the trust anchor for the manufacturer tier is our embedded
+/// manifest URL + HTTPS to the vendor's CDN, so we proceed under an UNVERIFIED
+/// audit marker rather than hard-blocking — the user can still pass
+/// `--no-verify` explicitly to get the same effect.
+pub(crate) enum ManufacturerVerify {
+    /// Authenticode check passed. `signer` is the extracted CN when available.
+    Signed { signer: Option<String> },
+    /// Pack had no `.cat` files to verify. Proceed as unverified.
+    NoCatalogsFallthrough,
+}
+
 /// Run `verify_pack_directory` on a freshly-extracted manufacturer pack.
 ///
-/// Returns `Ok(Some(signer))` when verification passes and we pulled a signer
-/// CN out, `Ok(None)` in the lean no-SDI build (where the module isn't
-/// compiled in — we let the install proceed unverified, matching the
-/// pre-v0.4.3 behavior), or `Err(reason)` when the pack failed the gate.
+/// Returns `Ok(Signed{..})` when Authenticode check passes,
+/// `Ok(NoCatalogsFallthrough)` when the pack has no catalogs to check (auto-
+/// fall through to UNVERIFIED — see [`ManufacturerVerify`]), or `Err(reason)`
+/// when a present catalog failed the gate (unsigned / invalid).
 #[cfg(feature = "sdi")]
 fn run_manufacturer_verify(
     extract_dir: &std::path::Path,
     verbose: bool,
-) -> Result<Option<String>, String> {
+) -> Result<ManufacturerVerify, String> {
     let verify_executor = RealExecutor::new(verbose);
     let outcome = crate::commands::sdi_verify::verify_pack_directory(
         &verify_executor,
@@ -1476,7 +1497,9 @@ fn run_manufacturer_verify(
     );
     match outcome {
         crate::commands::sdi_verify::PackVerifyOutcome::Verified { signers, .. } => {
-            Ok(signers.into_iter().next())
+            Ok(ManufacturerVerify::Signed {
+                signer: signers.into_iter().next(),
+            })
         }
         crate::commands::sdi_verify::PackVerifyOutcome::Unsigned { unsigned, total } => {
             Err(format!("verification failed: {unsigned}/{total} cats unsigned"))
@@ -1484,10 +1507,10 @@ fn run_manufacturer_verify(
         crate::commands::sdi_verify::PackVerifyOutcome::Invalid { first_reason, .. } => {
             Err(format!("verification failed: {first_reason}"))
         }
-        crate::commands::sdi_verify::PackVerifyOutcome::NoCatalogs => Err(
-            "no .cat catalogs in pack — vendor hasn't included them; use --no-verify to override"
-                .to_string(),
-        ),
+        crate::commands::sdi_verify::PackVerifyOutcome::NoCatalogs => {
+            log_no_catalogs_diagnostic(extract_dir);
+            Ok(ManufacturerVerify::NoCatalogsFallthrough)
+        }
     }
 }
 
@@ -1495,10 +1518,41 @@ fn run_manufacturer_verify(
 fn run_manufacturer_verify(
     _extract_dir: &std::path::Path,
     _verbose: bool,
-) -> Result<Option<String>, String> {
+) -> Result<ManufacturerVerify, String> {
     // No verify gate in the lean build — preserve pre-v0.4.3 behavior by
     // succeeding with no signer information.
-    Ok(None)
+    Ok(ManufacturerVerify::Signed { signer: None })
+}
+
+/// Log what was actually in the extracted pack when the verifier returned
+/// NoCatalogs. Gives the user (and future debugging) a concrete look at why
+/// the gate fell through to UNVERIFIED, rather than guessing the vendor's
+/// packaging convention.
+fn log_no_catalogs_diagnostic(extract_dir: &std::path::Path) {
+    let mut entries: Vec<String> = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(extract_dir) {
+        for entry in rd.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            entries.push(if is_dir { format!("{name}/") } else { name });
+        }
+    }
+    entries.sort();
+    eprintln!(
+        "[stage] no .cat catalogs in {} — proceeding as UNVERIFIED",
+        extract_dir.display()
+    );
+    if entries.is_empty() {
+        eprintln!("[stage] (extract directory is empty or unreadable)");
+    } else {
+        eprintln!("[stage] extract directory contents ({} entries):", entries.len());
+        for name in entries.iter().take(20) {
+            eprintln!("[stage]   {name}");
+        }
+        if entries.len() > 20 {
+            eprintln!("[stage]   ... and {} more", entries.len() - 20);
+        }
+    }
 }
 
 /// Try to install from a local driver bundle, returning `Some(result)` on
@@ -1822,10 +1876,12 @@ async fn ipp_reachable(ip: &str) -> bool {
 /// Install the printer using Microsoft's built-in `IPP Class Driver`.
 ///
 /// Uses the explicit port + driver approach, which is the most reliable path
-/// on modern Windows: the `IP_<ip>` port was already created during the
-/// primary install's port-creation step, and `Microsoft IPP Class Driver`
-/// is pre-registered on Windows 8+ so no driver staging is needed. One
-/// `Add-Printer` call with explicit `-DriverName` is all that's required.
+/// on modern Windows. `Microsoft IPP Class Driver` is pre-registered on
+/// Windows 8+ so no driver staging is needed. The `IP_<ip>` port is created
+/// on the fly when missing — when the cascade reaches this fallback after
+/// an upstream tier failed BEFORE the port-creation step (e.g. manufacturer
+/// verification rejected the pack), the port doesn't exist yet and
+/// `Add-Printer` would error with "specified port does not exist". See #119.
 ///
 /// The resulting printer is named `<model> (IPP)` so it's obvious in
 /// `Get-Printer` output that it's on the generic fallback driver. A visible
@@ -1860,6 +1916,35 @@ pub(crate) fn try_ipp_fallback(
                  store. No changes made."
             )),
         });
+    }
+
+    // Ensure the TCP/IP port exists before Add-Printer. When the cascade
+    // reaches this fallback after a failure earlier than the port-creation
+    // step (e.g. #118 manufacturer verification rejecting the pack), the
+    // port is missing and Add-Printer would error with
+    // "specified port does not exist".
+    //
+    // Inlined via the executor (rather than calling installer::powershell::
+    // create_port) so MockExecutor in tests covers this path the same way
+    // it covers Add-Printer below; the helper's run_ps path can't be stubbed.
+    // The Add-PrinterPort command is idempotent via -ErrorAction Stop guarded
+    // by a Get-PrinterPort presence check.
+    let safe_ip = escape_ps_string(ip);
+    let port_check_create = format!(
+        "if (-not (Get-PrinterPort -Name 'IP_{safe_ip}' -ErrorAction SilentlyContinue)) {{ \
+         Add-PrinterPort -Name 'IP_{safe_ip}' -PrinterHostAddress '{safe_ip}' \
+         }}"
+    );
+    if verbose {
+        eprintln!("[add] IPP fallback: ensuring port: {port_check_create}");
+    }
+    let port_result = executor.run(&port_check_create);
+    if !port_result.success {
+        return PrinterOpResult::err(format!(
+            "Primary install failed and IPP Class Driver fallback also failed: \
+             could not create port '{port_name}': {}",
+            ps_error::clean(&port_result.stderr)
+        ));
     }
 
     let ps = format!(
@@ -1959,6 +2044,60 @@ mod tests {
         let detail = result.detail_as::<InstallDetail>().unwrap();
         assert_eq!(detail.port_name, "IP_10.20.30.40");
         assert_eq!(detail.printer_name, "HP LaserJet 9999 (IPP)");
+    }
+
+    /// Regression for #119. When the upstream tiers (Manufacturer, Catalog,
+    /// SDI Origin) all soft-fail before the port-creation step, the IPP
+    /// fallback used to error with "Add-Printer: The specified port does
+    /// not exist". The fallback must ensure the `IP_<ip>` port exists
+    /// itself before calling Add-Printer.
+    #[test]
+    fn ipp_fallback_creates_port_when_missing() {
+        // Stub both port-create and Add-Printer with success — first-match-wins
+        // means we need an explicit stub matching the port path, otherwise
+        // the test wouldn't distinguish "port command was emitted" from
+        // "port command was skipped".
+        let mock = MockExecutor::new()
+            .stub_contains(
+                "Add-PrinterPort -Name 'IP_10.99.88.77'",
+                PsResult {
+                    success: true,
+                    stdout: String::new(),
+                    stderr: String::new(),
+                },
+            )
+            .stub_contains(
+                "Microsoft IPP Class Driver",
+                PsResult {
+                    success: true,
+                    stdout: String::new(),
+                    stderr: String::new(),
+                },
+            );
+        let result = try_ipp_fallback(&mock, "10.99.88.77", "any", "HP LaserJet", false);
+        assert!(
+            result.success,
+            "fallback should succeed when port is created on the fly: {:?}",
+            result.error
+        );
+        let detail = result.detail_as::<InstallDetail>().unwrap();
+        assert_eq!(detail.port_name, "IP_10.99.88.77");
+    }
+
+    /// If the port-creation PowerShell step fails (e.g. admin rights missing,
+    /// already-mapped IP under a different name), the fallback must surface
+    /// a clear error mentioning the port — not a generic Add-Printer message.
+    #[test]
+    fn ipp_fallback_surfaces_port_create_error() {
+        let mock = MockExecutor::new().stub_failure(
+            "Add-PrinterPort",
+            "Access is denied. (HRESULT: 0x80070005)",
+        );
+        let result = try_ipp_fallback(&mock, "10.0.0.7", "any", "HP LaserJet", false);
+        assert!(!result.success);
+        let err = result.error.expect("error present");
+        assert!(err.contains("could not create port"), "got: {err}");
+        assert!(err.contains("IP_10.0.0.7"), "got: {err}");
     }
 
     fn sample_resolved() -> drivers::resolver::ResolvedDriver {
@@ -2177,6 +2316,57 @@ mod catalog_gate_tests {
         let mut report = InstallReport::new("10.0.0.6");
         let safe = catalog_pack_safe_to_install(&missing, false, &mut report);
         assert!(!safe);
+    }
+}
+
+/// Manufacturer-tier verify gate behavior — regression coverage for issue #118.
+///
+/// The Manufacturer tier's threat model differs from SDI / Bundle: its zip
+/// URL comes from the prinstall-curated `drivers.toml` and downloads over
+/// HTTPS from the vendor CDN. When verification reports `NoCatalogs`,
+/// hard-blocking the install was the wrong call — vendor packaging conventions
+/// vary, and the user trusts the manifest URL implicitly. We auto-fall through
+/// to UNVERIFIED in that case so the install can proceed with an audit marker.
+#[cfg(test)]
+#[cfg(feature = "sdi")]
+mod manufacturer_verify_tests {
+    use super::*;
+
+    /// A manufacturer pack with no .cat files must map to
+    /// `ManufacturerVerify::NoCatalogsFallthrough`, NOT `Err(...)`. Previously
+    /// this path returned an error like "no .cat catalogs in pack — vendor
+    /// hasn't included them; use --no-verify to override" and the entire
+    /// install failed even though the user had picked a known-good driver
+    /// from the curated manifest.
+    #[test]
+    fn no_catalogs_falls_through_to_unverified() {
+        let tmp = std::env::temp_dir().join(format!(
+            "prinstall-mfr-verify-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::fs::write(tmp.join("driver.inf"), b"; placeholder").unwrap();
+
+        let result = run_manufacturer_verify(&tmp, false);
+        match result {
+            Ok(ManufacturerVerify::NoCatalogsFallthrough) => {}
+            other => panic!("expected NoCatalogsFallthrough, got {:?}", match other {
+                Ok(ManufacturerVerify::Signed { .. }) => "Signed".to_string(),
+                Ok(ManufacturerVerify::NoCatalogsFallthrough) => unreachable!(),
+                Err(s) => format!("Err({s})"),
+            }),
+        }
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// Diagnostic logger must not panic on an empty or missing dir — it's
+    /// invoked from the auto-fall-through path and is best-effort logging.
+    #[test]
+    fn diagnostic_handles_missing_directory_without_panic() {
+        let missing =
+            std::path::PathBuf::from("/nonexistent/prinstall-mfr-diagnostic-missing");
+        log_no_catalogs_diagnostic(&missing);
     }
 }
 
