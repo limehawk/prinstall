@@ -52,13 +52,14 @@ Each release ships two binaries:
 | `prinstall.exe` | Yes | Default — Tiers 1–5 + IPP fallback, .cat signature verification on SDI |
 | `prinstall-nosdi.exe` | No | Lean — Tiers 1–4 + IPP fallback, zero SDI code |
 
-**Windows (PowerShell one-liner):**
+## Windows (PowerShell one-liner):
 
+**Default (includes SDI with signature verification)**
 ```powershell
-# Default (includes SDI with signature verification)
 iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall.exe -OutFile prinstall.exe
-
-# Lean (no SDI — Tiers 1–4 only)
+```
+**Lean (no SDI — Tiers 1–4 only)**
+```powershell
 iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-nosdi.exe -OutFile prinstall.exe
 ```
 
