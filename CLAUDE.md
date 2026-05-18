@@ -324,23 +324,6 @@ gh run list --workflow=release.yml --limit 2
 Docs-only changes (touching `docs/`, `README.md`, `scripts/`, `CLAUDE.md`)
 skip steps 3–4: merge the PR, fast-forward `main`, done. No tag, no version bump.
 
-### rmm-scripts coordination
-
-The `~/dev/rmm-scripts/` sibling repo holds SuperOps-flavored wrappers and
-lives on `main` (no `dev` branch). Wrapper versions track the prinstall app
-version they target. Two quirks worth knowing:
-
-- SuperOps auto-syncs script changes upstream via a bot, so `git push origin main`
-  can be rejected mid-session with "Updates were rejected because the remote
-  contains work that you do not have locally" when a `sync: update N script(s)
-  in SuperOps` commit landed while you were working. Recover with `git pull
-  --rebase` and re-push.
-- Before `git pull --rebase`, stash any uncommitted yaml/CLAUDE.md edits —
-  Watson's WIP often sits there:
-  `git stash push -m "WIP" -- CLAUDE.md scripts/*.yaml`. Leave the stash
-  intact after the push succeeds; those are Watson's edits to reconcile,
-  not ours to apply blindly.
-
 ## Spec & Plan
 
 Design spec and implementation plan are in the rmm-scripts repo (gitignored there):
@@ -372,64 +355,8 @@ Design spec and implementation plan are in the rmm-scripts repo (gitignored ther
 
 ## Current backlog
 
-**Shipped (v0.4.0):**
-- [x] SDI driverpack integration (behind `--features sdi` for supply chain review)
-- [x] Pure-Rust CAB extraction (replaced `expand.exe`)
-- [x] Xerox + Kyocera direct download URLs in `drivers.toml`
-- [x] Structured verbose output (rice report)
-- [x] `prinstall sdi verify` — Authenticode .cat signature verification
-- [x] Duplicate printer detection (`--force` to reinstall)
-
-**Shipped (v0.4.1):**
-- [x] USB printer discovery via Get-PnpDevice (scan shows USB-attached devices + yellow-bang orphans)
-- [x] USB stage-and-install flow via pnputil (for legacy printers like HP LaserJet 1320)
-- [x] `prinstall list` shows IP column for network-attached queues
-- [x] `driver` accepted as alias for `drivers` command
-- [x] Scan flags: `--network-only`, `--usb-only`
-
-**Shipped (v0.4.2):**
-- [x] Authenticode verification gate on SDI install — unsigned or tampered packs are skipped and the pipeline falls through to IPP Class Driver
-- [x] `TierStatus::Verified` variant in install report — shows a verified ✓ tier when the SDI pack passed signature check
-- [x] `drivers` command shows SDI candidates with per-pack verification status (verified / unsigned / invalid / not-extracted)
-- [x] SDI promoted to default feature (`default = ["sdi"]`); lean build available via `--no-default-features`
-- [x] Release ships `prinstall.exe` (default, includes SDI) + `prinstall-nosdi.exe` (lean)
-- [x] `tests/sdi_*.rs` now compiles under default test suite (was broken — fixed as side effect of SDI-default)
-
-**Shipped (v0.4.12):**
-- [x] `prinstall driver add <model>` — deviceless staging by model string. Auto-stages the curated match from `known_matches.toml` when unambiguous, otherwise lists ranked candidates and requires `--driver "<name>"` to pick. Path flow unchanged. `--no-verify` bypasses the Authenticode gate.
-- [x] Fail fast for scanners in `prinstall add` — refuses document scanners (Brother ADS-, Fujitsu fi-/ScanSnap, Epson DS-/WorkForce ES-, Canon DR-/imageFORMULA, Xerox DocuMate, Panasonic KV-S) before running the full tier cascade. Triggers only when IPP returned no device-id AND port 631 isn't reachable. `--force` bypasses.
-- [x] `prinstall version` subcommand (alias for `--version`, matches muscle memory from git/cargo/npm).
-
-**Shipped (v0.4.13):**
-- [x] `prinstall driver remove <target>` — remove a driver from the Windows driver store. `target` is exact name OR a fuzzy/model string that resolves to one staged driver. Refuses with blocking queue names if the driver is in use; `--force` cascades (removes dependent queues first via the standard `remove` pipeline, then the driver). System drivers (Microsoft IPP Class Driver etc.) are protected via the existing whitelist.
-- [x] `prinstall driver list` — pretty-print every driver in the store (`Get-PrinterDriver`) with date columns; `--json` for scripting. No admin required.
-- [x] `prinstall driver show <IP>` — renamed from top-level `drivers <IP>`. Brings the noun group (`driver add | remove | list | show`) into the same shape as `sdi`. Old top-level `drivers` / `driver <IP>` stay as deprecated aliases; no script breakage.
-- [x] Privilege gate refined — `driver list` and `driver show` no longer require admin (read-only). `driver add` and `driver remove` still require elevation.
-
-**Shipped (v0.4.14):**
-- [x] `driver add` now registers in the print spooler, not just the driver store. pnputil `/add-driver` writes the INF into the Windows driver store, but `Get-PrinterDriver` won't see the driver until `Add-PrinterDriver -Name` registers it to the spooler — without that second step, subsequent `driver list` / `driver remove` calls can't find what was just staged. Both the model and path flows now run `Add-PrinterDriver` after pnputil succeeds. Model flow uses `collect_actual_driver_name` (exposed `pub(crate)` from `commands::add`) to pick the INF's real display name instead of the manifest hint. Success message differentiates "Staged and registered" from "Staged (driver store only)" when spooler registration soft-fails.
-
-**Shipped (v0.4.15):**
-- [x] `driver list` now populates the Date column. `Get-PrinterDriver`'s `DriverDate` field is unpopulated for most drivers (class drivers, Add-PrinterDriver-registered drivers, etc.), so the query now falls back to parsing the INF's `[Version]` `DriverVer` line's `MM/DD/YYYY` prefix. Date format stays `YYYY-MM-DD`. The year-1980 sanity filter rejects the default `01/01/0001` a null DateTime evaluates to.
-
-**Shipped (v0.4.16):**
-- [x] `prinstall setup install` and `prinstall setup uninstall` — self-bootstrap subcommands. `install` copies the running `prinstall.exe` into `C:\ProgramData\prinstall\` (or `--dir PATH`), adds the install dir to Machine PATH, and creates the `Prinstall (mDNS discovery)` firewall rule for UDP 5353. Idempotent: no-op when the running exe is already at the target. `uninstall` reverses all three. Warns when the running exe is inside the install dir (Windows file lock) but still cleans up PATH + firewall. Both require admin. The external PowerShell `scripts/prinstall_setup.ps1` stays for the `iwr | iex` fresh-box bootstrap; the built-in command covers every round-trip after the exe is on the box.
-
-**Shipped (v0.4.17):**
-- [x] Fix `scan --usb-only` returning empty on boxes with a working USB printer. The `discovery/usb.rs` Get-PnpDevice filter required `InstanceId -like 'USB\*'`, which excludes driver-bound USB printers — Windows assigns them `USBPRINT\...` InstanceIds (the USB Print Class bus), not `USB\...`. Filter now accepts `USBPRINT\*` as a first-class branch (no Class check needed — the bus itself implies it's a print device). `USB\*` + Class or yellow-bang-error branch still covers raw composite devices and orphans.
-
-**Shipped (v0.4.18):**
-- [x] `prinstall driver add` auto-picks when the input is unambiguous. Two new branches in `resolve_driver_pick` (src/commands/driver.rs): (1) verbatim case-insensitive name match against any candidate in `matched ∪ universal` — `prinstall driver add "HP Universal Print Driver PS"` no longer asks the user to retype the name they just typed; (2) when `matched` is empty and `universal` has exactly one entry, auto-pick it. Curated `MatchConfidence::Exact` branch unchanged. 7 new unit tests cover the positive and negative cases (multiple universals still prompts, fuzzy-with-single-universal still prompts).
-
-**Shipped (v0.4.19):**
-- [x] Quiet verbose stdout dump. `run_ps` (src/installer/powershell.rs) used to echo full PS stdout for every call — fine for short JSON but catastrophic for `Get-AuthenticodeSignature | ConvertTo-Json -Depth N` where the serialized cert chain is ~30KB of OID dumps per cat file. New behavior: on success, drop stdout entirely (the parsed result surfaces through proper output anyway); on failure, truncate stdout to 500 chars with a `(N chars omitted)` suffix. `[PS] <command>` and cleaned stderr unchanged. New `truncate()` helper is char-safe (won't split multibyte UTF-8). 4 new unit tests cover pass-through, clipping, multibyte, and exact-boundary.
-
-**Shipped (v0.4.20):**
-- [x] `prinstall driver remove` round-trips the `add` rename. `add "HP Universal Print Driver PS"` stages under the INF's actual display name `HP Universal Printing PS` (collect_actual_driver_name picks the real spooler name), but `remove "HP Universal Print Driver PS"` used to fail with "no staged driver matches" because the 3/4-token-overlap score (225) fell below `match_drivers`'s `MIN_FUZZY_SCORE = 250`. Fix: `resolve_remove_target` (src/commands/driver.rs) now scores local drivers directly against the target with a dedicated `REMOVE_MIN_FUZZY_SCORE = 150` — lower than `add` because false positives are contained (only scoring against drivers already on this box, and ambiguity still triggers the multi-match prompt). New regression test covers the exact symptom.
-
-**Shipped (v0.4.21):**
-- [x] Manufacturer-tier verify gate auto-falls-through to UNVERIFIED instead of hard-blocking when `verify_pack_directory` returns `NoCatalogs` (issue #118). The previous "no .cat catalogs in pack — vendor hasn't included them; use --no-verify to override" error blocked every HP UPD install on the user's box (whatever was eating the catalogs between extract and verify — AV quarantine, FS race, or a real vendor-packaging convention). New `ManufacturerVerify` enum distinguishes `Signed { signer }` from `NoCatalogsFallthrough`; caller in `stage_driver_if_needed` routes the latter through `StagedUnverified` so the install proceeds with the existing `[UNVERIFIED]` audit marker. A diagnostic logger (`log_no_catalogs_diagnostic`) lists what was actually in the extract dir so future debugging has evidence. Trust anchor for the manufacturer tier is now the curated `drivers.toml` URL + HTTPS to the vendor CDN; the .cat gate becomes defense-in-depth instead of a hard precondition. Other tiers (Catalog, SDI Origin, Bundle) keep their hard-block on `NoCatalogs` — their threat models differ.
-- [x] IPP Class Driver fallback creates its TCP/IP port on the fly when missing (issue #119). When the cascade reached the IPP tier after an upstream tier soft-failed *before* the port-creation step (most commonly the #118 manufacturer verification path, but also any other early-tier rejection), `Add-Printer` errored with "specified port does not exist" — making the last-resort fallback unusable in exactly the case it's supposed to cover. `try_ipp_fallback` now emits a `Get-PrinterPort | Add-PrinterPort` guarded command via the executor before `Add-Printer`, with a clear error message when port creation itself fails (e.g., admin rights missing, already-mapped under a different name). Port logic is inlined via the executor parameter rather than calling `installer::powershell::create_port` so MockExecutor in tests covers the path the same way it covers Add-Printer.
+Shipped releases live in git tags (`git tag -l 'v*'`) and the GitHub release
+notes — that's the changelog. This section tracks only what's still open.
 
 **Open:**
 - [ ] Lexmark Universal Print Driver URL — needs .exe extraction support
