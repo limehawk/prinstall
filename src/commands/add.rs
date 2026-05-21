@@ -326,7 +326,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     // In the `--no-default-features` (no-SDI) lean build, the
     // `sdi_verify` module isn't compiled in, so we keep the pre-v0.4.3
     // ungated behavior for that variant. The SDI-default build is where
-    // Watson wants defense-in-depth anyway.
+    // defense-in-depth matters most.
     if args.no_catalog {
         report.resolution.add_tier("Catalog", TierStatus::Disabled, "--no-catalog");
     } else if let Some(ref dev_id) = device_id {
