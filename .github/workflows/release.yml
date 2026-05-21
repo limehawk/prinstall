@@ -43,7 +43,7 @@ jobs:
       # ---------- Code signing (optional — see docs/selfsign-setup.md) ----------
       # All signing steps no-op if CODESIGN_PFX_BASE64 secret isn't set, so the
       # release still ships (unsigned) during the initial setup window before
-      # Watson uploads the secrets.
+      # the maintainer uploads the secrets.
 
       - name: Resolve signtool.exe path
         id: signtool

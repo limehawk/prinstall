@@ -19,7 +19,7 @@ local trust store (via the rmm-scripts rollout) pass SAC cleanly.
 
 ---
 
-## One-time actions (Watson)
+## One-time actions (maintainer)
 
 ### 1. Generate the signing cert (local Windows box, elevated PowerShell)
 
