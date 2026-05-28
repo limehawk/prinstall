@@ -40,7 +40,7 @@ jobs:
       - name: Run tests
         run: cargo test --release --target x86_64-pc-windows-msvc
 
-      # ---------- Code signing (optional — see docs/selfsign-setup.md) ----------
+      # ---------- Code signing (optional — see the Code Signing wiki page) ----------
       # All signing steps no-op if CODESIGN_PFX_BASE64 secret isn't set, so the
       # release still ships (unsigned) during the initial setup window before
       # the maintainer uploads the secrets.
