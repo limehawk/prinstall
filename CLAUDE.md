@@ -365,9 +365,10 @@ notes — that's the changelog. This section tracks only what's still open.
       `Set-PrintConfiguration`
 - [ ] `prinstall health <ip>` — toner/drum/tray status via SNMP Printer MIB
 - [ ] Batch install mode (multiple IPs in one shot)
-- [ ] SignPath.io code signing for SmartScreen trust — Deferred. See
-      `docs/selfsign-setup.md` for the $0 interim self-signed path that
-      works for MSP-managed fleets (fleet-scoped trust via a push-to-
-      TrustedPublisher rollout script in rmm-scripts). Public GitHub
-      downloads still hit SAC until we ship with a publicly-trusted CA.
+- [ ] SignPath.io code signing for SmartScreen trust — Deferred. The
+      interim self-signed scheme (fleet-scoped trust via a push-to-
+      TrustedPublisher rollout script in rmm-scripts) is documented in
+      the [Code Signing wiki page](https://github.com/limehawk/prinstall/wiki/Code-Signing).
+      Public GitHub downloads still hit SAC until we ship with a
+      publicly-trusted CA.
 - [ ] Interactive TUI rework (lazygit-style panels)
