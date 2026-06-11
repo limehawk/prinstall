@@ -202,6 +202,8 @@ async fn add_from_path(args: &DriverAddArgs<'_>) -> i32 {
         }
     }
 
+    let already_existed = stdout.contains("Already exists in the system");
+
     if args.json {
         emit_path_result_json(args.target, success, &stdout, &error);
     } else if success {
@@ -211,7 +213,8 @@ async fn add_from_path(args: &DriverAddArgs<'_>) -> i32 {
         } else {
             format!(" ({registered_count}/{discovered_total} registered in spooler)")
         };
-        println!("✓ Driver staged successfully{unverified}{reg_suffix}");
+        let verb = if already_existed { "already staged" } else { "staged successfully" };
+        println!("✓ Driver {verb}{unverified}{reg_suffix}");
         if args.verbose && !stdout.is_empty() {
             println!();
             println!("{stdout}");
