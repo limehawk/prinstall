@@ -157,7 +157,11 @@ pub fn stage_driver_inf(inf_path: &str, verbose: bool) -> PsResult {
         "pnputil /add-driver '{}' /install",
         escape_ps_string(inf_path)
     );
-    run_ps(&cmd, verbose)
+    let mut result = run_ps(&cmd, verbose);
+    if !result.success && result.stdout.contains("Already exists in the system") {
+        result.success = true;
+    }
+    result
 }
 
 /// Find the printer queue name assigned to a given port (e.g. `IP_192.168.1.50`).
@@ -305,7 +309,8 @@ pub async fn pnputil_add_driver(
         eprintln!("[pnputil] add-driver from {inf_dir}");
     }
     let result = exec.run(&cmd);
-    if result.success {
+    let already_exists = result.stdout.contains("Already exists in the system");
+    if result.success || already_exists {
         PnpResult {
             success: true,
             error: None,
@@ -409,6 +414,25 @@ mod pnputil_tests {
         );
         let result = pnputil_add_driver(&mock, "C:\\staging\\HP", false).await;
         assert!(result.success, "expected success, got: {:?}", result.error);
+    }
+
+    #[tokio::test]
+    async fn pnputil_add_driver_already_exists_is_success() {
+        let mock = MockExecutor::new().stub_contains(
+            "pnputil",
+            PsResult {
+                success: false,
+                stdout: "Adding driver package:  KOAWOJ__.inf\n\
+                         Driver package added successfully. \
+                         (Already exists in the system)\n\
+                         Published Name:         oem137.inf"
+                    .to_string(),
+                stderr: String::new(),
+            },
+        );
+        let result = pnputil_add_driver(&mock, "C:\\staging\\Konica", false).await;
+        assert!(result.success, "already-exists should be treated as success");
+        assert!(result.error.is_none());
     }
 
     #[tokio::test]
