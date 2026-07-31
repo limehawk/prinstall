@@ -13,10 +13,13 @@
 #   - Xerox (PCL6 + PS, version-in-path URLs — need to bump on GPD updates)
 #   - Kyocera KX Driver (evergreen URL via AEM dispatcher alias)
 #
-# Vendors currently lacking a direct URL (fall through to Catalog/SDI tiers):
+# Vendors currently lacking a direct URL (fall through to Catalog/SDI tiers,
+# or stage a vendor pack with `prinstall driver add <path>`):
 #   - Brother (no universal driver; per-model only)
 #   - Canon   (Generic Plus UFR II requires session-cookie flow)
 #   - Epson   (region-gated driver selector)
+#   - Konica Minolta (Universal PCL/PS ship as vendor archives — no stable
+#              direct ZIP/CAB URL; stage via `prinstall driver add`)
 #   - Lexmark (Universal v2 XL ships as a .exe InstallShield wrapper —
 #              downloader currently handles only .zip/.cab. Follow-up PR
 #              will add .exe extraction support and land this URL:
@@ -104,4 +107,19 @@ prefixes = ["Kyocera", "KYOCERA"]
 [[manufacturers.universal_drivers]]
 name = "Kyocera KX Driver"
 url = "https://www.kyoceradocumentsolutions.us/content/dam/download-center-americas-cf/us/drivers/drivers/KX_Print_Driver_zip.download.zip"
+format = "zip"
+
+[[manufacturers]]
+name = "Konica Minolta"
+# Longest / most specific prefixes first — find_manufacturer uses starts_with.
+prefixes = ["KONICA MINOLTA", "KONICA", "MINOLTA"]
+
+[[manufacturers.universal_drivers]]
+name = "KONICA MINOLTA Universal PCL"
+url = ""
+format = "zip"
+
+[[manufacturers.universal_drivers]]
+name = "KONICA MINOLTA Universal PS"
+url = ""
 format = "zip"

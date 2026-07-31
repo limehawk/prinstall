@@ -1146,6 +1146,7 @@ mod tests {
                     driver_date: None,
                 })
                 .collect(),
+            near_misses: vec![],
             device_id: None,
             catalog: None,
             bundle_candidates: Vec::new(),

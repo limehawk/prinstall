@@ -884,11 +884,77 @@ pub fn format_driver_results(results: &DriverResults) -> String {
 
     if candidates.is_empty() && !has_traditional && !has_catalog && !has_sdi {
         out.push_str("No drivers found for this printer.\n");
+        out.push_str(&format_empty_driver_diagnostics(results));
         return out;
     }
 
     out.push_str(&render_tree(&candidates));
 
+    out
+}
+
+/// Extra context when resolution produced zero installable candidates.
+/// Explains near-miss local drivers and the IPP fallthrough path so techs
+/// are not left staring at a bare "No drivers found" line.
+fn format_empty_driver_diagnostics(results: &DriverResults) -> String {
+    let mut out = String::new();
+    out.push('\n');
+    out.push_str(&dim("Why:"));
+    out.push('\n');
+
+    if results.near_misses.is_empty() {
+        out.push_str(&format!(
+            "  {}\n",
+            dim("• No local-store drivers scored above 0 against this model")
+        ));
+    } else {
+        out.push_str(&format!(
+            "  {}\n",
+            dim(&format!(
+                "• Local-store near-misses (need score ≥ {min}; floor is {min}):",
+                min = crate::drivers::matcher::MIN_FUZZY_SCORE
+            ))
+        ));
+        for nm in &results.near_misses {
+            out.push_str(&format!(
+                "      {}  {}  ({})\n",
+                dim(&format!("{:3}", nm.score)),
+                nm.name,
+                dim(&nm.reason)
+            ));
+        }
+        out.push_str(&format!(
+            "  {}\n",
+            dim("  → retry with: prinstall add <ip> --driver \"<name above>\"")
+        ));
+    }
+
+    if results.universal.is_empty() {
+        out.push_str(&format!(
+            "  {}\n",
+            dim("• No manufacturer universal entry matched this model in drivers.toml")
+        ));
+    }
+
+    let bundle_paths = crate::paths::bundle_dir_candidates();
+    if results.bundle_candidates.is_empty() {
+        out.push_str(&format!(
+            "  {}\n",
+            dim("• No matching INF under the local bundle paths:")
+        ));
+        for p in bundle_paths {
+            out.push_str(&format!("      {}\n", dim(&p.display().to_string())));
+        }
+        out.push_str(&format!(
+            "  {}\n",
+            dim("  → stage a vendor pack: prinstall driver add <path-to-inf-or-folder>")
+        ));
+    }
+
+    out.push_str(&format!(
+        "  {}\n",
+        dim("• If port 631 is open, `prinstall add` will fall through to Microsoft IPP Class Driver")
+    ));
     out
 }
 
