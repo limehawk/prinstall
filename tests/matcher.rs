@@ -64,6 +64,64 @@ mod matcher_test {
         assert!(results.universal.is_empty());
     }
 
+    /// Field bug: multi-token Konica model vs staged Universal PCL used to
+    /// score under MIN_FUZZY_SCORE and disappear entirely from candidates.
+    #[test]
+    fn local_konica_universal_promoted_despite_low_fuzzy_score() {
+        let local = vec![
+            "KONICA MINOLTA Universal PCL".to_string(),
+            "Microsoft IPP Class Driver".to_string(),
+        ];
+        let results = matcher::match_drivers("KONICA MINOLTA bizhub C250i", &local);
+
+        let raw = matcher::score_driver(
+            "KONICA MINOLTA bizhub C250i",
+            "KONICA MINOLTA Universal PCL",
+        );
+        assert!(
+            raw < matcher::MIN_FUZZY_SCORE,
+            "precondition: raw fuzzy score {raw} should be under the floor so this tests promotion"
+        );
+
+        assert!(
+            results
+                .matched
+                .iter()
+                .any(|d| d.name == "KONICA MINOLTA Universal PCL"
+                    && d.source == DriverSource::LocalStore),
+            "local Universal PCL must be a matched candidate: {:?}",
+            results.matched
+        );
+        assert!(
+            results
+                .universal
+                .iter()
+                .any(|d| d.name.contains("Universal")),
+            "manufacturer universal list should be present for Konica: {:?}",
+            results.universal
+        );
+        // Promoted drivers leave the near-miss list.
+        assert!(
+            results
+                .near_misses
+                .iter()
+                .all(|n| n.name != "KONICA MINOLTA Universal PCL")
+        );
+    }
+
+    #[test]
+    fn konica_manufacturer_universals_listed_without_local_store() {
+        let results = matcher::match_drivers("KONICA MINOLTA bizhub C250i", &[]);
+        assert!(
+            results
+                .universal
+                .iter()
+                .any(|d| d.name == "KONICA MINOLTA Universal PCL"),
+            "drivers.toml Konica entry should surface Universal PCL: {:?}",
+            results.universal
+        );
+    }
+
     #[test]
     fn matched_drivers_sorted_by_confidence() {
         let local_drivers = vec![

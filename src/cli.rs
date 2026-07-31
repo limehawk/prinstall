@@ -19,6 +19,7 @@ use clap::{Parser, Subcommand};
         prinstall add 192.168.1.100            Install printer with best-match driver\n  \
         prinstall add 192.168.1.100 --driver \"HP Universal Print Driver PCL6\"\n  \
         prinstall remove 192.168.1.100         Remove printer and clean up driver/port\n  \
+        prinstall clean 192.168.1.100          Remove ALL queues targeting an IP\n  \
         prinstall list                         List locally installed printers\n  \
         prinstall list --json                  List printers as JSON (for scripting)\n\n\
         Each subcommand has detailed --help. Try: prinstall scan --help"
@@ -272,6 +273,51 @@ pub enum Commands {
         keep_driver: bool,
 
         /// Don't remove the TCP/IP port even if it's no longer used
+        #[arg(long)]
+        keep_port: bool,
+    },
+
+    /// Remove every matching printer queue (multi-queue cleanup)
+    ///
+    /// Desks often accumulate several queues for one physical printer
+    /// (UPD, PS, IPP Class Driver, wrong model series). `remove <ip>` only
+    /// drops one queue; `clean` enumerates matches and removes each, then
+    /// sweeps orphan ports for the target IP.
+    ///
+    /// At least one of IP / --name-match / --manufacturer is required.
+    /// When more than one filter is set, they AND together.
+    #[command(
+        after_help = "EXAMPLES:\n  \
+            prinstall clean 192.168.1.50\n  \
+            prinstall clean --name-match \"KONICA|bizhub\"\n  \
+            prinstall clean --manufacturer \"KONICA MINOLTA\"\n  \
+            prinstall clean 192.168.1.50 --name-match \"FAX|IPP\"\n\n\
+            HOW IT WORKS:\n  \
+            1. Enumerate local queues (Get-Printer)\n  \
+            2. Filter by IP port / name regex / manufacturer substring\n  \
+            3. Remove each queue via the same pipeline as `prinstall remove`\n  \
+            4. Sweep orphan ports for the IP (with one Spooler restart on ghost ports)\n\n\
+            REQUIRES:\n  \
+            Administrator privileges (UAC prompt if not elevated)."
+    )]
+    Clean {
+        /// Printer IPv4 — match queues whose port name contains this address
+        #[arg(value_name = "IP")]
+        ip: Option<String>,
+
+        /// Regex matched against queue name and driver name (case-insensitive)
+        #[arg(long)]
+        name_match: Option<String>,
+
+        /// Case-insensitive substring matched against queue name and driver name
+        #[arg(long)]
+        manufacturer: Option<String>,
+
+        /// Don't remove drivers even if orphaned
+        #[arg(long)]
+        keep_driver: bool,
+
+        /// Don't remove TCP/IP ports even if orphaned
         #[arg(long)]
         keep_port: bool,
     },

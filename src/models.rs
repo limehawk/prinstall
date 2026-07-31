@@ -154,11 +154,25 @@ pub enum DriverSource {
     Manufacturer,
 }
 
+/// A local-store driver that scored above zero but under the fuzzy threshold.
+/// Surfaced in empty-state diagnostics so techs can see *why* a staged
+/// driver was not selected (and pick it with `--driver` if appropriate).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DriverNearMiss {
+    pub name: String,
+    pub score: u32,
+    pub reason: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DriverResults {
     pub printer_model: String,
     pub matched: Vec<DriverMatch>,
     pub universal: Vec<DriverMatch>,
+    /// Local-store drivers that almost matched (score &gt; 0, &lt; fuzzy floor).
+    /// Empty when every scored local driver was accepted or scored zero.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub near_misses: Vec<DriverNearMiss>,
     /// IEEE 1284 device ID advertised by the printer via IPP, if available.
     /// This is the string Windows Update matches drivers against.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -420,6 +434,7 @@ mod usb_model_tests {
             printer_model: "HP LaserJet 1320".into(),
             matched: vec![],
             universal: vec![],
+            near_misses: vec![],
             device_id: None,
             catalog: None,
             bundle_candidates: vec![],

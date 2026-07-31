@@ -38,6 +38,7 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
         cmd,
         cli::Commands::Add { .. }
             | cli::Commands::Remove { .. }
+            | cli::Commands::Clean { .. }
             | cli::Commands::Setup { .. }
     ) || driver_mutates;
     if needs_admin && !privilege::is_elevated() {
@@ -64,6 +65,23 @@ async fn run_cli(cmd: &cli::Commands, cli: &cli::Cli) {
         }
         cli::Commands::Remove { target, keep_driver, keep_port } => {
             cmd_remove(target, *keep_driver, *keep_port, cli).await;
+        }
+        cli::Commands::Clean {
+            ip,
+            name_match,
+            manufacturer,
+            keep_driver,
+            keep_port,
+        } => {
+            cmd_clean(
+                ip.as_deref(),
+                name_match.as_deref(),
+                manufacturer.as_deref(),
+                *keep_driver,
+                *keep_port,
+                cli,
+            )
+            .await;
         }
         cli::Commands::List => cmd_list(cli).await,
         cli::Commands::Driver { action } => cmd_driver(action, cli).await,
@@ -147,6 +165,39 @@ async fn cmd_remove(
         println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
     } else {
         println!("{}", output::format_remove_result(&result));
+    }
+
+    if !result.success {
+        std::process::exit(1);
+    }
+}
+
+async fn cmd_clean(
+    ip: Option<&str>,
+    name_match: Option<&str>,
+    manufacturer: Option<&str>,
+    keep_driver: bool,
+    keep_port: bool,
+    cli: &cli::Cli,
+) {
+    let executor = RealExecutor::new(cli.verbose);
+    let result = commands::clean::run(
+        &executor,
+        commands::clean::CleanArgs {
+            ip,
+            name_match,
+            manufacturer,
+            keep_driver,
+            keep_port,
+            verbose: cli.verbose,
+        },
+    )
+    .await;
+
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
+    } else {
+        print!("{}", commands::clean::format_clean_result(&result));
     }
 
     if !result.success {
