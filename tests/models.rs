@@ -47,6 +47,7 @@ mod models_test {
             printer_model: "HP LaserJet Pro MFP M428fdw".to_string(),
             matched: vec![],
             universal: vec![],
+            near_misses: vec![],
             device_id: None,
             catalog: None,
             bundle_candidates: Vec::new(),

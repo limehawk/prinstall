@@ -35,4 +35,14 @@ mod manifest_test {
         assert!(mfr.universal_drivers.len() >= 2);
         assert!(mfr.universal_drivers.iter().any(|d| d.name.contains("PCL6")));
     }
+
+    #[test]
+    fn finds_konica_minolta_by_snmp_model() {
+        let manifest = prinstall::drivers::manifest::Manifest::load_embedded();
+        let mfr = manifest
+            .find_manufacturer("KONICA MINOLTA bizhub C250i")
+            .expect("Konica Minolta should be in drivers.toml");
+        assert_eq!(mfr.name, "Konica Minolta");
+        assert!(mfr.universal_drivers.iter().any(|d| d.name.contains("PCL")));
+    }
 }
