@@ -26,17 +26,15 @@ mod models_test {
     }
 
     #[test]
-    fn driver_match_preserves_category_and_confidence() {
+    fn driver_match_preserves_confidence() {
         let dm = DriverMatch {
             name: "HP LaserJet Pro MFP M428f PCL-6 (V4)".to_string(),
-            category: DriverCategory::Matched,
             confidence: MatchConfidence::Exact,
             source: DriverSource::LocalStore,
             score: 1000,
             driver_date: None,
         };
         let json = serde_json::to_string(&dm).unwrap();
-        assert!(json.contains("matched"));
         assert!(json.contains("exact"));
         assert!(json.contains("local_store"));
     }

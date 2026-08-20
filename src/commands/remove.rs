@@ -71,7 +71,7 @@ const SYSTEM_DRIVERS: &[&str] = &[
     "Generic / Text Only",
 ];
 
-fn is_system_driver(name: &str) -> bool {
+pub(crate) fn is_system_driver(name: &str) -> bool {
     SYSTEM_DRIVERS.iter().any(|sys| name == *sys)
 }
 

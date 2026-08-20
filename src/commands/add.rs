@@ -149,7 +149,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
 
     // Extract CID from the device ID if present
     if let Some(ref did) = device_id {
-        if let Some(cid) = extract_cid(did) {
+        if let Some(cid) = drivers::resolver::extract_field(did, "CID") {
             report.discovery.ipp_cid = Some(cid);
         }
     }
@@ -171,7 +171,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     }
 
     // ── Step 3: resolve the driver ────────────────────────────────────────
-    let local_drivers = drivers::local_store::list_drivers(verbose);
+    let local_drivers = installer::powershell::list_local_drivers(verbose);
     let driver_name = match resolve_driver(&args, &model, &local_drivers, verbose) {
         Ok(name) => name,
         Err(result) => return result,
@@ -432,7 +432,7 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
             }
             let candidates = drivers::sdi::resolver::enumerate_candidates(dev_id, &cache);
             if let Some(best) = pick_sdi_candidate(&candidates, args.sdi_fetch) {
-                let cached = best.source == drivers::sources::Source::SdiCached;
+                let cached = best.source == drivers::sdi::resolver::SdiSource::Cached;
 
                 // Phase 1 — extract the driver subdirectory from the pack.
                 // Persistent cache under sdi/extracted/<pack_stem>/ means
@@ -621,17 +621,6 @@ async fn run_network(args: AddArgs<'_>) -> PrinterOpResult {
     ipp_result
 }
 
-/// Extract CID (Compatible ID) from a 1284 device ID string.
-fn extract_cid(device_id: &str) -> Option<String> {
-    for part in device_id.split(';') {
-        let part = part.trim();
-        if let Some(v) = part.strip_prefix("CID:").or_else(|| part.strip_prefix("COMPATIBLEID:")) {
-            return Some(v.trim().to_string());
-        }
-    }
-    None
-}
-
 /// Fill the install phase with port/driver/queue steps.
 fn populate_install_steps(
     report: &mut InstallReport,
@@ -790,13 +779,13 @@ fn annotate_catalog_success(
 /// is true (`--sdi-fetch` flag).
 #[cfg(feature = "sdi")]
 fn pick_sdi_candidate<'a>(
-    candidates: &'a [drivers::sources::SourceCandidate],
+    candidates: &'a [drivers::sdi::resolver::SdiCandidate],
     allow_uncached: bool,
-) -> Option<&'a drivers::sources::SourceCandidate> {
+) -> Option<&'a drivers::sdi::resolver::SdiCandidate> {
     // Prefer cached — effectively free, no network, no prompt.
     if let Some(c) = candidates
         .iter()
-        .find(|c| c.source == drivers::sources::Source::SdiCached)
+        .find(|c| c.source == drivers::sdi::resolver::SdiSource::Cached)
     {
         return Some(c);
     }
@@ -804,7 +793,7 @@ fn pick_sdi_candidate<'a>(
     if allow_uncached {
         candidates
             .iter()
-            .find(|c| c.source == drivers::sources::Source::SdiUncached)
+            .find(|c| c.source == drivers::sdi::resolver::SdiSource::Uncached)
     } else {
         None
     }
@@ -818,11 +807,11 @@ fn pick_sdi_candidate<'a>(
 /// candidate isn't cached or extraction fails.
 #[cfg(feature = "sdi")]
 fn extract_sdi_driver(
-    candidate: &drivers::sources::SourceCandidate,
+    candidate: &drivers::sdi::resolver::SdiCandidate,
     verbose: bool,
 ) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
-    let (pack_path, inf_dir_prefix, inf_filename) = match &candidate.install_hint {
-        drivers::sources::InstallHint::SdiCached {
+    let (pack_path, inf_dir_prefix, inf_filename) = match &candidate.hint {
+        drivers::sdi::resolver::SdiHint::Cached {
             pack_path,
             inf_dir_prefix,
             inf_filename,
@@ -891,7 +880,7 @@ fn extract_sdi_driver(
 /// or install failed.
 #[cfg(feature = "sdi")]
 fn stage_and_install_sdi(
-    candidate: &drivers::sources::SourceCandidate,
+    candidate: &drivers::sdi::resolver::SdiCandidate,
     extracted_inf: &std::path::Path,
     target: &str,
     printer_name: &str,
@@ -936,7 +925,7 @@ fn stage_and_install_sdi(
 #[cfg(feature = "sdi")]
 fn annotate_sdi_success(
     mut result: PrinterOpResult,
-    candidate: &drivers::sources::SourceCandidate,
+    candidate: &drivers::sdi::resolver::SdiCandidate,
 ) -> PrinterOpResult {
     if let Some(mut detail) = result.detail_as::<InstallDetail>() {
         let ver = candidate
@@ -1004,7 +993,7 @@ async fn run_usb_swap_driver(args: AddArgs<'_>) -> PrinterOpResult {
         .unwrap_or_else(|| target.to_string());
 
     // ── Driver resolution ────────────────────────────────────────────────
-    let local_drivers = drivers::local_store::list_drivers(verbose);
+    let local_drivers = installer::powershell::list_local_drivers(verbose);
     let driver_name = match resolve_driver(&args, &model, &local_drivers, verbose) {
         Ok(name) => name,
         Err(result) => return result,
@@ -1084,7 +1073,7 @@ async fn run_usb_stage_and_install(
         .map(|m| m.to_string())
         .unwrap_or_else(|| friendly.clone());
 
-    let local_drivers = drivers::local_store::list_drivers(verbose);
+    let local_drivers = installer::powershell::list_local_drivers(verbose);
     let driver_name = match resolve_driver(&args, &model, &local_drivers, verbose) {
         Ok(name) => name,
         Err(result) => return result,
@@ -1567,6 +1556,42 @@ fn log_no_catalogs_diagnostic(extract_dir: &std::path::Path) {
 /// return) because matching on intermediate outcomes through the cascade
 /// below is structurally awkward — keeping the success path self-contained
 /// mirrors how the catalog tier handles the same situation.
+/// Scan, verify, and stage the best bundle match. `Err("")` means no match.
+fn stage_best_bundle(
+    hwid: &str,
+    no_verify: bool,
+    verbose: bool,
+) -> Result<(drivers::bundle::BundleCandidate, Option<String>), String> {
+    let mut candidates = drivers::bundle::scan_candidates(hwid, verbose);
+    if candidates.is_empty() {
+        return Err(String::new());
+    }
+    let best = candidates.swap_remove(0);
+    let (gate_ok, signer) = if no_verify {
+        if verbose {
+            eprintln!("[bundle] --no-verify passed, skipping Authenticode check");
+        }
+        (true, None)
+    } else {
+        bundle_pack_verify(&best.pack_dir, verbose)
+    };
+    if !gate_ok {
+        return Err("verification failed".into());
+    }
+    let inf_str = best.inf_path.to_string_lossy().to_string();
+    let stage = installer::powershell::stage_driver_inf(&inf_str, verbose);
+    if !stage.success {
+        if verbose {
+            eprintln!(
+                "[bundle] stage_driver_inf failed for {inf_str}: {}",
+                stage.error_summary()
+            );
+        }
+        return Err(format!("staging failed: {}", stage.error_summary()));
+    }
+    Ok((best, signer))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn try_bundle_install(
     device_id: &str,
@@ -1578,48 +1603,15 @@ fn try_bundle_install(
     report: &mut InstallReport,
     start: Instant,
 ) -> Option<PrinterOpResult> {
-    let candidates = drivers::bundle::scan_candidates(device_id, verbose);
-    let best = candidates.first()?;
-
-    // Verification gate (unless --no-verify). On lean no-SDI builds the
-    // gate is a stub that always returns "verified" so we skip the work.
-    let (gate_ok, signer) = if no_verify {
-        if verbose {
-            eprintln!("[bundle] --no-verify passed, skipping Authenticode check");
+    let (best, signer) = match stage_best_bundle(device_id, no_verify, verbose) {
+        Ok(v) => v,
+        Err(e) if e.is_empty() => return None,
+        Err(e) => {
+            report.resolution.add_tier("Local bundle", TierStatus::Failed, &e);
+            return None;
         }
-        (true, None)
-    } else {
-        bundle_pack_verify(&best.pack_dir, verbose)
     };
 
-    if !gate_ok {
-        report.resolution.add_tier(
-            "Local bundle",
-            TierStatus::Failed,
-            "verification failed",
-        );
-        return None;
-    }
-
-    // Stage the INF.
-    let inf_str = best.inf_path.to_string_lossy().to_string();
-    let stage_result = installer::powershell::stage_driver_inf(&inf_str, verbose);
-    if !stage_result.success {
-        if verbose {
-            eprintln!(
-                "[bundle] stage_driver_inf failed for {inf_str}: {}",
-                stage_result.error_summary()
-            );
-        }
-        report.resolution.add_tier(
-            "Local bundle",
-            TierStatus::Failed,
-            &format!("staging failed: {}", stage_result.error_summary()),
-        );
-        return None;
-    }
-
-    // Three-step install against the bundled driver's display name.
     let install =
         installer::install_printer(target, &best.display_name, printer_name, model, verbose);
     if !install.success {
@@ -1692,36 +1684,10 @@ fn try_bundle_swap_usb(
     no_verify: bool,
     verbose: bool,
 ) -> Option<PrinterOpResult> {
-    let candidates = drivers::bundle::scan_candidates(hardware_id, verbose);
-    let best = candidates.first()?;
-
-    let (gate_ok, _signer) = if no_verify {
-        if verbose {
-            eprintln!("[bundle] --no-verify passed, skipping Authenticode check");
-        }
-        (true, None)
-    } else {
-        bundle_pack_verify(&best.pack_dir, verbose)
-    };
-    if !gate_ok {
-        return None;
-    }
-
-    let inf_str = best.inf_path.to_string_lossy().to_string();
-    let stage = installer::powershell::stage_driver_inf(&inf_str, verbose);
-    if !stage.success {
-        if verbose {
-            eprintln!(
-                "[bundle] USB swap: stage_driver_inf failed for {inf_str}: {}",
-                stage.error_summary()
-            );
-        }
-        return None;
-    }
-
+    let (best, _signer) = stage_best_bundle(hardware_id, no_verify, verbose).ok()?;
     let result = installer::update_printer_driver(target, &best.display_name, model, verbose);
     if result.success {
-        Some(annotate_bundle_swap_success(result, best, no_verify))
+        Some(annotate_bundle_swap_success(result, &best, no_verify))
     } else {
         None
     }
@@ -1759,42 +1725,7 @@ async fn try_bundle_install_usb(
     no_verify: bool,
     verbose: bool,
 ) -> Option<PrinterOpResult> {
-    let candidates = drivers::bundle::scan_candidates(hardware_id, verbose);
-    let best = candidates.first()?;
-
-    let (gate_ok, signer) = if no_verify {
-        if verbose {
-            eprintln!("[bundle] --no-verify passed, skipping Authenticode check");
-        }
-        (true, None)
-    } else {
-        bundle_pack_verify(&best.pack_dir, verbose)
-    };
-    if !gate_ok {
-        if verbose {
-            eprintln!(
-                "[bundle] USB: verification failed for pack {}, falling through",
-                best.pack_dir.display()
-            );
-        }
-        return None;
-    }
-
-    // Stage via pnputil on the INF's parent directory so related files
-    // (.cat, .sys, .ppd) come along. pnputil accepts either a specific
-    // INF path or a directory — we use the INF path directly to mirror
-    // the network-tier behavior.
-    let inf_str = best.inf_path.to_string_lossy().to_string();
-    let stage = installer::powershell::stage_driver_inf(&inf_str, verbose);
-    if !stage.success {
-        if verbose {
-            eprintln!(
-                "[bundle] USB: stage_driver_inf failed for {inf_str}: {}",
-                stage.error_summary()
-            );
-        }
-        return None;
-    }
+    let (best, signer) = stage_best_bundle(hardware_id, no_verify, verbose).ok()?;
 
     // PnP rescan to let Windows bind the device to the now-staged driver.
     let executor = RealExecutor::new(verbose);
