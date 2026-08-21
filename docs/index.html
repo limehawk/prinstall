@@ -536,7 +536,7 @@
           <li>
             <div class="tier-num">TIER 02</div>
             <h4><span class="sfw">Local bundle</span><span class="nsfw">Drivers you already shipped</span></h4>
-            <p><span class="sfw">Drop a folder of extracted vendor packs next to <code>prinstall.exe</code> (or set <code>PRINSTALL_BUNDLE_DIR</code>) and the bundle tier finds them by HWID. Air-gapped fleets, pre-staged RMM payloads, anything offline. Same <code>.cat</code> signature gate as every other tier.</span><span class="nsfw">Pushed prinstall out via your RMM with a <code>drivers/</code> folder right next to it? It finds them. Air-gapped site? It finds them. Tech dropped a vendor pack in ProgramData last Tuesday? It finds that too. Zero network, zero excuses.</span></p>
+            <p><span class="sfw">Drop extracted vendor packs in <code>drivers\</code> next to <code>prinstall.exe</code> (or set <code>PRINSTALL_BUNDLE_DIR</code>) and the bundle tier finds them by HWID. Run <code>prinstall driver init</code> to create that folder. Sibling folders next to the exe are not scanned. Same <code>.cat</code> signature gate as every other tier.</span><span class="nsfw">Pushed prinstall out via your RMM with a <code>drivers/</code> folder right next to it? It finds them. Air-gapped site? It finds them. Tech dropped a vendor pack in ProgramData last Tuesday? It finds that too. Zero network, zero excuses.</span></p>
           </li>
           <li>
             <div class="tier-num">TIER 03</div>
@@ -610,13 +610,7 @@
               <span class="sfw">Run from a copy outside the install dir so uninstall doesn't hit the running-exe file lock.</span><span class="nsfw">Idempotent. Run it twice, run it ten times. Nothing breaks.</span>
             </p>
           </div>
-          <div class="feature">
-            <h3><span class="num">06</span><span class="sfw">Interactive TUI</span><span class="nsfw">The two-panel cockpit</span></h3>
-            <p>
-              <code>prinstall</code> (no args) — launches a ratatui two-panel layout: printer list + detail pane.<br>
-              <span class="sfw">Vim keys: <code>j/k</code> move, <code>h/l</code> swap panels, <code>Enter</code> install, <code>s</code> rescan, <code>?</code> help, <code>q</code> quit.</span><span class="nsfw">Vim keys, no mouse, no wizards. <code>j/k</code> to move, <code>Enter</code> to install, <code>q</code> to bail. That's it.</span>
-            </p>
-          </div>
+
         </div>
       </div>
     </section>
@@ -642,10 +636,7 @@
             <h3><span class="num">04</span><span class="sfw">Signed binary</span><span class="nsfw">SmartScreen can shut up</span></h3>
             <p><span class="sfw">SignPath.io code signing so Windows SmartScreen stops warning on download. MSP deployment gets a lot friendlier when the tech doesn't have to click "Run anyway" every time.</span><span class="nsfw">"Windows protected your PC" — yeah, from the thing that fixes printers. Thanks, Microsoft. Code signing is coming so SmartScreen stops being a hall monitor about it.</span></p>
           </div>
-          <div class="feature">
-            <h3><span class="num">05</span><span class="sfw">Interactive TUI rework</span><span class="nsfw">Full terminal UI</span></h3>
-            <p><span class="sfw">The dense two-panel lazy-style TUI is currently under construction. When it comes back, expect lazygit-style panels, real vim keybindings, and scan-as-you-type subnet filtering.</span><span class="nsfw">A full terminal UI where you scan, browse, and install without ever touching a mouse or a wizard. Keyboard-driven, no clicking through tabs, no "Next > Next > Finish" energy.</span></p>
-          </div>
+
         </div>
       </div>
     </section>
@@ -692,9 +683,9 @@
             </div>
           </li>
           <li>
-            <p>Or launch the interactive TUI:</p>
+            <p>Print the command list:</p>
             <div class="code-wrap">
-              <code>.\prinstall.exe</code>
+              <code>.\prinstall.exe --help</code>
               <button class="copy-btn" type="button" aria-label="Copy command">Copy</button>
             </div>
           </li>

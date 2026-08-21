@@ -143,65 +143,6 @@ fn status_color(s: &str, status: &PrinterStatus) -> String {
     }
 }
 
-/// Format scan results as a readable table.
-pub fn format_scan_results(printers: &[Printer]) -> String {
-    if printers.is_empty() {
-        return "No printers found.".to_string();
-    }
-
-    let ip_width = printers
-        .iter()
-        .map(|p| p.display_ip().len())
-        .max()
-        .unwrap_or(15)
-        .max(15);
-    let model_width = printers
-        .iter()
-        .map(|p| p.model.as_deref().unwrap_or("Unknown").len())
-        .max()
-        .unwrap_or(20)
-        .max(20);
-    let source_width = "Source".len().max(9);
-
-    let mut out = String::new();
-    out.push_str(&format!(
-        "\n{:<ip_w$}  {:<model_w$}  {:<src_w$}  {}\n",
-        "IP", "Model", "Source", "Status",
-        ip_w = ip_width, model_w = model_width, src_w = source_width
-    ));
-    out.push_str(&format!(
-        "{:-<ip_w$}  {:-<model_w$}  {:-<src_w$}  {:-<10}\n",
-        "", "", "", "",
-        ip_w = ip_width, model_w = model_width, src_w = source_width
-    ));
-
-    for p in printers {
-        let source_str = match p.source {
-            PrinterSource::Network => "Network",
-            PrinterSource::Usb => "USB",
-            PrinterSource::Installed => "Installed",
-        };
-        let status_str = p.status.to_string();
-        out.push_str(&format!(
-            "{:<ip_w$}  {:<model_w$}  {:<src_w$}  {}\n",
-            p.display_ip(),
-            p.model.as_deref().unwrap_or("Unknown"),
-            source_str,
-            status_color(&status_str, &p.status),
-            ip_w = ip_width,
-            model_w = model_width,
-            src_w = source_width,
-        ));
-    }
-
-    out
-}
-
-/// Format scan results as JSON.
-pub fn format_scan_results_json(printers: &[Printer]) -> String {
-    serde_json::to_string_pretty(printers).unwrap_or_else(|_| "[]".to_string())
-}
-
 /// Format `prinstall list` results as a narrow-terminal tree layout.
 ///
 /// Matches the style established by [`format_driver_results`]: a summary
@@ -388,31 +329,6 @@ pub fn normalize_date(raw: &str) -> Option<String> {
     None
 }
 
-/// Trust tier for a driver candidate. Drives the verification-score half
-/// of the combined ranking in [`build_tree`].
-///
-///   * `Verified`            — explicit signature check passed (Task 17 SDI
-///     gate, or Task 25 catalog / manufacturer verified). 1.0.
-///   * `TrustedUnverified`   — comes from a trusted source we just didn't
-///     gate (catalog, manufacturer, local driver store). 0.3.
-///   * `UnverifiedCommunity` — unsigned SDI, unknown origin. 0.1.
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Verification {
-    Verified,
-    TrustedUnverified,
-    UnverifiedCommunity,
-}
-
-impl Verification {
-    fn score(self) -> f64 {
-        match self {
-            Self::Verified => 1.0,
-            Self::TrustedUnverified => 0.3,
-            Self::UnverifiedCommunity => 0.1,
-        }
-    }
-}
-
 /// Icon tier for a ranked driver candidate. Maps to a semantic color so
 /// the user's eye lands on the verified / top-ranked option first.
 ///   * `Best`     → `★` (green bold)  — verified SDI, Exact match, real WU hit
@@ -435,56 +351,21 @@ impl TreeIcon {
     }
 }
 
-/// One ranked driver candidate in the tree layout. The `evidence` lines
-/// are already colored — [`render_tree`] just prepends the └ bullet.
-///
-/// The `parsed_date` / `verification` fields only matter in the driver-tree
-/// path — [`build_tree`] uses them to compute a combined recency-plus-trust
-/// sort score. List / scan / printer-id consumers leave them defaulted and
-/// skip the sort step, preserving insertion order.
+/// One driver/printer row in the tree layout.
 struct TreeCandidate {
     icon: TreeIcon,
     name: String,
     evidence: Vec<String>,
-    /// Publication date parsed from the source's raw date string via
-    /// [`normalize_date`] then [`chrono::NaiveDate::parse_from_str`]. Only
-    /// populated for driver rows; other callers (list/scan/id) leave it None.
-    parsed_date: Option<chrono::NaiveDate>,
-    /// Trust tier for this candidate. Only meaningful on driver rows; other
-    /// callers leave it at the default `TrustedUnverified`.
-    verification: Verification,
 }
 
 impl TreeCandidate {
-    /// Minimal constructor used by the list/scan/id paths — no date, no
-    /// verification, just the icon+name+evidence trio they already produce.
     fn bare(icon: TreeIcon, name: String, evidence: Vec<String>) -> Self {
         Self {
             icon,
             name,
             evidence,
-            parsed_date: None,
-            verification: Verification::TrustedUnverified,
         }
     }
-}
-
-/// Extract the `CID:` (Compatible ID) field from a 1284 device ID string.
-/// Returns `None` if no CID segment is present.
-fn extract_cid(device_id: &str) -> Option<&str> {
-    for part in device_id.split(';') {
-        let part = part.trim();
-        if let Some(v) = part
-            .strip_prefix("CID:")
-            .or_else(|| part.strip_prefix("COMPATIBLEID:"))
-        {
-            let v = v.trim();
-            if !v.is_empty() {
-                return Some(v);
-            }
-        }
-    }
-    None
 }
 
 /// Split a dotted-numeric version string (e.g. "10.0.17119.1") into a
@@ -503,26 +384,7 @@ fn pick_best_catalog_entry(entries: &[CatalogEntry]) -> Option<&CatalogEntry> {
     })
 }
 
-/// Build the ranked candidate list from a `DriverResults`.
-///
-/// Ranking (Task 26): a combined score of
-///
-/// ```text
-/// score = date_score * 0.6  +  verification_score * 0.4
-/// ```
-///
-/// * `date_score` — normalized recency across the full candidate set.
-///   Oldest → 0.0, newest → 1.0; linear interpolation by days. Candidates
-///   with no known date receive a midpoint `0.5` so they're not shoved
-///   to the bottom on the absence-of-data alone.
-/// * `verification_score` — 1.0 for verified signatures, 0.3 for
-///   trusted-but-unverified sources (catalog, manufacturer, local store),
-///   0.1 for unsigned / unknown (community SDI without a signature).
-///
-/// Icon (★ / ● / ○) still reflects verification independently of the sort
-/// order — a freshly-dated but unsigned SDI candidate can outrank an older
-/// verified one while still carrying the open-circle marker so the user
-/// can see the trust tier at a glance.
+/// Build the candidate list from a `DriverResults` in insertion order.
 fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
     let mut out: Vec<TreeCandidate> = Vec::new();
 
@@ -532,7 +394,7 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
         .iter()
         .filter(|c| c.verification == "verified")
     {
-        out.push(make_bundle_candidate(c, TreeIcon::Best, Verification::Verified));
+        out.push(make_bundle_candidate(c, TreeIcon::Best));
     }
 
     // 1b. Verified SDI — lead with the trust story.
@@ -545,8 +407,6 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
             icon: TreeIcon::Best,
             name: c.driver_name.clone(),
             evidence,
-            parsed_date: parse_normalized(c.driver_date.as_deref()),
-            verification: Verification::Verified,
         });
     }
 
@@ -579,8 +439,6 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
             icon,
             name: dm.name.clone(),
             evidence,
-            parsed_date: parse_normalized(dm.driver_date.as_deref()),
-            verification: Verification::TrustedUnverified,
         });
     }
 
@@ -613,8 +471,6 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
             icon: TreeIcon::Ranked,
             name,
             evidence,
-            parsed_date: normalized_date.as_deref().and_then(parse_iso_date),
-            verification: Verification::TrustedUnverified,
         });
     }
 
@@ -635,8 +491,6 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
             icon: TreeIcon::Fallback,
             name: dm.name.clone(),
             evidence: vec![evidence],
-            parsed_date: parse_normalized(dm.driver_date.as_deref()),
-            verification: Verification::TrustedUnverified,
         });
     }
 
@@ -647,11 +501,7 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
         .iter()
         .filter(|c| c.verification != "verified")
     {
-        out.push(make_bundle_candidate(
-            c,
-            TreeIcon::Fallback,
-            Verification::TrustedUnverified,
-        ));
+        out.push(make_bundle_candidate(c, TreeIcon::Fallback));
     }
 
     // 6. Unverified / invalid SDI candidates — sketchy trust tier.
@@ -670,13 +520,8 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
             icon: TreeIcon::Fallback,
             name: c.driver_name.clone(),
             evidence,
-            parsed_date: parse_normalized(c.driver_date.as_deref()),
-            verification: Verification::UnverifiedCommunity,
         });
     }
-
-    // ── Rank by combined (date, verification) score ─────────────────────────
-    sort_by_combined_score(&mut out);
 
     out
 }
@@ -693,7 +538,6 @@ fn build_tree(results: &DriverResults) -> Vec<TreeCandidate> {
 fn make_bundle_candidate(
     c: &crate::models::BundleDriverCandidate,
     icon: TreeIcon,
-    verification: Verification,
 ) -> TreeCandidate {
     // Prefer the INF's `Provider` when present; falls back to the pack dir.
     let source = c
@@ -722,8 +566,6 @@ fn make_bundle_candidate(
         icon,
         name: c.driver_name.clone(),
         evidence,
-        parsed_date: parse_normalized(c.driver_date.as_deref()),
-        verification,
     }
 }
 
@@ -763,58 +605,6 @@ fn format_date_suffix(raw_date: Option<&str>) -> String {
     format!(" \u{00B7} date: {}", dim(&shown))
 }
 
-/// Parse a date string through [`normalize_date`] then into a `NaiveDate`
-/// for range math. Returns `None` on any failure — the combined-score pass
-/// treats that as "unknown date, use the midpoint".
-fn parse_normalized(raw: Option<&str>) -> Option<chrono::NaiveDate> {
-    raw.and_then(normalize_date).and_then(|s| parse_iso_date(&s))
-}
-
-/// Parse an already-normalized `YYYY-MM-DD` string into `chrono::NaiveDate`.
-fn parse_iso_date(s: &str) -> Option<chrono::NaiveDate> {
-    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()
-}
-
-/// Stable sort by combined `(date_score * 0.6 + verification_score * 0.4)`.
-/// Higher score ranks earlier. Equal-score rows preserve their insertion
-/// order (stable sort — tie-broken by original index).
-fn sort_by_combined_score(candidates: &mut Vec<TreeCandidate>) {
-    // Determine min/max date across candidates that have one. An empty range
-    // (everyone known, same day) collapses to date_score 1.0.
-    let dates: Vec<chrono::NaiveDate> =
-        candidates.iter().filter_map(|c| c.parsed_date).collect();
-    let min = dates.iter().copied().min();
-    let max = dates.iter().copied().max();
-
-    // Attach a score to every candidate, move the whole lot through a sort
-    // key, then drop the score to yield the sorted `Vec<TreeCandidate>`.
-    // `Vec::drain(..)` + `.collect()` avoids cloning while letting us sort
-    // on the attached float.
-    let mut scored: Vec<(f64, TreeCandidate)> = candidates
-        .drain(..)
-        .map(|c| {
-            let date_score = match (c.parsed_date, min, max) {
-                (Some(d), Some(lo), Some(hi)) => {
-                    let span = (hi - lo).num_days();
-                    if span <= 0 {
-                        1.0
-                    } else {
-                        (d - lo).num_days() as f64 / span as f64
-                    }
-                }
-                _ => 0.5,
-            };
-            let combined = date_score * 0.6 + c.verification.score() * 0.4;
-            (combined, c)
-        })
-        .collect();
-
-    // `sort_by` is stable in Rust, so equal scores preserve insertion order
-    // without a manual tie-breaker. Descending on score means highest first.
-    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-    candidates.extend(scored.into_iter().map(|(_, c)| c));
-}
-
 /// Render a `Vec<TreeCandidate>` into the final text block. Each candidate
 /// gets one header row (icon + name) followed by `└`-prefixed evidence
 /// lines. Candidates are separated by a blank line for breathing room
@@ -848,8 +638,8 @@ pub fn format_driver_results(results: &DriverResults) -> String {
     out.push_str(&accent(&results.printer_model));
     out.push('\n');
     if let Some(ref device_id) = results.device_id {
-        if let Some(cid) = extract_cid(device_id) {
-            out.push_str(&format!("{} {}\n", dim("CID:"), dim(cid)));
+        if let Some(cid) = crate::drivers::resolver::extract_field(device_id, "CID") {
+            out.push_str(&format!("{} {}\n", dim("CID:"), dim(&cid)));
         } else {
             // No CID — surface a trimmed IPP device-id fragment so the
             // operator sees *something* identifying.
@@ -947,7 +737,11 @@ fn format_empty_driver_diagnostics(results: &DriverResults) -> String {
         }
         out.push_str(&format!(
             "  {}\n",
-            dim("  → stage a vendor pack: prinstall driver add <path-to-inf-or-folder>")
+            dim("  → create the drop folder: prinstall driver init")
+        ));
+        out.push_str(&format!(
+            "  {}\n",
+            dim("  → or stage a pack: prinstall driver add <path-to-inf-or-folder>")
         ));
     }
 
@@ -977,31 +771,6 @@ pub fn format_snmp_failure_guidance(ip: &str) -> String {
          • Bypass SNMP with manual model: prinstall drivers {ip} --model \"Model Name\"\n  \
          • Check printer web UI for SNMP settings\n"
     )
-}
-
-/// Context-aware guidance when scan finds no or few results.
-pub fn format_scan_guidance(subnet: &str, candidates: usize, _identified: usize) -> String {
-    if candidates == 0 {
-        format!(
-            "\nNo printers found on {subnet}.\n\n\
-             Possible causes:\n  \
-             • Wrong subnet — verify with: ipconfig /all\n  \
-             • Printers on a different VLAN\n  \
-             • Firewall blocking scan ports (9100, 631, 515)\n\n\
-             Try:\n  \
-             • Different subnet: prinstall scan <subnet>\n  \
-             • SNMP-only mode: prinstall scan {subnet} --method snmp\n"
-        )
-    } else {
-        format!(
-            "\nFound {candidates} device(s) with printer ports open, \
-             but could not identify model for any.\n\n\
-             Try:\n  \
-             • Specify model manually: prinstall drivers <IP> --model \"Model Name\"\n  \
-             • Enable SNMP on the printer via its web UI\n  \
-             • Use --verbose for diagnostic details\n"
-        )
-    }
 }
 
 /// Format a single printer identification.

@@ -25,7 +25,7 @@ Fastest path: open a [new-driver issue](../../issues/new?template=new_driver.yml
 
 ### 2. Code (Rust)
 
-The installer, discovery, TUI, tests, etc. Standard open-source flow —
+The installer, discovery, tests, etc. Standard open-source flow —
 fork, branch, PR. Details below.
 
 ---
@@ -40,7 +40,6 @@ fork, branch, PR. Details below.
 - `src/drivers/` — matching, manifests, download, bundle, SDI
 - `src/installer/` — PowerShell wrappers + install orchestration
 - `src/core/executor.rs` — `PsExecutor` trait (real + mock). **Every PowerShell call goes through this.** That's what lets the test suite run on Linux without a Windows VM.
-- `src/tui/` — ratatui code (currently under construction)
 - `tests/` — integration tests
 - `data/` — embedded TOML (drivers, known matches)
 

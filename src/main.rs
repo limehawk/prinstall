@@ -1,5 +1,4 @@
-use clap::Parser;
-use std::io::IsTerminal;
+use clap::{CommandFactory, Parser};
 
 use prinstall::core::executor::RealExecutor;
 use prinstall::{cli, commands, discovery, models, output, privilege};
@@ -15,11 +14,8 @@ async fn main() {
     match cli.command {
         Some(ref cmd) => run_cli(cmd, &cli).await,
         None => {
-            if std::io::stdout().is_terminal() {
-                run_tui(&cli).await;
-            } else {
-                let _ = cli::Cli::parse_from::<[&str; 2], &str>(["prinstall", "--help"]);
-            }
+            let _ = cli::Cli::command().print_help();
+            println!();
         }
     }
 }
@@ -109,6 +105,9 @@ async fn cmd_setup(action: &cli::SetupAction, cli: &cli::Cli) {
 
 async fn cmd_driver(action: &cli::DriverAction, cli: &cli::Cli) {
     match action {
+        cli::DriverAction::Init => {
+            std::process::exit(commands::driver::init(cli.json));
+        }
         cli::DriverAction::Add { target, driver, no_verify } => {
             let exit_code = commands::driver::add(commands::driver::DriverAddArgs {
                 target,
@@ -440,158 +439,4 @@ async fn cmd_drivers(ip: &str, model_override: Option<&str>, cli: &cli::Cli) {
     } else {
         println!("{}", output::format_driver_results(&results));
     }
-}
-
-/// "Under construction" block screen — temporary stand-in for the real
-/// interactive TUI while the TUI layer is being reworked. Takes over the
-/// terminal like the real TUI would, shows a yellow construction-tape
-/// banner with a pointer at the working CLI subcommands, and exits on
-/// any keypress. The `src/tui/` module is intentionally left in place
-/// and unused until the rework lands.
-async fn run_tui(_cli: &cli::Cli) {
-    use crossterm::event::{self, Event, KeyEventKind};
-
-    let mut terminal = ratatui::init();
-
-    let result = (|| -> std::io::Result<()> {
-        terminal.draw(draw_under_construction)?;
-        loop {
-            match event::read()? {
-                Event::Key(ke) if ke.kind == KeyEventKind::Press => return Ok(()),
-                Event::Resize(_, _) => {
-                    terminal.draw(draw_under_construction)?;
-                }
-                _ => continue,
-            }
-        }
-    })();
-
-    ratatui::restore();
-
-    if let Err(e) = result {
-        eprintln!("Error: {e}");
-        std::process::exit(1);
-    }
-}
-
-fn draw_under_construction(frame: &mut ratatui::Frame) {
-    use ratatui::{
-        layout::{Alignment, Constraint, Direction, Layout, Margin},
-        style::{Color, Modifier, Style},
-        text::{Line, Span},
-        widgets::{Block, BorderType, Borders, Paragraph},
-    };
-
-    let area = frame.area();
-
-    let yellow_bold = Style::default()
-        .fg(Color::Yellow)
-        .add_modifier(Modifier::BOLD);
-    let yellow = Style::default().fg(Color::Yellow);
-    let cyan_bold = Style::default()
-        .fg(Color::Cyan)
-        .add_modifier(Modifier::BOLD);
-
-    // Outer panel — double yellow border with a centered " prinstall " title
-    let outer = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Double)
-        .border_style(yellow_bold)
-        .title(Line::from(" prinstall ").style(yellow_bold))
-        .title_alignment(Alignment::Center);
-    frame.render_widget(outer, area);
-
-    let inner = area.inner(Margin {
-        horizontal: 3,
-        vertical: 2,
-    });
-
-    // Vertical split: top tape / headline / description / commands / flex /
-    // bottom tape / footer. Length constraints are tuned for an 80×24 shell
-    // with ratatui truncating gracefully on anything smaller.
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1), // top tape
-            Constraint::Length(1), // spacer
-            Constraint::Length(3), // headline
-            Constraint::Length(1), // spacer
-            Constraint::Length(2), // description
-            Constraint::Length(1), // spacer
-            Constraint::Length(6), // command list
-            Constraint::Min(0),    // flex
-            Constraint::Length(1), // bottom tape
-            Constraint::Length(1), // spacer
-            Constraint::Length(1), // footer
-        ])
-        .split(inner);
-
-    // Construction tape: alternating ▀▄ glyphs stretched across the inner
-    // width. Yellow fg makes it read as hazard tape against the terminal bg.
-    let tape_len = inner.width as usize;
-    let tape: String = "▀▄".chars().cycle().take(tape_len).collect();
-    frame.render_widget(
-        Paragraph::new(tape.clone()).style(yellow),
-        chunks[0],
-    );
-    frame.render_widget(Paragraph::new(tape).style(yellow), chunks[8]);
-
-    // Headline: highlighter-style black-on-yellow UNDER CONSTRUCTION bar
-    let headline_style = Style::default()
-        .fg(Color::Black)
-        .bg(Color::Yellow)
-        .add_modifier(Modifier::BOLD);
-    let headline_lines = vec![
-        Line::from(""),
-        Line::from(Span::styled(
-            "   UNDER CONSTRUCTION   ",
-            headline_style,
-        )),
-        Line::from(""),
-    ];
-    frame.render_widget(
-        Paragraph::new(headline_lines).alignment(Alignment::Center),
-        chunks[2],
-    );
-
-    // Description
-    let description = Paragraph::new(vec![
-        Line::from(Span::styled(
-            "The interactive TUI is being reworked and is temporarily offline.",
-            yellow_bold,
-        )),
-        Line::from("Use the CLI subcommands in the meantime:"),
-    ])
-    .alignment(Alignment::Center);
-    frame.render_widget(description, chunks[4]);
-
-    // Command list — fixed-width command column, plain description column
-    let cmds: &[(&str, &str)] = &[
-        ("prinstall scan",         "Scan a subnet for printers"),
-        ("prinstall id <IP>",      "Identify a printer via SNMP"),
-        ("prinstall drivers <IP>", "Show matching drivers for a printer"),
-        ("prinstall add <IP>",     "Install a network printer"),
-        ("prinstall remove <IP>",  "Remove + clean up ports and drivers"),
-        ("prinstall list",         "List locally installed printers"),
-    ];
-    let cmd_lines: Vec<Line> = cmds
-        .iter()
-        .map(|(cmd, desc)| {
-            Line::from(vec![
-                Span::raw("    "),
-                Span::styled(format!("{:<22}  ", cmd), cyan_bold),
-                Span::raw(*desc),
-            ])
-        })
-        .collect();
-    frame.render_widget(Paragraph::new(cmd_lines), chunks[6]);
-
-    // Footer: press any key to exit
-    let footer = Paragraph::new(Line::from(vec![
-        Span::raw("Press "),
-        Span::styled("any key", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(" to exit"),
-    ]))
-    .alignment(Alignment::Center);
-    frame.render_widget(footer, chunks[10]);
 }

@@ -126,6 +126,22 @@ pub fn bundle_dir_candidates() -> Vec<PathBuf> {
     out
 }
 
+/// `drivers/` next to the running executable. None if `current_exe` fails.
+pub fn exe_drivers_dir() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|p| p.join("drivers")))
+}
+
+/// Create `dir` if missing. `Ok(true)` when created, `Ok(false)` when it already exists.
+pub fn ensure_dir(dir: &std::path::Path) -> std::io::Result<bool> {
+    if dir.is_dir() {
+        return Ok(false);
+    }
+    std::fs::create_dir_all(dir)?;
+    Ok(true)
+}
+
 /// Return true when `dir` exists and contains at least one entry. Used by
 /// [`bundle_dir`] to skip past empty candidate directories.
 fn dir_has_files(dir: &std::path::Path) -> bool {
@@ -269,5 +285,26 @@ mod tests {
         unsafe {
             std::env::remove_var("PRINSTALL_BUNDLE_DIR");
         }
+    }
+
+    #[test]
+    fn ensure_dir_creates_missing_and_is_idempotent() {
+        let tmp = std::env::temp_dir().join(format!(
+            "prinstall-ensure-dir-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        assert!(!tmp.exists());
+
+        assert!(ensure_dir(&tmp).unwrap(), "first call must create");
+        assert!(tmp.is_dir());
+        assert!(!ensure_dir(&tmp).unwrap(), "second call must not recreate");
+        assert!(tmp.is_dir());
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

@@ -378,13 +378,14 @@ iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-nos
           <tr><th>Command</th><th>Flags</th><th>Effect</th><th>Admin</th></tr>
         </thead>
         <tbody>
-          <tr><td class="cmd">prinstall</td><td class="flags">--subnet</td><td class="effect">Launch the interactive TUI</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall</td><td class="flags"></td><td class="effect">Print the CLI command list</td><td class="req">no</td></tr>
           <tr><td class="cmd">prinstall scan [SUBNET]</td><td class="flags">--method (all|snmp|port|mdns), --timeout, --network-only, --usb-only</td><td class="effect">Multi-method subnet probe + USB enum. Auto-detects subnet from NIC. /24+ needs <code>--force</code>.</td><td class="req">no</td></tr>
           <tr><td class="cmd">prinstall id &lt;ip&gt;</td><td class="flags">--community</td><td class="effect">SNMP query one host. Description, serial, status. 2 s timeout.</td><td class="req">no</td></tr>
           <tr><td class="cmd">prinstall add &lt;target&gt;</td><td class="flags">--driver, --name, --model, --usb, --no-sdi, --no-catalog, --sdi-fetch, --no-verify</td><td class="effect">Walks the 6-tier driver pipeline. Network: ID → match → stage → install. USB: queue name target, hot-swap via Set-Printer.</td><td class="req">yes</td></tr>
           <tr><td class="cmd">prinstall remove &lt;target&gt;</td><td class="flags">--keep-driver, --keep-port</td><td class="effect">Queue → driver (if orphaned) → port (if orphaned). Idempotent. Target can be IP or queue name.</td><td class="req">yes</td></tr>
           <tr><td class="cmd">prinstall list</td><td class="flags">--verbose</td><td class="effect">Enumerate every queue Windows knows. Name, driver, port, IP, source.</td><td class="req">no</td></tr>
-          <tr><td class="cmd">prinstall driver add &lt;path|model&gt;</td><td class="flags">--driver, --no-verify</td><td class="effect">Stage from INF file, INF folder, or model string. Auto-picks unambiguous matches.</td><td class="req">yes</td></tr>
+          <tr><td class="cmd">prinstall driver init</td><td class="flags"></td><td class="effect">Create <code>drivers\</code> next to this exe. Drop extracted vendor packs there. Sibling folders are not scanned.</td><td class="req">no</td></tr>
+          <tr><td class="cmd">prinstall driver add &lt;path|url|model&gt;</td><td class="flags">--driver, --no-verify</td><td class="effect">Stage from INF file, INF folder, http(s) URL (zip/cab/7z/exe), or model string. Auto-picks unambiguous matches.</td><td class="req">yes</td></tr>
           <tr><td class="cmd">prinstall driver remove &lt;name|fuzzy&gt;</td><td class="flags">--force</td><td class="effect">Unstage from driver store. Refuses if bound to a queue. <code>--force</code> cascades dependent queues. System drivers protected.</td><td class="req">yes</td></tr>
           <tr><td class="cmd">prinstall driver list</td><td class="flags"></td><td class="effect">Every staged driver — manufacturer, version, date.</td><td class="req">no</td></tr>
           <tr><td class="cmd">prinstall driver show &lt;ip&gt;</td><td class="flags">--model</td><td class="effect">Ranked match candidates for a printer. ★ exact / ● fuzzy / ○ low.</td><td class="req">no</td></tr>
@@ -409,22 +410,6 @@ iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-nos
               <tr><td class="flags">--verbose, -v</td><td class="effect">Raw PS commands + structured report</td></tr>
               <tr><td class="flags">--community &lt;str&gt;</td><td class="effect">SNMP community (default: public)</td></tr>
               <tr><td class="flags">--force</td><td class="effect">Permit /24+ scans, skip <code>add</code> fail-fast, cascade <code>driver remove</code></td></tr>
-              <tr><td class="flags">--subnet &lt;cidr&gt;</td><td class="effect">Override auto-detected subnet for TUI</td></tr>
-            </tbody>
-          </table>
-
-          <h2>TUI keys</h2>
-          <table>
-            <tbody>
-              <tr><td class="flags">j / k</td><td class="effect">Move up / down</td></tr>
-              <tr><td class="flags">h / l</td><td class="effect">Focus prev / next panel</td></tr>
-              <tr><td class="flags">Tab</td><td class="effect">Cycle panel focus</td></tr>
-              <tr><td class="flags">g / G</td><td class="effect">Top / bottom</td></tr>
-              <tr><td class="flags">Enter</td><td class="effect">Select / install</td></tr>
-              <tr><td class="flags">Esc</td><td class="effect">Back / close overlay</td></tr>
-              <tr><td class="flags">s</td><td class="effect">Rescan</td></tr>
-              <tr><td class="flags">?</td><td class="effect">Help overlay</td></tr>
-              <tr><td class="flags">q</td><td class="effect">Quit</td></tr>
             </tbody>
           </table>
         </div>
@@ -434,7 +419,7 @@ iwr https://github.com/limehawk/prinstall/releases/latest/download/prinstall-nos
           <table>
             <tbody>
               <tr><td class="cmd">Tier 1</td><td class="effect">Local driver store — reuse what's installed</td></tr>
-              <tr><td class="cmd">Tier 2</td><td class="effect">Local bundle — drivers dropped next to exe</td></tr>
+              <tr><td class="cmd">Tier 2</td><td class="effect">Local bundle — packs in <code>drivers\</code> next to the exe</td></tr>
               <tr><td class="cmd">Tier 3</td><td class="effect">Vendor download — HP, Xerox, Kyocera direct URLs</td></tr>
               <tr><td class="cmd">Tier 4</td><td class="effect">Update Catalog + INF HWID match</td></tr>
               <tr><td class="cmd">Tier 5</td><td class="effect">SDI Origin — verified <code>.cat</code> required</td></tr>
@@ -582,6 +567,9 @@ prinstall driver add C:\Drivers\HP_LaserJet_1320
 <span class="c"># Stage from a single INF file</span>
 prinstall driver add C:\Drivers\brother.inf
 
+<span class="c"># Download a pack URL (zip, cab, 7z, or self-extracting exe)</span>
+prinstall driver add https://example.com/upd.zip
+
 <span class="c"># Stage by model string — auto-resolves curated matches</span>
 prinstall driver add "HP LaserJet 1320"
 prinstall driver add "HP Universal Print Driver PS"
@@ -649,8 +637,10 @@ prinstall setup uninstall
 prinstall setup uninstall --dir C:\Tools\prinstall</pre>
 
       <h2>Examples — install from a local driver bundle (Tier 2)</h2>
-<pre><span class="c"># Layout — drop extracted vendor packs in a drivers\ folder next to the exe</span>
-<span class="c"># (one subfolder per pack, each with the extracted INF + payload + .cat)</span>
+<pre><span class="c"># Create drivers\ next to this exe, then drop extracted vendor packs in it</span>
+prinstall driver init
+
+<span class="c"># Layout — one subfolder per pack, each with INF + payload + .cat</span>
 
 C:\Tools\prinstall\
 ├── prinstall.exe

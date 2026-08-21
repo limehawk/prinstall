@@ -117,7 +117,6 @@ impl std::fmt::Display for PrinterStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DriverMatch {
     pub name: String,
-    pub category: DriverCategory,
     pub confidence: MatchConfidence,
     pub source: DriverSource,
     /// Match score 0-1000. Higher is better. Used for ranking within a confidence tier.
@@ -130,13 +129,6 @@ pub struct DriverMatch {
     /// WU probe dates are follow-up work; they stay `None` for now.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver_date: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum DriverCategory {
-    Matched,
-    Universal,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
@@ -279,36 +271,8 @@ impl CatalogSearchResult {
     }
 }
 
-/// A single catalog update row, trimmed down to the fields we render in
-/// the CLI output. Mirrors [`crate::drivers::catalog::CatalogUpdate`] but
-/// lives in `models` so it can serialize through `--json` without pulling
-/// in the catalog module.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CatalogEntry {
-    pub title: String,
-    pub products: String,
-    pub classification: String,
-    pub last_updated: String,
-    pub version: String,
-    pub size: String,
-    pub size_bytes: u64,
-    pub guid: String,
-}
-
-impl From<crate::drivers::catalog::CatalogUpdate> for CatalogEntry {
-    fn from(u: crate::drivers::catalog::CatalogUpdate) -> Self {
-        Self {
-            title: u.title,
-            products: u.products,
-            classification: u.classification,
-            last_updated: u.last_updated,
-            version: u.version,
-            size: u.size,
-            size_bytes: u.size_bytes,
-            guid: u.guid,
-        }
-    }
-}
+/// Catalog row used in `--json` / CLI output. Same shape as the scraper type.
+pub type CatalogEntry = crate::drivers::catalog::CatalogUpdate;
 
 /// Generic result type for any printer-manager operation (install, remove,
 /// configure, etc). The typed per-operation payload lives in `detail` as a
@@ -329,15 +293,6 @@ impl PrinterOpResult {
             success: true,
             error: None,
             detail: serde_json::to_value(detail).unwrap_or(serde_json::Value::Null),
-        }
-    }
-
-    /// Build a successful result with no payload.
-    pub fn ok_empty() -> Self {
-        Self {
-            success: true,
-            error: None,
-            detail: serde_json::Value::Null,
         }
     }
 

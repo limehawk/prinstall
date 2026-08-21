@@ -73,7 +73,7 @@ cargo install --git https://github.com/limehawk/prinstall --no-default-features 
 ## Quick start
 
 ```powershell
-prinstall                             # launch the interactive TUI
+prinstall --help                      # command list
 prinstall scan                        # scan your subnet for printers
 prinstall id 192.168.1.50             # identify one via SNMP + IPP
 prinstall add 192.168.1.50            # install it
@@ -101,7 +101,7 @@ script.
 ## Commands
 
 Run any command with `--help` to see every flag and a usage example. Global flags
-(`--json`, `--verbose`, `--community`, `--force`, `--subnet`) work on every
+(`--json`, `--verbose`, `--community`, `--force`) work on every
 subcommand.
 
 ### Global flags
@@ -112,24 +112,10 @@ subcommand.
 | `--verbose` / `-v` | Stream the raw PowerShell commands and the structured Discovery → Resolution → Install → Summary report |
 | `--community <str>` | SNMP community string (default: `public`) |
 | `--force` | Allow scans larger than /24, skip the scanner fail-fast guard on `add`, cascade dependent queues on `driver remove` |
-| `--subnet <cidr>` | Override the auto-detected subnet for TUI launch |
 
-### `prinstall` (no args) — Interactive TUI
+### `prinstall` (no args)
 
-Launches the ratatui two-panel TUI: printer list on the left, detail pane on the
-right. Vim-style keybindings, scan progress, in-flight driver match results.
-
-| Key | Action |
-|---|---|
-| `j` / `k` | Move up/down in lists |
-| `h` / `l` | Move focus between panels |
-| `Tab` | Cycle panel focus |
-| `g` / `G` | Jump to top/bottom |
-| `Enter` | Select / install driver |
-| `Esc` | Back / close overlay |
-| `s` | Rescan |
-| `?` | Toggle help overlay |
-| `q` | Quit |
+Prints the CLI command list.
 
 ### `prinstall scan [SUBNET]` — Network discovery
 
@@ -247,8 +233,10 @@ Stage, list, remove, or inspect drivers independent of any printer queue.
 Useful for pre-loading drivers before a PnP event fires.
 
 ```powershell
+prinstall driver init                                     # create drivers\ next to this exe
 prinstall driver add C:\Drivers\HP_LaserJet_1320          # folder of INFs
 prinstall driver add C:\Drivers\brother.inf               # single INF
+prinstall driver add https://example.com/upd.zip          # download + extract + stage
 prinstall driver add "HP LaserJet 1320"                   # model string — auto-stages curated match
 prinstall driver add "HP Universal Print Driver PS"       # exact universal name — auto-picks
 prinstall driver add "HP LaserJet" --driver "HP Universal Print Driver PCL6"
@@ -268,7 +256,8 @@ prinstall driver show 192.168.1.100 --model "HP LaserJet Pro MFP M428fdw"
 
 | Sub-action | What it does | Admin |
 |---|---|---|
-| `add <PATH\|model>` | Stage from an INF, folder of INFs, or auto-resolved model string. `--driver` picks among multiple candidates. `--no-verify` skips Authenticode | Yes |
+| `init` | Create `drivers\` next to this exe. Drop extracted vendor packs there. Idempotent | No |
+| `add <PATH\|url\|model>` | Stage from an INF, folder, http(s) URL (zip/cab/7z/exe), or model string. `--driver` picks among multiple candidates. `--no-verify` skips Authenticode | Yes |
 | `remove <name\|fuzzy>` | Remove from the driver store. Refuses if bound to a queue; `--force` cascades through dependent queues. System drivers (IPP Class etc.) are protected | Yes |
 | `list` | Pretty-print every driver from `Get-PrinterDriver` with manufacturer, version, and date | No |
 | `show <IP>` | Show ranked matched drivers for a printer (★ exact / ● fuzzy / ○ low). `--model` bypasses SNMP | No |
@@ -328,10 +317,12 @@ Tier 5 (SDI) runs by default. Every SDI driverpack has its `.cat` Authenticode s
 
 ### Bundled drivers (Tier 2)
 
-Drop a folder of extracted vendor driver packs next to `prinstall.exe` and the
+Drop extracted vendor packs in `drivers\` next to `prinstall.exe` and the
 bundle tier picks them up automatically — useful for air-gapped fleets,
 high-latency sites, or pre-staged RMM payloads where you don't want the tool
-reaching out to the internet for a driver you already have.
+reaching out to the internet for a driver you already have. Run
+`prinstall driver init` to create that folder. Sibling folders next to the
+exe are not scanned.
 
 **Resolution order** — first directory that contains a matching INF wins:
 

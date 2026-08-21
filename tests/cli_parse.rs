@@ -226,12 +226,6 @@ mod cli_parse_test {
     }
 
     #[test]
-    fn version_subcommand_parses() {
-        let cli = prinstall::cli::Cli::parse_from(["prinstall", "version"]);
-        assert!(matches!(cli.command, Some(prinstall::cli::Commands::Version)));
-    }
-
-    #[test]
     fn driver_remove_parses() {
         let cli = prinstall::cli::Cli::parse_from([
             "prinstall", "driver", "remove", "HP Universal Print Driver PCL6",
@@ -289,6 +283,17 @@ mod cli_parse_test {
                 }
                 _ => panic!("expected DriverAction::Show"),
             },
+            _ => panic!("expected Driver"),
+        }
+    }
+
+    #[test]
+    fn driver_init_parses() {
+        let cli = prinstall::cli::Cli::parse_from(["prinstall", "driver", "init"]);
+        match cli.command {
+            Some(prinstall::cli::Commands::Driver { action }) => {
+                assert!(matches!(action, prinstall::cli::DriverAction::Init));
+            }
             _ => panic!("expected Driver"),
         }
     }

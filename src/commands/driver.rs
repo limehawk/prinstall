@@ -3,13 +3,16 @@
 //!
 //! ## `driver add <target>`
 //!
-//! Stage a driver. `target` is either a path (INF file / folder) or a model
-//! string:
+//! Stage a driver. `target` is a path, an http(s) URL, or a model string:
 //!
 //! * **Path** — single INF or a folder containing INFs. Runs `pnputil
 //!   /add-driver` (with `/subdirs` for folders). When verification is enabled,
 //!   `Get-AuthenticodeSignature` runs on any `.cat` files in the target path
 //!   before staging.
+//!
+//! * **URL** — downloads the pack, sniffs zip/cab/7z/exe, extracts, then
+//!   stages like a path. Self-extracting zip and 7z SFX work. InstallShield
+//!   wrappers often do not — extract those yourself.
 //!
 //! * **Model string** — matches the model against embedded driver sources
 //!   (`known_matches.toml`, `drivers.toml`). If a curated exact match exists,
@@ -17,8 +20,7 @@
 //!   the command prints ranked candidates and requires `--driver "<name>"`
 //!   to pick one.
 //!
-//! Target type is auto-detected — paths contain separators or resolve on
-//! disk; model strings don't.
+//! Target type is auto-detected — URLs first, then paths, then model strings.
 //!
 //! `--no-verify` bypasses the Authenticode gate and tags the success line
 //! with `[UNVERIFIED]` for audit trails.
@@ -42,6 +44,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::commands::remove::is_system_driver;
 use crate::core::executor::{PsExecutor, RealExecutor};
 use crate::installer::powershell::escape_ps_string;
 use crate::models::MatchConfidence;
@@ -62,10 +65,40 @@ pub struct DriverAddArgs<'a> {
 ///
 /// Returns the exit code (0 on success, 1 on failure).
 pub async fn add(args: DriverAddArgs<'_>) -> i32 {
-    if is_path_like(args.target) {
+    if is_url(args.target) {
+        add_from_url(&args).await
+    } else if is_path_like(args.target) {
         add_from_path(&args).await
     } else {
         add_from_model(&args).await
+    }
+}
+
+fn is_url(s: &str) -> bool {
+    let lower = s.trim().to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://")
+}
+
+async fn add_from_url(args: &DriverAddArgs<'_>) -> i32 {
+    if args.verbose {
+        eprintln!("[driver add] Downloading {}", args.target.trim());
+    }
+    match drivers::downloader::download_and_extract_url(args.target.trim(), args.verbose).await {
+        Ok(dir) => {
+            let path = dir.to_string_lossy().into_owned();
+            let nested = DriverAddArgs {
+                target: &path,
+                driver: args.driver,
+                no_verify: args.no_verify,
+                verbose: args.verbose,
+                json: args.json,
+            };
+            add_from_path(&nested).await
+        }
+        Err(e) => {
+            emit_error(args.json, &e);
+            1
+        }
     }
 }
 
@@ -247,7 +280,7 @@ async fn add_from_model(args: &DriverAddArgs<'_>) -> i32 {
     };
 
     // Shortcut: already in the local store. Nothing to download.
-    let local = drivers::local_store::list_drivers(args.verbose);
+    let local = installer::powershell::list_local_drivers(args.verbose);
     if local.iter().any(|d| d == &driver_name) {
         if args.json {
             emit_model_result_json(model, &driver_name, true, args.no_verify, Some("already in local driver store"), None);
@@ -523,36 +556,19 @@ pub struct DriverRemoveArgs<'a> {
     pub json: bool,
 }
 
-/// Windows system drivers are never removable — short-circuit so we don't
-/// produce a confusing "still in use" error for the expected case.
-/// Mirror of `commands::remove::is_system_driver` (kept in sync with that
-/// list — see `src/commands/remove.rs::SYSTEM_DRIVERS`).
-const SYSTEM_DRIVER_PREFIXES: &[&str] = &[
-    "Microsoft IPP Class Driver",
-    "Microsoft XPS Document Writer",
-    "Microsoft Print To PDF",
-    "Microsoft enhanced Point and Print compatibility driver",
-    "Remote Desktop Easy Print",
-    "Generic / Text Only",
-];
-
-fn is_system_driver_name(name: &str) -> bool {
-    SYSTEM_DRIVER_PREFIXES.iter().any(|s| name == *s)
-}
-
 /// Entry point for `prinstall driver remove <target>`.
 pub async fn remove(args: DriverRemoveArgs<'_>) -> i32 {
     let executor = RealExecutor::new(args.verbose);
 
     // 1. Resolve target to an exact driver name by consulting the local store.
-    let local = drivers::local_store::list_drivers(args.verbose);
+    let local = installer::powershell::list_local_drivers(args.verbose);
     let driver_name = match resolve_remove_target(args.target, &local, args.json) {
         Ok(name) => name,
         Err(exit) => return exit,
     };
 
     // 2. System driver short-circuit.
-    if is_system_driver_name(&driver_name) {
+    if is_system_driver(&driver_name) {
         emit_error(
             args.json,
             &format!(
@@ -706,9 +722,12 @@ fn resolve_remove_target(
     if scored.is_empty() {
         if json {
             println!(
-                r#"{{"success":false,"error":"no staged driver matches '{}'","target":"{}"}}"#,
-                escape_json(target),
-                escape_json(target)
+                "{}",
+                serde_json::json!({
+                    "success": false,
+                    "error": format!("no staged driver matches '{target}'"),
+                    "target": target,
+                })
             );
         } else {
             eprintln!("Error: no staged driver matches '{target}'.");
@@ -784,7 +803,7 @@ pub struct DriverListArgs {
 
 /// Entry point for `prinstall driver list`.
 pub fn list(args: DriverListArgs) -> i32 {
-    let rows = drivers::local_store::list_drivers_with_dates(args.verbose);
+    let rows = installer::powershell::list_local_drivers_with_dates(args.verbose);
 
     if args.json {
         let payload = serde_json::json!({
@@ -816,6 +835,36 @@ pub fn list(args: DriverListArgs) -> i32 {
     println!();
     println!("{} driver(s) in the store.", rows.len());
     0
+}
+
+/// Create `drivers\` next to this exe. Idempotent.
+pub fn init(json: bool) -> i32 {
+    let Some(dir) = crate::paths::exe_drivers_dir() else {
+        emit_error(json, "could not resolve executable path");
+        return 1;
+    };
+    match crate::paths::ensure_dir(&dir) {
+        Ok(created) => {
+            if json {
+                let payload = serde_json::json!({
+                    "success": true,
+                    "path": dir,
+                    "created": created,
+                });
+                println!("{payload}");
+            } else if created {
+                println!("Created {}", dir.display());
+                println!("Drop extracted vendor packs in this folder. Then run prinstall add <IP>.");
+            } else {
+                println!("Already exists: {}", dir.display());
+            }
+            0
+        }
+        Err(e) => {
+            emit_error(json, &format!("could not create {}: {e}", dir.display()));
+            1
+        }
+    }
 }
 
 // ── Output helpers ─────────────────────────────────────────────────────────
@@ -873,7 +922,7 @@ fn emit_candidates_json(model: &str, results: &crate::models::DriverResults) {
 
 fn emit_error(json: bool, message: &str) {
     if json {
-        println!(r#"{{"success":false,"error":"{}"}}"#, escape_json(message));
+        println!("{}", serde_json::json!({"success": false, "error": message}));
     } else {
         eprintln!("Error: {message}");
     }
@@ -881,10 +930,13 @@ fn emit_error(json: bool, message: &str) {
 
 fn emit_path_result_json(path: &str, success: bool, stdout: &str, error: &str) {
     println!(
-        r#"{{"success":{success},"path":"{}","stdout":"{}","error":"{}"}}"#,
-        escape_json(path),
-        escape_json(stdout),
-        escape_json(error),
+        "{}",
+        serde_json::json!({
+            "success": success,
+            "path": path,
+            "stdout": stdout,
+            "error": error,
+        })
     );
 }
 
@@ -905,24 +957,6 @@ fn emit_model_result_json(
         "note": note,
     });
     println!("{payload}");
-}
-
-fn escape_json(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 => {
-                out.push_str(&format!("\\u{:04x}", c as u32));
-            }
-            c => out.push(c),
-        }
-    }
-    out
 }
 
 // Keep the unused-import warning quiet in the lean build where
@@ -977,6 +1011,16 @@ mod tests {
         assert!(!is_path_like("nonexistent-model-string-xyz"));
     }
 
+    #[test]
+    fn is_url_detects_http_and_https() {
+        assert!(is_url("https://example.com/pack.zip"));
+        assert!(is_url("http://example.com/d.exe"));
+        assert!(is_url("  HTTPS://Example.COM/x.cab  "));
+        assert!(!is_url("C:\\Drivers\\foo.zip"));
+        assert!(!is_url("HP LaserJet"));
+        assert!(!is_url("ftp://example.com/x.zip"));
+    }
+
     #[tokio::test]
     async fn nonexistent_path_returns_1() {
         let args = DriverAddArgs {
@@ -990,32 +1034,7 @@ mod tests {
         assert_eq!(exit, 1);
     }
 
-    #[test]
-    fn escape_json_handles_windows_paths() {
-        let s = escape_json(r#"C:\Drivers\HP"LaserJet""#);
-        assert_eq!(s, r#"C:\\Drivers\\HP\"LaserJet\""#);
-    }
-
-    #[test]
-    fn escape_json_handles_newlines() {
-        assert_eq!(escape_json("line1\nline2"), "line1\\nline2");
-    }
-
     // ── Remove-flow tests ─────────────────────────────────────────────────
-
-    #[test]
-    fn is_system_driver_name_catches_ipp_class() {
-        assert!(is_system_driver_name("Microsoft IPP Class Driver"));
-        assert!(is_system_driver_name("Microsoft XPS Document Writer"));
-        assert!(is_system_driver_name("Microsoft Print To PDF"));
-    }
-
-    #[test]
-    fn is_system_driver_name_rejects_vendor_drivers() {
-        assert!(!is_system_driver_name("HP Universal Print Driver PCL6"));
-        assert!(!is_system_driver_name("Brother MFC-L2750DW"));
-        assert!(!is_system_driver_name(""));
-    }
 
     #[test]
     fn resolve_remove_target_exact_match_wins() {
@@ -1121,14 +1140,13 @@ mod tests {
         matched: Vec<(&str, MatchConfidence)>,
         universal: Vec<&str>,
     ) -> crate::models::DriverResults {
-        use crate::models::{DriverCategory, DriverMatch, DriverResults, DriverSource};
+        use crate::models::{DriverMatch, DriverResults, DriverSource};
         DriverResults {
             printer_model: "test".to_string(),
             matched: matched
                 .into_iter()
                 .map(|(name, conf)| DriverMatch {
                     name: name.to_string(),
-                    category: DriverCategory::Matched,
                     confidence: conf,
                     source: DriverSource::Manufacturer,
                     score: 0,
@@ -1139,7 +1157,6 @@ mod tests {
                 .into_iter()
                 .map(|name| DriverMatch {
                     name: name.to_string(),
-                    category: DriverCategory::Universal,
                     confidence: MatchConfidence::Universal,
                     source: DriverSource::Manufacturer,
                     score: 0,

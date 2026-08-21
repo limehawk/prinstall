@@ -7,7 +7,7 @@
 //! [`super::index::parse_index_file`], searches for matches against
 //! HWIDs synthesised from the device-id via
 //! [`crate::drivers::inf::synthesize_hwids`], and produces one
-//! [`SourceCandidate`] per match.
+//! [`SdiCandidate`] per match.
 //!
 //! ## Cached vs uncached distinction
 //!
@@ -16,42 +16,55 @@
 //! checks whether that pack is already on disk via
 //! [`super::cache::SdiCache::has_pack`]:
 //!
-//! - **Pack is cached** → emit `Source::SdiCached` with a `pack_path`
-//!   install hint that points at the local file. Auto-pick treats this
-//!   as effectively free and prefers it over Tier 3 catalog.
-//! - **Pack is not cached** → emit `Source::SdiUncached` with a
-//!   `pack_name` install hint that carries the size + sha256 from the
-//!   index's surrounding metadata. Auto-pick gates this on
-//!   `--sdi-fetch` or a prior `prinstall sdi prefetch` so scripted
-//!   runs never silently trigger a multi-hundred-MB download.
+//! - **Pack is cached** → [`SdiSource::Cached`] with a pack path.
+//! - **Pack is not cached** → [`SdiSource::Uncached`]; `add` only uses
+//!   these when `--sdi-fetch` is set.
 //!
-//! ## Scope boundary
-//!
-//! This module does NOT download packs, does NOT extract files, and
-//! does NOT touch `pnputil`. Those steps belong to the install path
-//! that gets wired into `commands/add.rs` in PR 3 via a separate
-//! `install_from_candidate` entry point. Keeping enumeration
-//! separate lets `prinstall drivers <ip>` show SDI matches cheaply,
-//! without committing to any network traffic.
-//!
-//! ## Error handling
-//!
-//! Individual index parse failures are logged and skipped — one corrupt
-//! `.bin` in the cache shouldn't blind the whole tier. The top-level
-//! function always returns a `Vec<SourceCandidate>`; "no SDI matches"
-//! is expressed as an empty vec, not an error. Hard failures (e.g.
-//! cache dir permission errors) would already have surfaced from
-//! [`SdiCache::load`] before we get here.
+//! Enumeration only — no download, extract, or `pnputil`.
+
+use std::path::PathBuf;
 
 use crate::drivers::inf;
 use crate::drivers::sdi::cache::SdiCache;
 use crate::drivers::sdi::index::{self, SdiHit, SdiIndex};
-use crate::drivers::sources::{InstallHint, Source, SourceCandidate};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SdiSource {
+    Cached,
+    Uncached,
+}
+
+#[derive(Debug, Clone)]
+pub enum SdiHint {
+    Cached {
+        pack_path: PathBuf,
+        inf_dir_prefix: String,
+        inf_filename: String,
+    },
+    Uncached {
+        pack_name: String,
+        pack_size_bytes: u64,
+        expected_sha256: String,
+        inf_dir_prefix: String,
+        inf_filename: String,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct SdiCandidate {
+    pub source: SdiSource,
+    pub driver_name: String,
+    pub driver_version: Option<String>,
+    pub provider: Option<String>,
+    pub confidence: u16,
+    pub cost_bytes: Option<u64>,
+    pub hint: SdiHint,
+}
 
 /// Enumerate SDI candidates for a printer's IEEE 1284 device-id.
 ///
 /// Walks every cached `.bin` index, searches each for HWID matches,
-/// and returns the merged list of candidates. One `SourceCandidate`
+/// and returns the merged list of candidates. One `SdiCandidate`
 /// per (index × HWID hit). Returns an empty vec if the cache is empty,
 /// no indexes match, or the device-id synthesises no HWIDs.
 ///
@@ -71,13 +84,13 @@ use crate::drivers::sources::{InstallHint, Source, SourceCandidate};
 ///
 /// ## Return
 ///
-/// A `Vec<SourceCandidate>` sorted in the order each index was scanned
+/// A `Vec<SdiCandidate>` sorted in the order each index was scanned
 /// (indexes are enumerated by the cache in filesystem order, which is
 /// typically alphabetical). Within a single index, hits are returned in
 /// the order `find_matching` produces them. Auto-pick and the drivers
 /// command display are both responsible for their own final ordering —
 /// this function just emits the raw hit set.
-pub fn enumerate_candidates(device_id: &str, cache: &SdiCache) -> Vec<SourceCandidate> {
+pub fn enumerate_candidates(device_id: &str, cache: &SdiCache) -> Vec<SdiCandidate> {
     let hwid_candidates = inf::synthesize_hwids(device_id);
     if hwid_candidates.is_empty() {
         return Vec::new();
@@ -88,7 +101,7 @@ pub fn enumerate_candidates(device_id: &str, cache: &SdiCache) -> Vec<SourceCand
         return Vec::new();
     }
 
-    let mut candidates: Vec<SourceCandidate> = Vec::new();
+    let mut candidates: Vec<SdiCandidate> = Vec::new();
 
     for index_path in index_paths {
         let parsed = match index::parse_index_file(&index_path) {
@@ -123,7 +136,7 @@ pub fn enumerate_candidates(device_id: &str, cache: &SdiCache) -> Vec<SourceCand
     candidates
 }
 
-/// Build a `SourceCandidate` from a single `(index, hit)` pair.
+/// Build a `SdiCandidate` from a single `(index, hit)` pair.
 ///
 /// Distinguishes `SdiCached` from `SdiUncached` based on whether the
 /// pack file is currently on disk. For `SdiCached`, the install hint
@@ -139,7 +152,7 @@ fn candidate_for_hit(
     pack_is_cached: bool,
     hit: &SdiHit<'_>,
     cache: &SdiCache,
-) -> Option<SourceCandidate> {
+) -> Option<SdiCandidate> {
     let display_name = hit.driver_display_name.to_string();
     if display_name.trim().is_empty() {
         // Shouldn't happen in well-formed indexes, but an empty driver
@@ -148,7 +161,7 @@ fn candidate_for_hit(
         return None;
     }
 
-    let install_hint = if pack_is_cached {
+    let hint = if pack_is_cached {
         let pack_path = match cache.pack_path(pack_filename) {
             Ok(p) => p,
             Err(e) => {
@@ -167,7 +180,7 @@ fn candidate_for_hit(
                 ));
             }
         };
-        InstallHint::SdiCached {
+        SdiHint::Cached {
             pack_path,
             inf_dir_prefix: hit.inf_dir_prefix.clone(),
             inf_filename: hit.inf_filename.to_string(),
@@ -184,14 +197,14 @@ fn candidate_for_hit(
 
     let (size_bytes, source) = cached_cost_and_tag(cache, pack_filename);
 
-    Some(SourceCandidate {
+    Some(SdiCandidate {
         source,
         driver_name: display_name,
         driver_version: hit.driver_ver.map(|s| s.to_string()),
         provider: Some(hit.driver_manufacturer.to_string()),
         confidence: 1000, // HWID match is deterministic
         cost_bytes: size_bytes,
-        install_hint,
+        hint,
     })
 }
 
@@ -204,7 +217,7 @@ fn build_uncached_candidate(
     display_name: String,
     cache: &SdiCache,
     _index: &SdiIndex,
-) -> SourceCandidate {
+) -> SdiCandidate {
     // If we happen to have the pack's size + sha256 already in metadata
     // (e.g., from a previous refresh that registered the pack but
     // whose file got deleted), reuse them. Otherwise we emit the
@@ -214,14 +227,14 @@ fn build_uncached_candidate(
     let size = meta.map(|m| m.size_bytes).unwrap_or(0);
     let sha256 = meta.map(|m| m.sha256.clone()).unwrap_or_default();
 
-    SourceCandidate {
-        source: Source::SdiUncached,
+    SdiCandidate {
+        source: SdiSource::Uncached,
         driver_name: display_name,
         driver_version: hit.driver_ver.map(|s| s.to_string()),
         provider: Some(hit.driver_manufacturer.to_string()),
         confidence: 1000,
         cost_bytes: if size > 0 { Some(size) } else { None },
-        install_hint: InstallHint::SdiUncached {
+        hint: SdiHint::Uncached {
             pack_name: pack_filename.to_string(),
             pack_size_bytes: size,
             expected_sha256: sha256,
@@ -239,8 +252,8 @@ fn build_uncached_candidate(
 /// surfacing the on-disk size even for cached packs so users can see
 /// it in the drivers display) doesn't require plumbing through the
 /// `candidate_for_hit` body.
-fn cached_cost_and_tag(_cache: &SdiCache, _pack_filename: &str) -> (Option<u64>, Source) {
-    (None, Source::SdiCached)
+fn cached_cost_and_tag(_cache: &SdiCache, _pack_filename: &str) -> (Option<u64>, SdiSource) {
+    (None, SdiSource::Cached)
 }
 
 #[cfg(test)]
@@ -340,12 +353,12 @@ mod tests {
         for c in &candidates {
             assert_eq!(
                 c.source,
-                Source::SdiUncached,
+                SdiSource::Uncached,
                 "expected SdiUncached, got {:?}",
                 c.source
             );
-            match &c.install_hint {
-                InstallHint::SdiUncached {
+            match &c.hint {
+                SdiHint::Uncached {
                     pack_name,
                     inf_dir_prefix,
                     inf_filename,
@@ -394,11 +407,11 @@ mod tests {
         for c in &candidates {
             assert_eq!(
                 c.source,
-                Source::SdiCached,
+                SdiSource::Cached,
                 "expected SdiCached now that pack is registered"
             );
-            match &c.install_hint {
-                InstallHint::SdiCached {
+            match &c.hint {
+                SdiHint::Cached {
                     pack_path,
                     inf_dir_prefix,
                     inf_filename,

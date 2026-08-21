@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Prinstall — a Rust CLI and TUI for Windows that discovers network printers,
+Prinstall — a Rust CLI for Windows that discovers network printers,
 matches them to drivers, and installs or removes them. Built for MSP technicians
 running it locally or through RMM remote shells (SuperOps). Active development
 happens on the `dev` branch; `main` tracks the latest release and accumulates
@@ -10,14 +10,11 @@ website/docs iterations between cuts. See "Branching & release workflow" below.
 
 ## Architecture
 
-**Dual interface, auto-detected:**
-- **TUI mode** (real terminal): ratatui + crossterm, two-panel single-view
-  layout (printer list + detail pane), lazy-style with vim keybindings
-- **CLI mode** (pipe/RMM): clap subcommands with verbose plain text output,
-  `--json` on every command for scripting
+**CLI:** clap subcommands with verbose plain text output,
+`--json` on every command for scripting. No-args prints the command list.
 
 **Layers:**
-1. **Interface** — `cli.rs` (clap), `tui/` (ratatui), `output.rs` (formatters
+1. **Interface** — `cli.rs` (clap), `output.rs` (formatters
    + semantic coloring via crossterm)
 2. **Commands** — `commands/add.rs`, `commands/remove.rs`, `commands/drivers.rs`
    — each an async fn that takes `&dyn PsExecutor` so the logic is unit-testable
@@ -78,7 +75,7 @@ website/docs iterations between cuts. See "Branching & release workflow" below.
 ## CLI Commands
 
 ```
-prinstall                                  Launch interactive TUI
+prinstall                                  Print CLI command list
 prinstall scan [SUBNET]                    Multi-method subnet scan + USB enum
 prinstall scan --network-only              Skip USB enumeration
 prinstall scan --usb-only                  Skip network scan
@@ -88,11 +85,13 @@ prinstall add <IP>                         Install a network printer
 prinstall add <QUEUE-NAME> --usb           Swap driver on an existing USB printer queue
 prinstall remove <IP|QUEUE-NAME>           Remove printer + orphaned driver + port
 prinstall list                             List locally installed printers
+prinstall driver init                      Create drivers\ next to this exe
+prinstall driver add <path|url|model>      Stage a driver (path, URL, or model)
 prinstall sdi status|refresh|list|prefetch|clean|verify   (default build only; not in --no-default-features)
 ```
 
-Global flags: `--json`, `--verbose`, `--community <str>`, `--force`,
-`--subnet <cidr>`. Per-command flags: `--driver`, `--name`, `--model`, `--usb`,
+Global flags: `--json`, `--verbose`, `--community <str>`, `--force`.
+Per-command flags: `--driver`, `--name`, `--model`, `--usb`,
 `--no-catalog` on `add`; `--no-sdi`, `--sdi-fetch` on `add` (default build only);
 `--keep-driver`, `--keep-port` on `remove`.
 
@@ -145,11 +144,6 @@ src/
 ├── installer/
 │   ├── powershell.rs        Cmdlet wrappers, escape_ps_string, printer_exists helper
 │   └── mod.rs               Three-step install orchestration
-└── tui/
-    ├── mod.rs               App state, event loop, Message enum
-    ├── layout.rs            Three breakpoints: Wide/Stacked/Narrow
-    ├── keys.rs, theme.rs
-    └── views/               scan, drivers, install, help
 data/
 ├── drivers.toml             Manufacturer registry — HP, Xerox, Kyocera have URLs
 └── known_matches.toml       Curated exact matches (HP + Xerox + Kyocera)
@@ -231,7 +225,7 @@ See `assets/icon-previews/` for reference renders at all standard sizes.
 - Existing tests against PowerShell-adjacent code (install, remove, drivers) all
   run on Linux because the executor trait abstracts away the actual PS call.
   Real PS tests happen only via manual testing on a Windows VM.
-- **Current baselines:** 247 lib tests (default build) / 206 lib tests (lean
+- **Current baselines:** 251 lib tests (default build) / 208 lib tests (lean
   build). Drop below that on a PR = test regression. Integration test counts
   vary; the lib count is the sanity number.
 - **Validate PS scripts on Linux** before committing any `scripts/` or
@@ -371,4 +365,3 @@ notes — that's the changelog. This section tracks only what's still open.
       the [Code Signing wiki page](https://github.com/limehawk/prinstall/wiki/Code-Signing).
       Public GitHub downloads still hit SAC until we ship with a
       publicly-trusted CA.
-- [ ] Interactive TUI rework (lazygit-style panels)

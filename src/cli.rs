@@ -7,10 +7,10 @@ use clap::{Parser, Subcommand};
     about = "Discover network printers, match drivers, and install them",
     long_about = "Prinstall discovers network printers via SNMP, finds matching drivers \
                   (from the local driver store or manufacturer downloads), and installs \
-                  them on Windows. Run without arguments to launch the interactive TUI, \
-                  or use subcommands for scripted/RMM usage.",
+                  them on Windows. Run a subcommand for scripted/RMM usage. \
+                  No-args prints the command list.",
     after_help = "EXAMPLES:\n  \
-        prinstall                              Launch interactive TUI\n  \
+        prinstall --help                       Show this help\n  \
         prinstall scan                         Scan local subnet (all methods, incl. mDNS)\n  \
         prinstall scan 192.168.1.0/24          Scan a specific subnet\n  \
         prinstall scan --method mdns           mDNS-only multicast browse (no subnet needed)\n  \
@@ -43,10 +43,6 @@ pub struct Cli {
     /// Force operations that would normally warn (e.g., large subnet scans)
     #[arg(long, global = true)]
     pub force: bool,
-
-    /// Override auto-detected subnet for TUI launch (e.g., 192.168.1.0/24)
-    #[arg(long, global = true)]
-    pub subnet: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -359,8 +355,10 @@ pub enum Commands {
     /// drivers land on the box before any install trigger fires.
     #[command(
         after_help = "EXAMPLES:\n  \
+            prinstall driver init                         Create drivers\\ next to this exe\n  \
             prinstall driver add C:\\Drivers\\HP_LaserJet_1320\n  \
             prinstall driver add C:\\Drivers\\brother.inf\n  \
+            prinstall driver add https://example.com/driver.zip\n  \
             prinstall driver add C:\\Drivers\\HP_LaserJet_1320 --no-verify"
     )]
     Driver {
@@ -430,11 +428,26 @@ pub enum SetupAction {
 /// Actions for the `prinstall driver` subcommand group.
 #[derive(Debug, Clone, clap::Subcommand)]
 pub enum DriverAction {
+    /// Create `drivers\` next to this exe for local vendor packs
+    ///
+    /// Makes the Tier 2 bundle folder beside the running executable.
+    /// Drop extracted vendor packs in that folder. Then `prinstall add`
+    /// uses them before network sources. Idempotent.
+    #[command(
+        after_help = "EXAMPLES:\n  \
+            prinstall driver init\n\n\
+            Creates drivers\\ next to prinstall.exe.\n  \
+            Drop extracted vendor packs in that folder (one subfolder per pack).\n  \
+            Sibling folders next to the exe are not scanned."
+    )]
+    Init,
+
     /// Stage a driver into the Windows driver store
     ///
     /// Accepts one of:
     ///   • an INF file path (e.g. `C:\Drivers\brother.inf`)
     ///   • a folder containing INFs (e.g. `C:\Drivers\HP_M404`)
+    ///   • an http(s) URL to a zip, cab, 7z, or self-extracting exe
     ///   • a model string (e.g. `"HP LaserJet 1320"`) — searches embedded
     ///     driver sources, downloads a match from the manufacturer, and
     ///     stages it via pnputil
@@ -449,8 +462,7 @@ pub enum DriverAction {
     /// same gate as `prinstall add`. Pass `--no-verify` to bypass with
     /// an `[UNVERIFIED]` audit marker.
     Add {
-        /// Path (INF file / folder) OR a model string to match against
-        /// embedded driver sources.
+        /// Path, http(s) URL, or model string.
         target: String,
         /// When `target` is a model string and multiple candidates match,
         /// pick this driver name explicitly. Ignored when `target` is a path.

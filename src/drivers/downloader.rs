@@ -81,6 +81,175 @@ pub async fn download_and_stage(driver: &UniversalDriver, verbose: bool) -> Resu
     Ok(extract_dir)
 }
 
+/// Download a URL, sniff the bytes, extract, return the folder with INFs.
+pub async fn download_and_extract_url(url: &str, verbose: bool) -> Result<PathBuf, String> {
+    let staging = crate::paths::staging_dir();
+    std::fs::create_dir_all(&staging)
+        .map_err(|e| format!("Failed to create staging directory: {e}"))?;
+
+    if verbose {
+        eprintln!("[download] {url}");
+    }
+
+    let client = Client::builder()
+        .timeout(DOWNLOAD_TIMEOUT)
+        .build()
+        .map_err(|e| format!("HTTP client error: {e}"))?;
+
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("Download failed: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("HTTP {} for {url}", response.status()));
+    }
+
+    if let Some(len) = response.content_length()
+        && len > MAX_FILE_SIZE
+    {
+        return Err(format!(
+            "Driver package is {} MB (max {} MB)",
+            len / 1024 / 1024,
+            MAX_FILE_SIZE / 1024 / 1024
+        ));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read download: {e}"))?;
+
+    let extract_dir = staging.join(sanitize_name(url));
+    let _ = std::fs::remove_dir_all(&extract_dir);
+    std::fs::create_dir_all(&extract_dir)
+        .map_err(|e| format!("Failed to create extract directory: {e}"))?;
+
+    extract_bytes(&bytes, &extract_dir, verbose)?;
+
+    if find_inf_files(&extract_dir).is_empty() {
+        return Err(
+            "no INF in this pack. Extract it yourself, then run prinstall driver add <folder>"
+                .into(),
+        );
+    }
+
+    if verbose {
+        eprintln!("[extracted] → {}", extract_dir.display());
+    }
+    Ok(extract_dir)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PackFormat {
+    Zip,
+    Cab,
+    SevenZ,
+    Exe,
+    Unknown,
+}
+
+fn sniff(bytes: &[u8]) -> PackFormat {
+    if bytes.len() >= 4 && bytes.starts_with(b"PK\x03\x04") {
+        PackFormat::Zip
+    } else if bytes.len() >= 4 && bytes.starts_with(b"MSCF") {
+        PackFormat::Cab
+    } else if bytes.len() >= 6 && bytes[..6] == [0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C] {
+        PackFormat::SevenZ
+    } else if bytes.len() >= 2 && bytes.starts_with(b"MZ") {
+        PackFormat::Exe
+    } else {
+        PackFormat::Unknown
+    }
+}
+
+fn extract_bytes(bytes: &[u8], dest: &Path, verbose: bool) -> Result<(), String> {
+    std::fs::create_dir_all(dest)
+        .map_err(|e| format!("Failed to create extract directory: {e}"))?;
+    match sniff(bytes) {
+        PackFormat::Zip => extract_zip(bytes, dest, verbose),
+        PackFormat::Cab => extract_cab(bytes, dest, verbose),
+        PackFormat::SevenZ => extract_7z(bytes, dest, verbose),
+        PackFormat::Exe => extract_exe(bytes, dest, verbose),
+        PackFormat::Unknown => extract_zip(bytes, dest, verbose)
+            .or_else(|_| extract_cab(bytes, dest, verbose))
+            .or_else(|_| extract_7z(bytes, dest, verbose)),
+    }
+}
+
+fn extract_exe(bytes: &[u8], dest: &Path, verbose: bool) -> Result<(), String> {
+    if extract_zip(bytes, dest, verbose).is_ok() && !find_inf_files(dest).is_empty() {
+        return Ok(());
+    }
+    let _ = std::fs::remove_dir_all(dest);
+    let _ = std::fs::create_dir_all(dest);
+    if extract_7z(bytes, dest, verbose).is_ok() && !find_inf_files(dest).is_empty() {
+        return Ok(());
+    }
+    Err(
+        "this installer does not unpack. Extract it yourself, then run prinstall driver add <folder>"
+            .into(),
+    )
+}
+
+fn extract_7z(bytes: &[u8], dest: &Path, verbose: bool) -> Result<(), String> {
+    #[cfg(not(feature = "sdi"))]
+    {
+        let _ = (bytes, dest, verbose);
+        Err("7z extract is not in this build".into())
+    }
+    #[cfg(feature = "sdi")]
+    {
+        extract_7z_sdi(bytes, dest, verbose)
+    }
+}
+
+#[cfg(feature = "sdi")]
+fn extract_7z_sdi(bytes: &[u8], dest: &Path, verbose: bool) -> Result<(), String> {
+    const MAGIC: &[u8] = &[0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C];
+    let payload = match bytes.windows(6).position(|w| w == MAGIC) {
+        Some(n) => &bytes[n..],
+        None => bytes,
+    };
+    let tmp = dest.join("_pack.7z");
+    std::fs::write(&tmp, payload).map_err(|e| format!("Failed to write temp 7z: {e}"))?;
+    if verbose {
+        eprintln!("[7z] extracting {} bytes → {}", payload.len(), dest.display());
+    }
+    use sevenz_rust2::{ArchiveReader, Error as SzError, Password};
+    let mut reader = ArchiveReader::open(&tmp, Password::empty())
+        .map_err(|e| format!("7z open failed: {e}"))?;
+    let dest_owned = dest.to_path_buf();
+    let result = reader.for_each_entries(|entry, rdr| {
+        if entry.is_directory() {
+            return Ok(true);
+        }
+        let name = entry.name().replace('\\', "/");
+        if name.split('/').any(|s| s == "..") {
+            return Err(SzError::Other(std::borrow::Cow::Owned(format!(
+                "7z entry '{name}' contains '..'"
+            ))));
+        }
+        let mut outpath = dest_owned.clone();
+        for seg in name.split('/').filter(|s| !s.is_empty() && *s != ".") {
+            outpath.push(seg);
+        }
+        if let Some(parent) = outpath.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        let mut outfile = std::fs::File::create(&outpath).map_err(|e| {
+            SzError::Other(std::borrow::Cow::Owned(e.to_string()))
+        })?;
+        std::io::copy(rdr, &mut outfile)
+            .map_err(|e| SzError::Other(std::borrow::Cow::Owned(e.to_string())))?;
+        Ok(true)
+    });
+    let _ = std::fs::remove_file(&tmp);
+    result.map_err(|e| format!("7z extract failed: {e}"))?;
+    Ok(())
+}
+
 fn extract_zip(bytes: &[u8], dest: &Path, verbose: bool) -> Result<(), String> {
     let cursor = std::io::Cursor::new(bytes);
     let mut archive = zip::ZipArchive::new(cursor)
@@ -159,4 +328,60 @@ fn sanitize_name(name: &str) -> String {
     name.chars()
         .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    fn zip_with_inf() -> Vec<u8> {
+        let mut buf = Vec::new();
+        {
+            let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            let opts = zip::write::SimpleFileOptions::default();
+            zip.start_file("Driver/oemsetup.inf", opts).unwrap();
+            zip.write_all(b"[Version]\r\nSignature=\"$Windows NT$\"\r\n").unwrap();
+            zip.finish().unwrap();
+        }
+        buf
+    }
+
+    #[test]
+    fn sniff_zip_cab_7z_mz() {
+        assert_eq!(sniff(b"PK\x03\x04rest"), PackFormat::Zip);
+        assert_eq!(sniff(b"MSCFrest"), PackFormat::Cab);
+        assert_eq!(
+            sniff(&[0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C, 0x00]),
+            PackFormat::SevenZ
+        );
+        assert_eq!(sniff(b"MZ\x90\x00"), PackFormat::Exe);
+        assert_eq!(sniff(b"????"), PackFormat::Unknown);
+    }
+
+    #[test]
+    fn extract_bytes_unpacks_zip() {
+        let dest = std::env::temp_dir().join(format!(
+            "prinstall-zip-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dest);
+        extract_bytes(&zip_with_inf(), &dest, false).unwrap();
+        assert_eq!(find_inf_files(&dest).len(), 1);
+        let _ = std::fs::remove_dir_all(&dest);
+    }
+
+    #[test]
+    fn extract_bytes_unpacks_zip_sfx_exe() {
+        let mut sfx = b"MZ this is a fake stub".to_vec();
+        sfx.extend_from_slice(&zip_with_inf());
+        let dest = std::env::temp_dir().join(format!(
+            "prinstall-sfx-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dest);
+        extract_bytes(&sfx, &dest, false).unwrap();
+        assert_eq!(find_inf_files(&dest).len(), 1);
+        let _ = std::fs::remove_dir_all(&dest);
+    }
 }
