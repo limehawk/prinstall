@@ -9,9 +9,9 @@
 //!   2. `drivers/` adjacent to the prinstall executable
 //!   3. `<data_dir>/drivers/` fallback
 //!
-//! Intent: a tech can drop a folder like `hp-laserjet-m404/` containing
-//! an extracted vendor driver pack next to the `prinstall.exe` they pushed
-//! out via their RMM, and prinstall will prefer it over network sources.
+//! Intent: a tech runs `prinstall driver init`, drops a folder like
+//! `hp-laserjet-m404/` into `drivers/` next to the exe, and prinstall
+//! prefers that pack over network sources. Sibling folders are not scanned.
 
 use std::path::PathBuf;
 

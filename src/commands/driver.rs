@@ -3,13 +3,16 @@
 //!
 //! ## `driver add <target>`
 //!
-//! Stage a driver. `target` is either a path (INF file / folder) or a model
-//! string:
+//! Stage a driver. `target` is a path, an http(s) URL, or a model string:
 //!
 //! * **Path** — single INF or a folder containing INFs. Runs `pnputil
 //!   /add-driver` (with `/subdirs` for folders). When verification is enabled,
 //!   `Get-AuthenticodeSignature` runs on any `.cat` files in the target path
 //!   before staging.
+//!
+//! * **URL** — downloads the pack, sniffs zip/cab/7z/exe, extracts, then
+//!   stages like a path. Self-extracting zip and 7z SFX work. InstallShield
+//!   wrappers often do not — extract those yourself.
 //!
 //! * **Model string** — matches the model against embedded driver sources
 //!   (`known_matches.toml`, `drivers.toml`). If a curated exact match exists,
@@ -17,8 +20,7 @@
 //!   the command prints ranked candidates and requires `--driver "<name>"`
 //!   to pick one.
 //!
-//! Target type is auto-detected — paths contain separators or resolve on
-//! disk; model strings don't.
+//! Target type is auto-detected — URLs first, then paths, then model strings.
 //!
 //! `--no-verify` bypasses the Authenticode gate and tags the success line
 //! with `[UNVERIFIED]` for audit trails.
@@ -63,10 +65,40 @@ pub struct DriverAddArgs<'a> {
 ///
 /// Returns the exit code (0 on success, 1 on failure).
 pub async fn add(args: DriverAddArgs<'_>) -> i32 {
-    if is_path_like(args.target) {
+    if is_url(args.target) {
+        add_from_url(&args).await
+    } else if is_path_like(args.target) {
         add_from_path(&args).await
     } else {
         add_from_model(&args).await
+    }
+}
+
+fn is_url(s: &str) -> bool {
+    let lower = s.trim().to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://")
+}
+
+async fn add_from_url(args: &DriverAddArgs<'_>) -> i32 {
+    if args.verbose {
+        eprintln!("[driver add] Downloading {}", args.target.trim());
+    }
+    match drivers::downloader::download_and_extract_url(args.target.trim(), args.verbose).await {
+        Ok(dir) => {
+            let path = dir.to_string_lossy().into_owned();
+            let nested = DriverAddArgs {
+                target: &path,
+                driver: args.driver,
+                no_verify: args.no_verify,
+                verbose: args.verbose,
+                json: args.json,
+            };
+            add_from_path(&nested).await
+        }
+        Err(e) => {
+            emit_error(args.json, &e);
+            1
+        }
     }
 }
 
@@ -805,6 +837,36 @@ pub fn list(args: DriverListArgs) -> i32 {
     0
 }
 
+/// Create `drivers\` next to this exe. Idempotent.
+pub fn init(json: bool) -> i32 {
+    let Some(dir) = crate::paths::exe_drivers_dir() else {
+        emit_error(json, "could not resolve executable path");
+        return 1;
+    };
+    match crate::paths::ensure_dir(&dir) {
+        Ok(created) => {
+            if json {
+                let payload = serde_json::json!({
+                    "success": true,
+                    "path": dir,
+                    "created": created,
+                });
+                println!("{payload}");
+            } else if created {
+                println!("Created {}", dir.display());
+                println!("Drop extracted vendor packs in this folder. Then run prinstall add <IP>.");
+            } else {
+                println!("Already exists: {}", dir.display());
+            }
+            0
+        }
+        Err(e) => {
+            emit_error(json, &format!("could not create {}: {e}", dir.display()));
+            1
+        }
+    }
+}
+
 // ── Output helpers ─────────────────────────────────────────────────────────
 
 fn print_candidates(model: &str, results: &crate::models::DriverResults) {
@@ -947,6 +1009,16 @@ mod tests {
     #[test]
     fn is_path_like_treats_nonexistent_bare_name_as_not_path() {
         assert!(!is_path_like("nonexistent-model-string-xyz"));
+    }
+
+    #[test]
+    fn is_url_detects_http_and_https() {
+        assert!(is_url("https://example.com/pack.zip"));
+        assert!(is_url("http://example.com/d.exe"));
+        assert!(is_url("  HTTPS://Example.COM/x.cab  "));
+        assert!(!is_url("C:\\Drivers\\foo.zip"));
+        assert!(!is_url("HP LaserJet"));
+        assert!(!is_url("ftp://example.com/x.zip"));
     }
 
     #[tokio::test]

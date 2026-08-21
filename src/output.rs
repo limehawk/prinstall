@@ -737,7 +737,11 @@ fn format_empty_driver_diagnostics(results: &DriverResults) -> String {
         }
         out.push_str(&format!(
             "  {}\n",
-            dim("  → stage a vendor pack: prinstall driver add <path-to-inf-or-folder>")
+            dim("  → create the drop folder: prinstall driver init")
+        ));
+        out.push_str(&format!(
+            "  {}\n",
+            dim("  → or stage a pack: prinstall driver add <path-to-inf-or-folder>")
         ));
     }
 
