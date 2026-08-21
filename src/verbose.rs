@@ -583,16 +583,12 @@ fn card_line(content: &str) -> String {
 
 // ── Width + icon + emoji helpers ─────────────────────────────────────────────
 
-/// Compute the visible terminal width of a string, ignoring ANSI escape
-/// sequences and treating emoji / East Asian Wide code points as 2 columns.
-/// The Unicode variation selector U+FE0F is skipped so that `✔️` counts as 2,
-/// matching how Windows conhost and most Linux terminals actually render it.
+/// Visible width: skip ANSI, skip VS16, ASCII is 1, anything else is 2.
 pub(crate) fn display_width(s: &str) -> usize {
     let mut width = 0usize;
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '\x1b' {
-            // Skip an ANSI CSI escape: ESC [ ... <final byte 0x40-0x7E>
             if chars.peek() == Some(&'[') {
                 chars.next();
                 for cc in chars.by_ref() {
@@ -601,47 +597,15 @@ pub(crate) fn display_width(s: &str) -> usize {
                     }
                 }
             } else {
-                // ESC ( X and similar — consume 1 char
                 chars.next();
             }
             continue;
         }
-        // Variation selector — no width
-        if c == '\u{FE0F}' || c == '\u{FE0E}' {
+        if matches!(c, '\u{FE0F}' | '\u{FE0E}' | '\u{200D}') {
             continue;
         }
-        // Zero-width joiner — no width
-        if c == '\u{200D}' {
-            continue;
-        }
-        // Combining marks (most common range)
-        if ('\u{0300}'..='\u{036F}').contains(&c) {
-            continue;
-        }
-        // Emoji / symbol ranges commonly rendered as 2 columns.
-        // Not exhaustive, but covers the set we use (🚀 ✔️ ❌ ⚠️ 🛡️ ℹ️).
-        let code = c as u32;
-        let wide = matches!(code,
-            0x1F300..=0x1FAFF   // misc symbols, pictographs, emoji, etc.
-            | 0x2600..=0x27BF   // misc symbols + dingbats (✔ ✗ ⚠ etc when paired w/ VS16)
-            | 0x2B00..=0x2BFF   // arrows + misc symbols
-            | 0x1100..=0x115F   // hangul jamo (wide)
-            | 0x2E80..=0x303E
-            | 0x3041..=0x33FF
-            | 0x3400..=0x4DBF
-            | 0x4E00..=0x9FFF
-            | 0xA000..=0xA4CF
-            | 0xAC00..=0xD7A3
-            | 0xF900..=0xFAFF
-            | 0xFE30..=0xFE4F
-            | 0xFF00..=0xFF60
-            | 0xFFE0..=0xFFE6
-        );
-        // Special case: ✔ ✗ ⚠ ❌ ℹ when followed by VS16 render as emoji (2 cols).
-        // The ❌ U+274C already falls in the 0x2600-0x27BF range, as does ✔ U+2714.
-        // Without VS16 they might render narrow, but in practice conhost + most
-        // modern terminals render them wide when we emit them here.
-        width += if wide { 2 } else { 1 };
+        let u = c as u32;
+        width += if matches!(u, 0x1F300..=0x1FAFF | 0x2600..=0x27BF) { 2 } else { 1 };
     }
     width
 }
@@ -714,13 +678,6 @@ fn abbreviate_device_id(dev_id: &str) -> String {
     }
 }
 
-/// Calculate how many extra bytes ANSI codes add vs. the visible length.
-/// Used for column alignment with format padding. Preserved for existing
-/// callsites — new code should prefer [`display_width`].
-#[allow(dead_code)]
-fn ansi_overhead(styled: &str, visible_len: usize) -> usize {
-    styled.len().saturating_sub(visible_len)
-}
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
@@ -798,11 +755,6 @@ mod tests {
     #[test]
     fn abbreviate_device_id_fallback() {
         assert_eq!(abbreviate_device_id("garbage"), "garbage");
-    }
-
-    #[test]
-    fn ansi_overhead_zero_when_plain() {
-        assert_eq!(ansi_overhead("hello", 5), 0);
     }
 
     #[test]

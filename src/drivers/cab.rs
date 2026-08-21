@@ -36,7 +36,7 @@
 //! handing them in.
 
 use std::fs;
-use std::io::{self, Cursor, Read};
+use std::io::{self, Cursor};
 use std::path::{Path, PathBuf};
 
 /// Extract every file from an in-memory CAB archive into `dest`.
@@ -116,19 +116,6 @@ pub fn extract_cab_to_dir(bytes: &[u8], dest: &Path) -> Result<Vec<PathBuf>, Str
     }
 
     Ok(written)
-}
-
-/// Convenience wrapper that reads a CAB file from disk, then delegates to
-/// [`extract_cab_to_dir`]. Used by callers that already have a `.cab` on
-/// disk rather than in memory.
-#[allow(dead_code)]
-pub fn extract_cab_file_to_dir(cab_path: &Path, dest: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut file = fs::File::open(cab_path)
-        .map_err(|e| format!("Failed to open CAB {}: {e}", cab_path.display()))?;
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)
-        .map_err(|e| format!("Failed to read CAB {}: {e}", cab_path.display()))?;
-    extract_cab_to_dir(&bytes, dest)
 }
 
 #[cfg(test)]

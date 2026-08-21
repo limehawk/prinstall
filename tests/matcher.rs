@@ -21,7 +21,6 @@ mod matcher_test {
         );
         assert!(!results.universal.is_empty());
         assert!(results.universal.iter().any(|d| d.name.contains("Universal")));
-        assert!(results.universal.iter().all(|d| d.category == DriverCategory::Universal));
     }
 
     #[test]

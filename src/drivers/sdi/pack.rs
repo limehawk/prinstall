@@ -257,28 +257,6 @@ pub fn list_entries_matching_prefix(
     Ok(out)
 }
 
-/// Convenience: return every distinct top-level directory name present
-/// in a pack, normalised to lowercase. Not part of the public surface
-/// used by the resolver; kept here for ad-hoc tooling and tests that
-/// want to sample the pack's shape.
-#[allow(dead_code)]
-pub fn list_top_level_dirs(pack_path: &Path) -> Result<Vec<String>, String> {
-    if !pack_path.exists() {
-        return Err(format!("SDI pack not found: {}", pack_path.display()));
-    }
-    let archive = Archive::open(pack_path)
-        .map_err(|e| format!("Failed to parse SDI pack header: {e}"))?;
-
-    let mut seen = std::collections::BTreeSet::new();
-    for entry in &archive.files {
-        let normalised = normalise(&entry.name);
-        if let Some((top, _)) = normalised.split_once('/') {
-            seen.insert(top.to_string());
-        }
-    }
-    Ok(seen.into_iter().collect())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

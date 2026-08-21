@@ -1,11 +1,10 @@
-pub mod keys;
 pub mod layout;
 pub mod theme;
 pub mod views;
 
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 use tokio::sync::mpsc;
@@ -251,40 +250,38 @@ impl App {
     // ── Key handling ──────────────────────────────────────────────────────────
 
     fn handle_key(&mut self, event: KeyEvent) {
-        // Help overlay consumes all keys
+        let plain = event.modifiers == KeyModifiers::NONE;
+
         if self.show_help {
-            if keys::key(event, KeyCode::Esc) || keys::char(event, '?') {
+            if event.code == KeyCode::Esc || (plain && event.code == KeyCode::Char('?')) {
                 self.show_help = false;
             }
             return;
         }
 
-        // Global keys — always active
-        if keys::char(event, 'q') {
+        if plain && event.code == KeyCode::Char('q') {
             self.quit = true;
             return;
         }
-        if keys::char(event, '?') {
+        if plain && event.code == KeyCode::Char('?') {
             self.show_help = true;
             return;
         }
-        if keys::char(event, 's') {
+        if plain && event.code == KeyCode::Char('s') {
             self.start_scan();
             return;
         }
 
-        // Tab / Shift+Tab / h / l — cycle panel focus
-        if keys::key(event, KeyCode::Tab) || keys::char(event, 'l') {
+        if (plain && event.code == KeyCode::Tab) || (plain && event.code == KeyCode::Char('l')) {
             self.focused_panel = Panel::Detail;
             return;
         }
-        if keys::shift_tab(event) || keys::char(event, 'h') {
+        if event.code == KeyCode::BackTab || (plain && event.code == KeyCode::Char('h')) {
             self.focused_panel = Panel::PrinterList;
             return;
         }
 
-        // Esc — close help or return focus to printer list
-        if keys::key(event, KeyCode::Esc) {
+        if event.code == KeyCode::Esc {
             self.focused_panel = Panel::PrinterList;
             return;
         }
@@ -302,41 +299,43 @@ impl App {
         }
 
         let current = self.printer_list_state.selected().unwrap_or(0);
+        let plain = event.modifiers == KeyModifiers::NONE;
 
-        if keys::char(event, 'j') || keys::key(event, KeyCode::Down) {
+        if (plain && event.code == KeyCode::Char('j')) || event.code == KeyCode::Down {
             let next = (current + 1).min(len - 1);
             self.printer_list_state.select(Some(next));
             if let Some(printer) = self.printers.get(next) {
                 self.start_driver_load(printer);
             }
             self.detail_view = DetailView::PrinterInfo;
-        } else if keys::char(event, 'k') || keys::key(event, KeyCode::Up) {
+        } else if (plain && event.code == KeyCode::Char('k')) || event.code == KeyCode::Up {
             let prev = current.saturating_sub(1);
             self.printer_list_state.select(Some(prev));
             if let Some(printer) = self.printers.get(prev) {
                 self.start_driver_load(printer);
             }
             self.detail_view = DetailView::PrinterInfo;
-        } else if keys::char(event, 'g') {
+        } else if plain && event.code == KeyCode::Char('g') {
             self.printer_list_state.select(Some(0));
             if let Some(printer) = self.printers.first() {
                 self.start_driver_load(printer);
             }
             self.detail_view = DetailView::PrinterInfo;
-        } else if keys::char(event, 'G') {
+        } else if plain && event.code == KeyCode::Char('G') {
             let last = len - 1;
             self.printer_list_state.select(Some(last));
             if let Some(printer) = self.printers.get(last) {
                 self.start_driver_load(printer);
             }
             self.detail_view = DetailView::PrinterInfo;
-        } else if keys::key(event, KeyCode::Enter) {
+        } else if event.code == KeyCode::Enter && plain {
             self.focused_panel = Panel::Detail;
         }
     }
 
     fn handle_detail_key(&mut self, event: KeyEvent) {
-        if keys::key(event, KeyCode::Esc) {
+        let plain = event.modifiers == KeyModifiers::NONE;
+        if event.code == KeyCode::Esc {
             self.focused_panel = Panel::PrinterList;
             return;
         }
@@ -351,11 +350,11 @@ impl App {
 
         let current = self.driver_list_state.selected().unwrap_or(0);
 
-        if keys::char(event, 'j') || keys::key(event, KeyCode::Down) {
+        if (plain && event.code == KeyCode::Char('j')) || event.code == KeyCode::Down {
             self.driver_list_state.select(Some((current + 1).min(total - 1)));
-        } else if keys::char(event, 'k') || keys::key(event, KeyCode::Up) {
+        } else if (plain && event.code == KeyCode::Char('k')) || event.code == KeyCode::Up {
             self.driver_list_state.select(Some(current.saturating_sub(1)));
-        } else if keys::key(event, KeyCode::Enter) {
+        } else if event.code == KeyCode::Enter && plain {
             self.start_install();
         }
     }
@@ -406,7 +405,7 @@ impl App {
         let tx = self.msg_tx.clone();
         let model = printer.model.clone().unwrap_or_default();
         tokio::spawn(async move {
-            let local_drivers = crate::drivers::local_store::list_drivers(false);
+            let local_drivers = crate::installer::powershell::list_local_drivers(false);
             let results = crate::drivers::matcher::match_drivers(&model, &local_drivers);
             let _ = tx.send(Message::DriversComplete(results));
         });

@@ -63,10 +63,6 @@ pub fn status(verbose: bool) {
     }
 
     println!("  Mirror:    {}", config.sdi.mirror_url);
-    println!(
-        "  Enabled:   {}",
-        if config.sdi.enabled { "yes" } else { "no" }
-    );
     if config.sdi.offline_mode {
         println!("  Offline:   yes");
     }
@@ -75,10 +71,6 @@ pub fn status(verbose: bool) {
         println!(
             "  Budget:    {} MB (max_cache_mb)",
             config.sdi.max_cache_mb
-        );
-        println!(
-            "  Auto-fetch:{} (config.sdi.auto_fetch)",
-            if config.sdi.auto_fetch { " yes" } else { " no" }
         );
     }
 }

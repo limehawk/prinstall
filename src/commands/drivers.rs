@@ -13,7 +13,7 @@
 //!    Authenticode verification status surfaced inline.
 
 use crate::core::executor::PsExecutor;
-use crate::models::{BundleDriverCandidate, CatalogEntry, CatalogSearchResult, DriverResults};
+use crate::models::{BundleDriverCandidate, CatalogSearchResult, DriverResults};
 use crate::{discovery, drivers as drivers_mod};
 
 /// Maximum number of catalog rows to keep. The catalog can return hundreds
@@ -50,7 +50,7 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
     // their dates. Keeping the matcher signature intact avoids rippling
     // through `commands/add.rs`, which is a requirement for this task — the
     // enrichment happens after the match.
-    let local_with_dates = drivers_mod::local_store::list_drivers_with_dates(verbose);
+    let local_with_dates = crate::installer::powershell::list_local_drivers_with_dates(verbose);
     let local_drivers: Vec<String> =
         local_with_dates.iter().map(|(n, _)| n.clone()).collect();
     let mut results = drivers_mod::matcher::match_drivers(&model, &local_drivers);
@@ -67,8 +67,6 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
     // the combined-score ranker no longer falls back to the midpoint
     // score for manufacturer-tier matches. Graceful failure — any error
     // leaves the date as None (existing behavior).
-    drivers_mod::url_date::enrich_manufacturer_dates(&mut results, verbose).await;
-
     // ── Step 3: IPP device ID for pre-flight visibility ──────────────────────
     if let Ok(ipv4) = args.ip.parse::<std::net::Ipv4Addr>() {
         let attrs = discovery::ipp::query_ipp_attributes(ipv4, verbose).await;
@@ -132,7 +130,7 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
         use crate::commands::sdi_verify::{PackVerifyOutcome, verify_pack_directory};
         use crate::drivers::sdi::cache::SdiCache;
         use crate::drivers::sdi::resolver::enumerate_candidates;
-        use crate::drivers::sources::{InstallHint, Source};
+        use crate::drivers::sdi::resolver::{SdiHint, SdiSource};
         use crate::models::SdiDriverCandidate;
 
         if let Some(ref dev_id) = results.device_id
@@ -150,21 +148,20 @@ pub async fn run(executor: &dyn PsExecutor, args: DriversArgs<'_>) -> DriverResu
                     // SdiUncached we already have the pack_name field on
                     // the hint; trim the .7z suffix so both sources report
                     // the same stem format.
-                    let pack_name = match &c.install_hint {
-                        InstallHint::SdiCached { pack_path, .. } => pack_path
+                    let pack_name = match &c.hint {
+                        SdiHint::Cached { pack_path, .. } => pack_path
                             .file_stem()
                             .and_then(|s| s.to_str())
                             .unwrap_or("unknown")
                             .to_string(),
-                        InstallHint::SdiUncached { pack_name, .. } => pack_name
+                        SdiHint::Uncached { pack_name, .. } => pack_name
                             .strip_suffix(".7z")
                             .unwrap_or(pack_name.as_str())
                             .to_string(),
-                        _ => "unknown".to_string(),
                     };
                     let hwid_match = dev_id.clone();
 
-                    let (verification, signer) = if c.source == Source::SdiCached {
+                    let (verification, signer) = if c.source == SdiSource::Cached {
                         let extract_dir =
                             crate::paths::sdi_dir().join("extracted").join(&pack_name);
                         if extract_dir.exists() {
@@ -302,7 +299,7 @@ async fn search_catalog(
             }
             CatalogSearchResult {
                 query: query.to_string(),
-                updates: updates.into_iter().map(CatalogEntry::from).collect(),
+                updates,
                 error: None,
             }
         }

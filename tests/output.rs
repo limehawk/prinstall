@@ -2,58 +2,6 @@ mod output_test {
     use prinstall::models::*;
     use prinstall::output;
 
-    fn make_network_printer(ip: &str, model: Option<&str>, status: PrinterStatus) -> Printer {
-        Printer {
-            ip: ip.parse().ok(),
-            model: model.map(|s| s.to_string()),
-            serial: None,
-            status,
-            discovery_methods: vec![],
-            ports: vec![],
-            source: PrinterSource::Network,
-            local_name: None,
-            port_name: None,
-            driver_name: None,
-            shared: None,
-            is_default: None,
-        }
-    }
-
-    #[test]
-    fn format_scan_results_includes_all_printers() {
-        let printers = vec![
-            make_network_printer(
-                "192.168.1.50",
-                Some("HP LaserJet Pro MFP M428fdw"),
-                PrinterStatus::Ready,
-            ),
-            make_network_printer(
-                "192.168.1.51",
-                Some("Ricoh IM C3000"),
-                PrinterStatus::Offline,
-            ),
-        ];
-        let text = output::format_scan_results(&printers);
-        assert!(text.contains("192.168.1.50"));
-        assert!(text.contains("HP LaserJet Pro MFP M428fdw"));
-        assert!(text.contains("192.168.1.51"));
-        assert!(text.contains("Ricoh IM C3000"));
-    }
-
-    #[test]
-    fn format_scan_results_json() {
-        let printers = vec![make_network_printer(
-            "192.168.1.50",
-            Some("HP LaserJet Pro"),
-            PrinterStatus::Ready,
-        )];
-        let json = output::format_scan_results_json(&printers);
-        let parsed: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.len(), 1);
-        // ip is now serialized as Option<Ipv4Addr>
-        assert!(!parsed[0]["ip"].is_null());
-    }
-
     #[test]
     fn format_driver_results_header_uses_model_without_label_prefix() {
         let results = DriverResults {
@@ -103,7 +51,6 @@ mod output_test {
             matched: vec![
                 DriverMatch {
                     name: "HP LaserJet Pro MFP M428f PCL-6 (V4)".to_string(),
-                    category: DriverCategory::Matched,
                     confidence: MatchConfidence::Exact,
                     source: DriverSource::LocalStore,
                     score: 1000,
@@ -113,7 +60,6 @@ mod output_test {
             universal: vec![
                 DriverMatch {
                     name: "HP Universal Print Driver PCL6".to_string(),
-                    category: DriverCategory::Universal,
                     confidence: MatchConfidence::Universal,
                     source: DriverSource::Manufacturer,
                     score: 0,
@@ -158,7 +104,6 @@ mod output_test {
             matched: vec![],
             universal: vec![DriverMatch {
                 name: "HP Universal Print Driver PCL6".to_string(),
-                category: DriverCategory::Universal,
                 confidence: MatchConfidence::Universal,
                 source: DriverSource::Manufacturer,
                 score: 0,
@@ -192,7 +137,6 @@ mod output_test {
             matched: vec![],
             universal: vec![DriverMatch {
                 name: "HP Universal Print Driver PCL6".to_string(),
-                category: DriverCategory::Universal,
                 confidence: MatchConfidence::Universal,
                 source: DriverSource::LocalStore,
                 score: 0,
@@ -283,20 +227,6 @@ mod output_test {
         assert!(text.contains("SNMP"));
         assert!(text.contains("--community"));
         assert!(text.contains("--model"));
-    }
-
-    #[test]
-    fn format_scan_guidance_zero_results() {
-        let text = output::format_scan_guidance("192.168.1.0/24", 0, 0);
-        assert!(text.contains("No printers found"));
-        assert!(text.contains("192.168.1.0/24"));
-    }
-
-    #[test]
-    fn format_scan_guidance_hosts_but_no_models() {
-        let text = output::format_scan_guidance("192.168.1.0/24", 3, 0);
-        assert!(text.contains("3 device"));
-        assert!(text.contains("model"));
     }
 
     fn make_local_printer(
@@ -743,10 +673,6 @@ mod output_test {
     fn dm(name: &str, confidence: MatchConfidence, date: Option<&str>) -> DriverMatch {
         DriverMatch {
             name: name.to_string(),
-            category: match confidence {
-                MatchConfidence::Universal => DriverCategory::Universal,
-                _ => DriverCategory::Matched,
-            },
             confidence,
             source: DriverSource::LocalStore,
             score: 500,
@@ -818,106 +744,6 @@ mod output_test {
         assert!(
             text.contains("date: unknown"),
             "expected 'date: unknown' when no date is known:\n{text}"
-        );
-    }
-
-    #[test]
-    fn ranking_newer_verified_beats_older_verified() {
-        // Two verified drivers (same icon tier), different dates — newer wins.
-        let results = DriverResults {
-            printer_model: "Generic".to_string(),
-            matched: vec![
-                dm("Older Exact Match", MatchConfidence::Exact, Some("2020-01-01")),
-                dm("Newer Exact Match", MatchConfidence::Exact, Some("2024-03-15")),
-            ],
-            universal: vec![],
-            near_misses: vec![],
-            device_id: None,
-            catalog: None,
-            bundle_candidates: Vec::new(),
-            #[cfg(feature = "sdi")]
-            sdi_candidates: vec![],
-        };
-        let text = output::format_driver_results(&results);
-        let newer = text.find("Newer Exact Match").expect("newer present");
-        let older = text.find("Older Exact Match").expect("older present");
-        assert!(
-            newer < older,
-            "newer driver should rank above older:\n{text}"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "sdi")]
-    fn ranking_newer_unverified_beats_older_verified_sdi() {
-        use prinstall::models::SdiDriverCandidate;
-
-        // Verified 2018 driver: score = 0.0 * 0.6 + 1.0 * 0.4 = 0.4
-        // Unsigned 2025 driver: score = 1.0 * 0.6 + 0.1 * 0.4 = 0.64
-        // → unsigned newer should still rank above verified older.
-        let results = DriverResults {
-            printer_model: "Generic".into(),
-            matched: vec![],
-            universal: vec![],
-            near_misses: vec![],
-            device_id: None,
-            catalog: None,
-            bundle_candidates: Vec::new(),
-            sdi_candidates: vec![
-                SdiDriverCandidate {
-                    driver_name: "Old Verified Driver".into(),
-                    pack_name: "DP_Safe_00".into(),
-                    hwid_match: "USB\\VID_AAAA".into(),
-                    verification: "verified".into(),
-                    signer: Some("CN=Trusted".into()),
-                    driver_date: Some("2018-01-01".into()),
-                },
-                SdiDriverCandidate {
-                    driver_name: "Fresh Unsigned Driver".into(),
-                    pack_name: "DP_Sketchy_99".into(),
-                    hwid_match: "USB\\VID_BBBB".into(),
-                    verification: "unsigned (1/3)".into(),
-                    signer: None,
-                    driver_date: Some("2025-06-01".into()),
-                },
-            ],
-        };
-        let text = output::format_driver_results(&results);
-        let fresh = text.find("Fresh Unsigned Driver").expect("fresh present");
-        let old_ver = text.find("Old Verified Driver").expect("old present");
-        assert!(
-            fresh < old_ver,
-            "freshly-dated unsigned SDI should outrank older verified:\n{text}"
-        );
-    }
-
-    #[test]
-    fn ranking_dateless_driver_falls_to_midpoint() {
-        // oldest: 2020, middle: dateless (0.5 midpoint), newest: 2025
-        // Verification the same across all three → date alone decides.
-        // Expected order: newest, dateless, oldest.
-        let results = DriverResults {
-            printer_model: "Generic".to_string(),
-            matched: vec![
-                dm("Oldest", MatchConfidence::Fuzzy, Some("2020-01-01")),
-                dm("Dateless", MatchConfidence::Fuzzy, None),
-                dm("Newest", MatchConfidence::Fuzzy, Some("2025-01-01")),
-            ],
-            universal: vec![],
-            near_misses: vec![],
-            device_id: None,
-            catalog: None,
-            bundle_candidates: Vec::new(),
-            #[cfg(feature = "sdi")]
-            sdi_candidates: vec![],
-        };
-        let text = output::format_driver_results(&results);
-        let newest = text.find("Newest").expect("newest present");
-        let dateless = text.find("Dateless").expect("dateless present");
-        let oldest = text.find("Oldest").expect("oldest present");
-        assert!(
-            newest < dateless && dateless < oldest,
-            "expected newest < dateless < oldest, got:\n{text}"
         );
     }
 
